@@ -66,7 +66,7 @@ const SEASONS=['spring','summer','autumn','winter'];
 const SEASON_RU={spring:'Весна',summer:'Лето',autumn:'Осень',winter:'Зима'};
 const SEASON_EMO={spring:'🌸',summer:'☀️',autumn:'🍂',winter:'❄️'};
 const WX_RU={clear:'Ясно',rain:'Дождь',drought:'Засуха',storm:'Шторм'};
-const APP_VERSION={version: '1.1.0',versionCode: 10100,webVersion: '1.1.0'};
+const APP_VERSION={version: '1.1.0',versionCode: 11000,webVersion: '1.1.0'};
 const DEFAULT_MANIFEST_URL=localStorage.getItem('farm3d_manifest_url')||'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
 
 function growSec(c){return Math.max(7,Math.round(c.grow*GROW_SCALE));}
