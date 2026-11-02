@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "versionCode": 10000,
+  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
+  "webVersion": "1.0.0",
+  "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
+  "force": false,
+  "changelog": "• v1.0.0: новая 3D-ферма «Ферма на краю света 3D» (отдельное приложение)\n• Three.js low-poly: парящий остров, амбар, трактор, грядки/культуры, деревья, горы, день/ночь, дождь\n• Геймплей порт с farm-final v1.7: посадка/полив/урожай, рынок, гибриды, сердце, зоны, вредители, заказы, аудио\n• OTA + GitHub Pages; appId com.alex.farm3d"
+}
