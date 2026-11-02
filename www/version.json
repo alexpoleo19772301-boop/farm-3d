@@ -1,9 +1,9 @@
 {
-  "version": "1.1.0",
-  "versionCode": 11000,
+  "version": "1.2.0",
+  "versionCode": 12000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "1.1.0",
+  "webVersion": "1.2.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v1.1.0: реальные CC0 glTF (Kenney Nature/Car/Fantasy/Suburban + Quaternius barn/silo/animals/characters)\n• Свет: тёплое низкое солнце, длинные мягкие тени PCFSoft 2048, hemisphere, ACES, sRGB, туман, градиентное небо + облака, горы\n• Борозды, трава, богатая сцена (трактор, персонажи, амбар, дом, силос, заборы, деревья, культуры, животные)\n• Камера 3/4 на весь остров; pinch zoom/pan; mid-Android"
+  "changelog": "• v1.2.0: яркая весёлая палитра — насыщенная трава, тёплая земля с бороздами, алый амбар\n• Синее небо + пушистые облака, золотой час, цветные мягкие тени, выше exposure/ambient, CSS grade + vignette\n• Разноцветные тракторы (зелёный/красный/синий/фиолетовый) с водителями; густые культуры, цветы, стога, каменная стена, осенние деревья, блёстки урожая\n• На весь экран без чёрных боковых полей"
 }
