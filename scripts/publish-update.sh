@@ -13,7 +13,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 gh auth status >/dev/null
 gh auth setup-git >/dev/null 2>&1 || true
 IFS=. read -r MA MI PA <<<"$VER"
-CODE=$((10#$MA * 10000 + 10#$MI * 100 + 10#$PA))
+CODE=$((10#$MA * 10000 + 10#$MI * 1000 + 10#$PA))
 APK_URL="https://github.com/${OWNER}/${REPO}/releases/latest/download/farm-3d-debug.apk"
 WEB_URL="https://github.com/${OWNER}/${REPO}/releases/latest/download/www.zip"
 MANIFEST_URL="https://github.com/${OWNER}/${REPO}/releases/latest/download/version.json"
