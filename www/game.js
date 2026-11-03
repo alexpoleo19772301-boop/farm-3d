@@ -1,5 +1,5 @@
 
-/* Ферма на краю света 3D — v1.2.0 */
+/* Ферма на краю света 3D — v1.3.0 */
 'use strict';
 const CROPS={
   wheat:{id:'wheat',name:'Пшеница',emoji:'🌾',cost:5,baseSell:12,grow:30,xp:3,unlock:1,color:'#d4c04a'},
@@ -66,7 +66,7 @@ const SEASONS=['spring','summer','autumn','winter'];
 const SEASON_RU={spring:'Весна',summer:'Лето',autumn:'Осень',winter:'Зима'};
 const SEASON_EMO={spring:'🌸',summer:'☀️',autumn:'🍂',winter:'❄️'};
 const WX_RU={clear:'Ясно',rain:'Дождь',drought:'Засуха',storm:'Шторм'};
-const APP_VERSION={version: '1.2.0',versionCode: 12000,webVersion: '1.2.0'};
+const APP_VERSION={version: '1.3.0',versionCode: 13000,webVersion: '1.3.0'};
 const DEFAULT_MANIFEST_URL=localStorage.getItem('farm3d_manifest_url')||'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
 
 function growSec(c){return Math.max(7,Math.round(c.grow*GROW_SCALE));}
@@ -254,7 +254,7 @@ const World3D=(function(){
   let plotMeshes=[], clock, frames=0, lastFps=0;
   let templates={}, ready=false, loadPromise=null;
   const matCache={};
-  const HIGH = (navigator.deviceMemory||4)>=4 && (window.devicePixelRatio||1)>=1.5;
+  const HIGH = (navigator.deviceMemory||4)>=3;
   const SHADOW = HIGH ? 2048 : 1024;
 
   function mat(color, opts){
@@ -267,39 +267,162 @@ const World3D=(function(){
   function cyl(r,h,color,x,y,z,seg){ const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,seg||8), mat(color)); m.position.set(x||0,y||0,z||0); m.castShadow=true; m.receiveShadow=true; return m; }
   function sph(r,color,x,y,z){ const m=new THREE.Mesh(new THREE.SphereGeometry(r,10,8), mat(color)); m.position.set(x||0,y||0,z||0); m.castShadow=true; return m; }
 
-  let _soilTex=null,_grassTex=null;
+  // --- PBR texture pack (CC0 ambientCG / Poly Haven + procedural fallbacks) ---
+  const TEX={}; let texReady=false; let maxAniso=4;
+  const matRefs=[]; // materials to refresh when maps load
+  function confColorMap(t, rx, ry){
+    if(!t) return t;
+    t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(rx,ry);
+    t.anisotropy=maxAniso; t.encoding=THREE.sRGBEncoding; t.needsUpdate=true; return t;
+  }
+  function confDataMap(t, rx, ry){
+    if(!t) return t;
+    t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(rx,ry);
+    t.anisotropy=maxAniso; t.needsUpdate=true; return t;
+  }
+  function makeNoiseCanvas(size, paint){
+    const c=document.createElement('canvas'); c.width=c.height=size; const g=c.getContext('2d'); paint(g,size); return c;
+  }
   function soilTexture(){
+    if(TEX.soil) return TEX.soil;
     if(_soilTex) return _soilTex;
-    const c=document.createElement('canvas'); c.width=256; c.height=256; const g=c.getContext('2d');
-    g.fillStyle='#a05a30'; g.fillRect(0,0,256,256);
-    for(let y=0;y<256;y+=9){
-      const dark = (y%18===0);
-      g.fillStyle = dark?'#6b3418':'#c4783c';
-      g.fillRect(0,y,256, dark?5:6);
-      g.fillStyle='#4a220e'; g.fillRect(0,y+(dark?5:6),256,2);
-      g.fillStyle='rgba(255,190,110,0.45)'; g.fillRect(0,y+1,256,2);
-    }
-    for(let i=0;i<100;i++){
-      g.fillStyle='rgba(180,100,50,'+(0.15+Math.random()*0.4)+')';
-      g.beginPath(); g.arc(Math.random()*256,Math.random()*256,1+Math.random()*2.5,0,6.28); g.fill();
-    }
-    const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(8,6); t.encoding=THREE.sRGBEncoding;
-    _soilTex=t; return t;
+    const c=makeNoiseCanvas(256,(g,s)=>{
+      g.fillStyle='#8a5a32'; g.fillRect(0,0,s,s);
+      for(let y=0;y<s;y+=10){
+        const dark=y%20===0;
+        g.fillStyle=dark?'#5c3318':'#b06a3a'; g.fillRect(0,y,s,dark?6:7);
+        g.fillStyle='#3d1f0c'; g.fillRect(0,y+(dark?6:7),s,2);
+        g.fillStyle='rgba(220,170,110,0.35)'; g.fillRect(0,y+1,s,2);
+      }
+      for(let i=0;i<140;i++){ g.fillStyle='rgba(160,90,40,'+(0.15+Math.random()*0.4)+')'; g.beginPath(); g.arc(Math.random()*s,Math.random()*s,1+Math.random()*2.5,0,6.28); g.fill(); }
+    });
+    _soilTex=confColorMap(new THREE.CanvasTexture(c), 6, 5); return _soilTex;
   }
   function grassTexture(){
+    if(TEX.grass) return TEX.grass;
     if(_grassTex) return _grassTex;
-    const c=document.createElement('canvas'); c.width=128; c.height=128; const g=c.getContext('2d');
-    const base=g.createLinearGradient(0,0,128,128);
-    base.addColorStop(0,'#7CFC00'); base.addColorStop(0.45,'#4caf50'); base.addColorStop(1,'#8BC34A');
-    g.fillStyle=base; g.fillRect(0,0,128,128);
-    for(let i=0;i<900;i++){
-      const hues=['#9CCC65','#66BB6A','#43A047','#AED581','#CDDC39','#FFEB3B','#81C784'];
-      g.fillStyle=hues[i%hues.length];
-      g.fillRect(Math.random()*128, Math.random()*128, 2, 2+Math.random()*5);
-    }
-    const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(8,8); t.encoding=THREE.sRGBEncoding;
-    return t;
+    const c=makeNoiseCanvas(256,(g,s)=>{
+      const base=g.createLinearGradient(0,0,s,s);
+      base.addColorStop(0,'#5d9e2e'); base.addColorStop(0.5,'#3f8f2a'); base.addColorStop(1,'#6fad3a');
+      g.fillStyle=base; g.fillRect(0,0,s,s);
+      for(let i=0;i<1600;i++){
+        const hues=['#7CB342','#558B2F','#9CCC65','#33691E','#AED581','#8BC34A'];
+        g.fillStyle=hues[i%hues.length];
+        g.fillRect(Math.random()*s, Math.random()*s, 1+Math.random()*2, 2+Math.random()*6);
+      }
+      for(let i=0;i<30;i++){ g.fillStyle='rgba(120,85,40,0.22)'; g.beginPath(); g.arc(Math.random()*s,Math.random()*s,6+Math.random()*14,0,6.28); g.fill(); }
+    });
+    _grassTex=confColorMap(new THREE.CanvasTexture(c), 10, 10); return _grassTex;
   }
+  function woodTexture(){
+    if(TEX.wood) return TEX.wood;
+    if(_woodTex) return _woodTex;
+    const c=makeNoiseCanvas(256,(g,s)=>{
+      g.fillStyle='#8d6e4c'; g.fillRect(0,0,s,s);
+      for(let x=0;x<s;x+=32){
+        g.fillStyle=x%64===0?'#6d4c33':'#a1886a'; g.fillRect(x,0,30,s);
+        g.strokeStyle='rgba(50,30,15,0.45)'; g.beginPath(); g.moveTo(x+30,0); g.lineTo(x+30,s); g.stroke();
+        for(let i=0;i<18;i++){ g.strokeStyle='rgba(60,35,18,'+(0.15+Math.random()*0.25)+')'; g.beginPath(); g.moveTo(x+2+Math.random()*26, Math.random()*s); g.lineTo(x+2+Math.random()*26, Math.random()*s); g.stroke(); }
+      }
+    });
+    _woodTex=confColorMap(new THREE.CanvasTexture(c), 2, 2); return _woodTex;
+  }
+  function pathTexture(){
+    if(TEX.path) return TEX.path;
+    if(_pathTex) return _pathTex;
+    const c=makeNoiseCanvas(256,(g,s)=>{
+      g.fillStyle='#9e9588'; g.fillRect(0,0,s,s);
+      for(let y=0;y<s;y+=42) for(let x=0;x<s;x+=42){
+        const ox=(Math.floor(y/42)%2)*21;
+        g.fillStyle='rgb('+(130+Math.random()*40|0)+','+(125+Math.random()*35|0)+','+(115+Math.random()*30|0)+')';
+        g.fillRect(x+ox+2,y+2,38,38);
+        g.strokeStyle='rgba(70,60,50,0.55)'; g.strokeRect(x+ox+2,y+2,38,38);
+      }
+    });
+    _pathTex=confColorMap(new THREE.CanvasTexture(c), 3, 8); return _pathTex;
+  }
+  function rockTexture(){
+    if(TEX.rock) return TEX.rock;
+    if(_rockTex) return _rockTex;
+    const c=makeNoiseCanvas(256,(g,s)=>{
+      g.fillStyle='#8a8076'; g.fillRect(0,0,s,s);
+      for(let i=0;i<500;i++){ const v=90+Math.random()*80|0; g.fillStyle='rgb('+v+','+(v-5)+','+(v-12)+')'; g.beginPath(); g.arc(Math.random()*s,Math.random()*s,2+Math.random()*8,0,6.28); g.fill(); }
+    });
+    _rockTex=confColorMap(new THREE.CanvasTexture(c), 3, 3); return _rockTex;
+  }
+  function roofTexture(){
+    if(TEX.roof) return TEX.roof;
+    if(_roofTex) return _roofTex;
+    const c=makeNoiseCanvas(256,(g,s)=>{
+      g.fillStyle='#8c3030'; g.fillRect(0,0,s,s);
+      for(let y=0;y<s;y+=16){ for(let x=0;x<s;x+=36){ const ox=(Math.floor(y/16)%2)*18; g.fillStyle='rgb('+(130+Math.random()*40|0)+','+(40+Math.random()*20|0)+','+(35+Math.random()*15|0)+')'; g.fillRect(x+ox,y,34,14); g.fillStyle='rgba(60,20,15,0.5)'; g.fillRect(x+ox,y+13,34,2);} }
+    });
+    _roofTex=confColorMap(new THREE.CanvasTexture(c), 4, 3); return _roofTex;
+  }
+  let _soilTex=null,_grassTex=null,_woodTex=null,_pathTex=null,_rockTex=null,_roofTex=null;
+
+  function stdMat(opts){
+    const m=new THREE.MeshStandardMaterial(Object.assign({roughness:0.85, metalness:0.02}, opts||{}));
+    matRefs.push(m); return m;
+  }
+  function loadTextures(){
+    if(!renderer) return Promise.resolve();
+    maxAniso=Math.min(8, renderer.capabilities.getMaxAnisotropy()||4);
+    const loader=new THREE.TextureLoader();
+    const jobs=[
+      ['grass','assets/textures/grass_color.jpg',true,[10,10]],
+      ['grassN','assets/textures/grass_normal.jpg',false,[10,10]],
+      ['grassR','assets/textures/grass_rough.jpg',false,[10,10]],
+      ['soil','assets/textures/soil_color.jpg',true,[6,5]],
+      ['soilN','assets/textures/soil_normal.jpg',false,[6,5]],
+      ['soilR','assets/textures/soil_rough.jpg',false,[6,5]],
+      ['wood','assets/textures/wood_color.jpg',true,[2.5,2.5]],
+      ['woodN','assets/textures/wood_normal.jpg',false,[2.5,2.5]],
+      ['path','assets/textures/path_color.jpg',true,[2.5,7]],
+      ['pathN','assets/textures/path_normal.jpg',false,[2.5,7]],
+      ['rock','assets/textures/rock_color.jpg',true,[3,3]],
+      ['rockN','assets/textures/rock_normal.jpg',false,[3,3]],
+      ['cliff','assets/textures/cliff_color.jpg',true,[4,2]],
+      ['roof','assets/textures/roof_color.jpg',true,[4,3]],
+      ['roofN','assets/textures/roof_normal.jpg',false,[4,3]],
+    ];
+    return Promise.all(jobs.map(([key,url,srgb,rep])=>new Promise(res=>{
+      loader.load(url, t=>{
+        if(srgb) confColorMap(t, rep[0], rep[1]); else confDataMap(t, rep[0], rep[1]);
+        TEX[key]=t; res();
+      }, undefined, err=>{ console.warn('tex fail',url); res(); });
+    }))).then(()=>{ texReady=true; applyTexToMats(); });
+  }
+  function applyTexToMats(){
+    // island materials stash
+    if(islandMats.grass){
+      if(TEX.grass){ islandMats.grass.map=TEX.grass; islandMats.grass.color.setHex(0xc5e6a0); }
+      if(TEX.grassN) islandMats.grass.normalMap=TEX.grassN;
+      if(TEX.grassR){ islandMats.grass.roughnessMap=TEX.grassR; islandMats.grass.roughness=1; }
+      islandMats.grass.normalScale && islandMats.grass.normalScale.set(0.85,0.85);
+      islandMats.grass.needsUpdate=true;
+    }
+    if(islandMats.soil){
+      if(TEX.soil){ islandMats.soil.map=TEX.soil; islandMats.soil.color.setHex(0xe8c49a); }
+      if(TEX.soilN) islandMats.soil.normalMap=TEX.soilN;
+      if(TEX.soilR){ islandMats.soil.roughnessMap=TEX.soilR; islandMats.soil.roughness=1; }
+      if(islandMats.soil.normalScale) islandMats.soil.normalScale.set(1.1,1.1);
+      islandMats.soil.needsUpdate=true;
+    }
+    if(islandMats.path){
+      if(TEX.path){ islandMats.path.map=TEX.path; islandMats.path.color.setHex(0xffffff); }
+      if(TEX.pathN) islandMats.path.normalMap=TEX.pathN;
+      if(islandMats.path.normalScale) islandMats.path.normalScale.set(1.0,1.0);
+      islandMats.path.needsUpdate=true;
+    }
+    if(islandMats.cliff){
+      if(TEX.cliff){ islandMats.cliff.map=TEX.cliff; islandMats.cliff.color.setHex(0xffffff); }
+      else if(TEX.rock){ islandMats.cliff.map=TEX.rock; islandMats.cliff.color.setHex(0xc4a882); }
+      if(TEX.rockN) islandMats.cliff.normalMap=TEX.rockN;
+      islandMats.cliff.needsUpdate=true;
+    }
+  }
+  const islandMats={};
 
   function prepModel(root){
     root.traverse(o=>{
@@ -322,10 +445,10 @@ const World3D=(function(){
               if(m.roughness==null) m.roughness=0.75;
               if(m.metalness==null) m.metalness=0;
             }
-            // cheer: lift saturation & value so Kenney/Quaternius read vivid under warm light
+            // mild cheer under calibrated exposure (v1.3)
             if(m.color){
               const hsl={h:0,s:0,l:0}; m.color.getHSL(hsl);
-              m.color.setHSL(hsl.h, Math.min(1, hsl.s*1.35+0.08), Math.min(0.72, hsl.l*1.12+0.04));
+              m.color.setHSL(hsl.h, Math.min(1, hsl.s*1.18+0.04), Math.min(0.62, hsl.l*1.04+0.02));
             }
             if(m.emissive){ m.emissive.multiplyScalar(0); m.emissiveIntensity=0; }
           });
@@ -403,7 +526,7 @@ const World3D=(function(){
 
   function makeCloud(x,y,z,s){
     const g=new THREE.Group();
-    const m=new THREE.MeshBasicMaterial({color:0xfffaf0, transparent:true, opacity:0.92, depthWrite:false, fog:false});
+    const m=new THREE.MeshBasicMaterial({color:0xffe8d0, transparent:true, opacity:0.78, depthWrite:false, fog:false});
     if('toneMapped' in m) m.toneMapped=false;
     [[0,0,0,1.15],[1.1,0.2,0.2,0.9],[-1.0,0.15,-0.2,0.85],[0.45,0.45,-0.35,0.7],[-0.4,0.4,0.45,0.65],[0.2,-0.15,0.6,0.55]].forEach(([a,b,c,r])=>{
       const p=new THREE.Mesh(new THREE.SphereGeometry(r*s,10,8), m); p.position.set(a*s,b*s,c*s); p.castShadow=false; p.receiveShadow=false; g.add(p);
@@ -412,24 +535,37 @@ const World3D=(function(){
   }
 
   function makeMountain(x,z,h,w,color){
-    const m=new THREE.Mesh(new THREE.ConeGeometry(w,h,6), mat(color,{roughness:0.95}));
-    m.position.set(x,h*0.42,z); m.receiveShadow=true; m.castShadow=false; return m;
+    // Unlit tinted peaks — immune to sun bleach; fog provides depth
+    const matM=new THREE.MeshBasicMaterial({color, fog:true});
+    if('toneMapped' in matM) matM.toneMapped=true;
+    const m=new THREE.Mesh(new THREE.ConeGeometry(w,h,7), matM);
+    m.position.set(x,h*0.42,z); m.receiveShadow=false; m.castShadow=false; return m;
   }
 
   function makeIsland(){
     const g=new THREE.Group();
-    const grassMat=new THREE.MeshStandardMaterial({map:grassTexture(), roughness:0.9, metalness:0});
+    const grassMat=stdMat({map:grassTexture(), roughness:0.92, metalness:0, color:0xb8e08a});
+    grassMat.normalScale=new THREE.Vector2(0.85,0.85);
+    islandMats.grass=grassMat;
     const top=new THREE.Mesh(new THREE.CylinderGeometry(15,15.4,0.6,48), grassMat);
-    top.position.y=0; top.receiveShadow=true; g.add(top);
-    const cliff=new THREE.Mesh(new THREE.CylinderGeometry(14.2,9.2,5.5,40), mat('#c49a6c',{roughness:0.92}));
-    cliff.position.y=-2.85; cliff.receiveShadow=true; g.add(cliff);
-    const tip=new THREE.Mesh(new THREE.ConeGeometry(7.5,4.4,32), mat('#a67c52')); tip.position.y=-6.7; tip.rotation.x=Math.PI; g.add(tip);
-    // furrowed soil field (foreground-ish)
-    const soilMat=new THREE.MeshStandardMaterial({map:soilTexture(), roughness:0.95, metalness:0});
+    top.position.y=0; top.receiveShadow=true; top.castShadow=false; g.add(top);
+    const cliffMat=stdMat({map:rockTexture(), color:0xc2a07a, roughness:0.95, metalness:0});
+    cliffMat.normalScale=new THREE.Vector2(1.2,1.2);
+    islandMats.cliff=cliffMat;
+    const cliff=new THREE.Mesh(new THREE.CylinderGeometry(14.2,9.2,5.5,40), cliffMat);
+    cliff.position.y=-2.85; cliff.receiveShadow=true; cliff.castShadow=true; g.add(cliff);
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(7.5,4.4,32), stdMat({map:rockTexture(), color:0xa67c52, roughness:0.96})); tip.position.y=-6.7; tip.rotation.x=Math.PI; tip.castShadow=true; g.add(tip);
+    // furrowed soil field
+    const soilMat=stdMat({map:soilTexture(), roughness:0.96, metalness:0, color:0xe8c49a});
+    soilMat.normalScale=new THREE.Vector2(1.15,1.15);
+    islandMats.soil=soilMat;
     const soil=new THREE.Mesh(new THREE.BoxGeometry(9.2,0.18,7.2), soilMat);
-    soil.position.set(2.0,0.35,1.0); soil.receiveShadow=true; g.add(soil);
+    soil.position.set(2.0,0.35,1.0); soil.receiveShadow=true; soil.castShadow=false; g.add(soil);
     // stone path
-    const path=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.08,10), mat('#a1887f',{roughness:0.9}));
+    const pathMat=stdMat({map:pathTexture(), roughness:0.9, metalness:0.02, color:0xffffff});
+    pathMat.normalScale=new THREE.Vector2(1.0,1.0);
+    islandMats.path=pathMat;
+    const path=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.08,10), pathMat);
     path.position.set(-1.2,0.34,0); path.receiveShadow=true; g.add(path);
     return g;
   }
@@ -447,7 +583,15 @@ const World3D=(function(){
     }
     posts.forEach(([x,z],i)=>{
       let f=cloneTpl('fence', 0.85);
-      if(!f){ f=box(0.12,0.7,0.12,'#8d6e63',0,0.35,0); const rail=box(1.0,0.08,0.08,'#a1887f',0.5,0.5,0); const gg=new THREE.Group(); gg.add(f); gg.add(rail); f=gg; }
+      if(!f){
+        const post=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.7,0.12), stdMat({map:woodTexture(), color:0xffffff, roughness:0.88}));
+        post.position.set(0,0.35,0); post.castShadow=true; post.receiveShadow=true;
+        const rail=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.08,0.08), stdMat({map:woodTexture(), color:0xffffff, roughness:0.88}));
+        rail.position.set(0.5,0.5,0); rail.castShadow=true; rail.receiveShadow=true;
+        const gg=new THREE.Group(); gg.add(post); gg.add(rail); f=gg;
+      } else {
+        f.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; }});
+      }
       f.position.set(x,0.05,z);
       if(Math.abs(x-xs[0])<0.01||Math.abs(x-xs[1])<0.01) f.rotation.y=Math.PI/2;
       g.add(f);
@@ -567,21 +711,43 @@ const World3D=(function(){
 
   function placeBuildings(){
     const g=new THREE.Group();
+    function dressBuilding(root){
+      if(!root) return;
+      root.traverse(o=>{
+        if(!o.isMesh||!o.material) return;
+        o.castShadow=true; o.receiveShadow=true;
+        const mats=Array.isArray(o.material)?o.material:[o.material];
+        mats.forEach((m,mi)=>{
+          if(!m||!m.color) return;
+          const hsl={h:0,s:0,l:0}; m.color.getHSL(hsl);
+          const nm=(o.name||m.name||'').toLowerCase();
+          const roofish=/roof|tile|shingle/i.test(nm) || (hsl.s<0.18 && hsl.l>0.55);
+          const woodish=/wood|plank|beam|door|fence/i.test(nm) || (hsl.h>0.05 && hsl.h<0.12 && hsl.s>0.2 && hsl.l<0.55);
+          if(roofish){
+            const rm=stdMat({map:roofTexture(), color:0xffffff, roughness:0.78, metalness:0.05, normalMap:TEX.roofN||null});
+            if(Array.isArray(o.material)) o.material[mi]=rm; else o.material=rm;
+          } else if(woodish && !m.map){
+            const wm=stdMat({map:woodTexture(), color:0xffffff, roughness:0.88, metalness:0.02, normalMap:TEX.woodN||null});
+            if(Array.isArray(o.material)) o.material[mi]=wm; else o.material=wm;
+          }
+        });
+      });
+    }
     const barn=cloneTpl('barn', 4.2);
-    if(barn){ barn.position.set(-7.2,0.05,-5.0); barn.rotation.y=Math.PI*0.15; g.add(barn); }
+    if(barn){ barn.position.set(-7.2,0.05,-5.0); barn.rotation.y=Math.PI*0.15; dressBuilding(barn); g.add(barn); }
     else {
       const fb=new THREE.Group(); fb.add(box(4.2,2.6,3.2,'#c62828',0,1.3,0));
-      const roof=new THREE.Mesh(new THREE.ConeGeometry(3.2,1.4,4), mat('#efebe9')); roof.position.y=3.2; roof.rotation.y=Math.PI/4; fb.add(roof);
+      const roof=new THREE.Mesh(new THREE.ConeGeometry(3.2,1.4,4), stdMat({map:roofTexture(), color:0xffffff, roughness:0.8})); roof.position.y=3.2; roof.rotation.y=Math.PI/4; roof.castShadow=true; fb.add(roof);
       fb.position.set(-7.2,0.05,-5); g.add(fb);
     }
     const silo=cloneTpl('silo', 4.5);
-    if(silo){ silo.position.set(-4.6,0.05,-6.2); g.add(silo); }
+    if(silo){ silo.position.set(-4.6,0.05,-6.2); dressBuilding(silo); g.add(silo); }
     const house=cloneTpl('house', 3.2);
-    if(house){ house.position.set(-9.5,0.05,1.5); house.rotation.y=0.4; g.add(house); }
+    if(house){ house.position.set(-9.5,0.05,1.5); house.rotation.y=0.4; dressBuilding(house); g.add(house); }
     const house2=cloneTpl('houseB', 2.8);
-    if(house2){ house2.position.set(-9.0,0.05,4.8); house2.rotation.y=-0.3; g.add(house2); }
+    if(house2){ house2.position.set(-9.0,0.05,4.8); house2.rotation.y=-0.3; dressBuilding(house2); g.add(house2); }
     const wm=cloneTpl('windmill', 5.5);
-    if(wm){ wm.position.set(9.5,0.05,-6.5); wm.rotation.y=-0.5; g.add(wm); }
+    if(wm){ wm.position.set(9.5,0.05,-6.5); wm.rotation.y=-0.5; dressBuilding(wm); g.add(wm); }
     const stall=cloneTpl('stall', 2.0);
     if(stall){ stall.position.set(6.8,0.05,5.5); stall.rotation.y=Math.PI; g.add(stall); }
     const cart=cloneTpl('cart', 1.1);
@@ -727,46 +893,48 @@ const World3D=(function(){
     renderer.shadowMap.type=THREE.PCFSoftShadowMap;
     renderer.outputEncoding=THREE.sRGBEncoding;
     renderer.toneMapping=THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure=1.18;
+    renderer.toneMappingExposure=0.98;
+    if(renderer.physicallyCorrectLights!=null) renderer.physicallyCorrectLights=false;
 
     scene=new THREE.Scene();
-    scene.fog=new THREE.Fog(0x90caf9, 90, 220);
-    renderer.setClearColor(0x2196f3, 1);
+    scene.fog=new THREE.Fog(0x6aa7d8, 55, 155);
+    renderer.setClearColor(0x3f8fd8, 1);
 
-    camera=new THREE.PerspectiveCamera(38, canvas.clientWidth/Math.max(1,canvas.clientHeight), 0.4, 200);
+    camera=new THREE.PerspectiveCamera(38, canvas.clientWidth/Math.max(1,canvas.clientHeight), 0.4, 220);
 
-    hemi=new THREE.HemisphereLight(0xfff0c8, 0x7cb342, 0.95); scene.add(hemi);
-    sun=new THREE.DirectionalLight(0xffc878, 1.35);
-    sun.position.set(24, 5.2, 10); sun.castShadow=true;
+    // Soft AO feel: cooler/darker ground hemisphere + modest sky
+    hemi=new THREE.HemisphereLight(0xffe8c8, 0x2e4520, 0.48); scene.add(hemi);
+    sun=new THREE.DirectionalLight(0xffd29a, 1.4);
+    sun.position.set(14, 20, 9); sun.castShadow=true;
     sun.shadow.mapSize.set(SHADOW, SHADOW);
-    sun.shadow.camera.near=1; sun.shadow.camera.far=80;
-    sun.shadow.camera.left=-26; sun.shadow.camera.right=26; sun.shadow.camera.top=26; sun.shadow.camera.bottom=-26;
-    sun.shadow.bias=-0.00035; sun.shadow.normalBias=0.04; sun.shadow.radius=4; scene.add(sun);
+    sun.shadow.camera.near=2; sun.shadow.camera.far=70;
+    sun.shadow.camera.left=-18; sun.shadow.camera.right=18; sun.shadow.camera.top=18; sun.shadow.camera.bottom=-18;
+    sun.shadow.bias=-0.0001; sun.shadow.normalBias=0.045; sun.shadow.radius=HIGH?2.2:1.6; scene.add(sun);
     scene.add(sun.target);
-    sun.target.position.set(1,0,1);
-    // lift shadow floors so they stay warm/colored, not crushed black
-    scene.add(new THREE.AmbientLight(0xffe8c8, 0.55));
-    const fill=new THREE.DirectionalLight(0xa8d8ff, 0.45); fill.position.set(-12,6,-10); scene.add(fill);
-    const rim=new THREE.DirectionalLight(0xff8a65, 0.28); rim.position.set(-6,3,14); scene.add(rim);
+    sun.target.position.set(0,0,0);
+    // Low ambient so PCF soft shadows stay visible on grass/soil
+    scene.add(new THREE.AmbientLight(0xffe0b8, 0.18));
+    const fill=new THREE.DirectionalLight(0x9ec9ff, 0.14); fill.position.set(-14,10,-12); scene.add(fill);
+    const rim=new THREE.DirectionalLight(0xff8a65, 0.10); rim.position.set(-8,4,16); scene.add(rim);
 
-    // vivid cheerful sky
-    const skyC=document.createElement('canvas'); skyC.width=4; skyC.height=128; const sg=skyC.getContext('2d');
-    const grd=sg.createLinearGradient(0,0,0,128);
-    grd.addColorStop(0,'#0d47a1'); grd.addColorStop(0.25,'#1565c0'); grd.addColorStop(0.45,'#1e88e5');
-    grd.addColorStop(0.6,'#64b5f6'); grd.addColorStop(0.78,'#ffcc80'); grd.addColorStop(1,'#ff9800');
-    sg.fillStyle=grd; sg.fillRect(0,0,4,128);
+    // Blue → warm sunset sky (richer mid blues, not washed white)
+    const skyC=document.createElement('canvas'); skyC.width=8; skyC.height=256; const sg=skyC.getContext('2d');
+    const grd=sg.createLinearGradient(0,0,0,256);
+    grd.addColorStop(0,'#0a2f6b'); grd.addColorStop(0.22,'#1557a8'); grd.addColorStop(0.42,'#2f86d4');
+    grd.addColorStop(0.58,'#6eb6ef'); grd.addColorStop(0.72,'#b7d7f5'); grd.addColorStop(0.84,'#ffc58a'); grd.addColorStop(1,'#ff8f4a');
+    sg.fillStyle=grd; sg.fillRect(0,0,8,256);
     const skyTex=new THREE.CanvasTexture(skyC); skyTex.encoding=THREE.sRGBEncoding;
     skyMat=new THREE.MeshBasicMaterial({map:skyTex, side:THREE.BackSide, depthWrite:false, fog:false});
     if('toneMapped' in skyMat) skyMat.toneMapped=false;
-    scene.add(new THREE.Mesh(new THREE.SphereGeometry(140, 24, 16), skyMat));
-    // big fluffy clouds
+    scene.add(new THREE.Mesh(new THREE.SphereGeometry(160, 28, 18), skyMat));
+    // soft warm clouds (less neon-white)
     [[-20,14,-24,5.5],[8,12,-28,6.2],[-4,16,-32,6.5],[22,11,-22,5.0],[14,15,-36,5.8],[-26,13,-18,4.5],[0,14,30,5.0],[18,12,26,4.4],[-10,17,-40,5.2],[26,10,-16,4.2]].forEach(a=>scene.add(makeCloud(...a)));
 
     island=makeIsland(); scene.add(island);
-    // distant mountains — cooler desaturated so fog reads as atmosphere
-    [[-18,-22,30,16,'#5c6bc0'],[-4,-26,36,18,'#3f51b5'],[10,-28,32,17,'#7986cb'],[22,-22,26,14,'#5c6bc0'],
-     [-26,-14,24,13,'#9fa8da'],[2,-30,22,12,'#7986cb'],[28,-12,26,14,'#3f51b5'],[-12,-28,20,11,'#9fa8da'],
-     [14,-32,22,12,'#5c6bc0'],[-30,0,18,10,'#7986cb'],[32,0,20,11,'#3f51b5'],[0,-34,24,13,'#9fa8da']].forEach(a=>scene.add(makeMountain(...a)));
+    // Distant mountains — earthy slate / violet, never near-white
+    [[-18,-22,30,16,'#2f425a'],[-4,-26,36,18,'#24364c'],[10,-28,32,17,'#385370'],[22,-22,26,14,'#2c4058'],
+     [-26,-14,24,13,'#4a3f58'],[2,-30,22,12,'#334860'],[28,-12,26,14,'#25364c'],[-12,-28,20,11,'#3e3854'],
+     [14,-32,22,12,'#2e445c'],[-30,0,18,10,'#364a60'],[32,0,20,11,'#223044'],[0,-34,24,13,'#433c54']].forEach(a=>scene.add(makeMountain(...a)));
 
     plotsGroup=new THREE.Group(); scene.add(plotsGroup);
     cropsGroup=new THREE.Group(); scene.add(cropsGroup);
@@ -790,8 +958,9 @@ const World3D=(function(){
     animate();
     window.addEventListener('resize', onResize);
 
-    loadAll().then(()=>{
-      // rebuild with real GLBs
+    Promise.all([loadTextures(), loadAll()]).then(()=>{
+      // rebuild with real GLBs + textured island mats
+      applyTexToMats();
       scene.remove(tractor);
       tractor=makeTractorRig(); scene.add(tractor);
       buildDecor();
@@ -816,7 +985,8 @@ const World3D=(function(){
       const pos=plotWorldPos(p);
       // warm soil pad (no pale Kenney dirt planks)
       let bed=box(1.2,0.2,1.2, p.watered?'#8d4e24':'#c4783c', pos.x, 0.42, pos.z);
-      bed.material=new THREE.MeshStandardMaterial({map:soilTexture(), color:p.watered?0x8d6e63:0xffffff, roughness:0.95});
+      bed.material=stdMat({map:soilTexture(), color:p.watered?0x8d6e63:0xffffff, roughness:0.95, normalMap:TEX.soilN||null});
+      if(bed.material.normalScale) bed.material.normalScale.set(1.0,1.0);
       bed.userData.plotIndex=i; plotsGroup.add(bed); plotMeshes.push(bed);
       if(p.watered){ const wet=box(1.05,0.02,1.05,'#3e2723', pos.x, 0.52, pos.z); wet.material=mat('#2c1810',{transparent:true,opacity:0.35}); plotsGroup.add(wet); }
       if(p.cropId){
@@ -926,21 +1096,21 @@ const World3D=(function(){
     const night=t>=0.55&&t<0.92;
     const dawn=t>=0.92||t<0.08;
     if(night){
-      sun.intensity=0.4; hemi.intensity=0.35; sun.color.setHex(0xa0c8ff);
-      scene.fog.color.setHex(0x243868); scene.fog.near=28; scene.fog.far=110;
-      renderer.toneMappingExposure=0.95; renderer.setClearColor(0x122040,1);
+      sun.intensity=0.35; hemi.intensity=0.28; sun.color.setHex(0xa0c8ff);
+      scene.fog.color.setHex(0x1c2e58); scene.fog.near=30; scene.fog.far=120;
+      renderer.toneMappingExposure=0.85; renderer.setClearColor(0x0e1a36,1);
     } else if(dawn){
-      sun.intensity=1.15; hemi.intensity=0.7; sun.color.setHex(0xffb090);
-      scene.fog.color.setHex(0xffd090); scene.fog.near=48; scene.fog.far=140;
-      renderer.toneMappingExposure=1.25; renderer.setClearColor(0x9ac8f0,1);
+      sun.intensity=1.05; hemi.intensity=0.48; sun.color.setHex(0xffb090);
+      scene.fog.color.setHex(0xe0a878); scene.fog.near=45; scene.fog.far=140;
+      renderer.toneMappingExposure=0.98; renderer.setClearColor(0x7eb3df,1);
     } else {
-      sun.intensity=1.2; hemi.intensity=1.0; sun.color.setHex(0xffd08a);
-      scene.fog.color.setHex(0x90caf9); scene.fog.near=90; scene.fog.far=220;
-      renderer.toneMappingExposure=1.15; renderer.setClearColor(0x2196f3,1);
+      sun.intensity=1.38; hemi.intensity=0.48; sun.color.setHex(0xffd29a);
+      scene.fog.color.setHex(0x6aa7d8); scene.fog.near=60; scene.fog.far=165;
+      renderer.toneMappingExposure=0.98; renderer.setClearColor(0x3f8fd8,1);
     }
-    if(night) sun.position.set(-14, 9, -8);
-    else if(dawn) sun.position.set(22, 4.0, 9);
-    else sun.position.set(28, 4.8, 14);
+    if(night) sun.position.set(-16, 16, -10);
+    else if(dawn) sun.position.set(20, 12, 8);
+    else sun.position.set(14, 20, 9);
     rain.visible = state.weather==='rain'||state.weather==='storm';
   }
 

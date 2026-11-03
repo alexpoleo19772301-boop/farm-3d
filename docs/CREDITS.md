@@ -21,7 +21,22 @@
 - Barn, Silo, Cow, Sheep, Chicken, Pig, Man / Character Base  
   https://poly.pizza (models by Quaternius)
 
-Island base, furrowed soil / grass canvas textures, stylized clouds, mountains, hay rolls, lighting/sky are original code for this project.
+## Textures (CC0 — `www/assets/textures/`, 512² JPEG)
+
+### ambientCG (CC0 1.0) — https://ambientcg.com
+- **Grass001** — color, normal (OpenGL), roughness
+- **Ground037** — soil normal / roughness (color replaced with farm furrow composite)
+- **WoodFloor051** — wood color + normal
+- **Rock023** — rock color + normal
+- **PavingStones070** — path color + normal
+
+### Poly Haven (CC0 1.0) — https://polyhaven.com
+- **rocky_terrain** albedo — cliff sides
+- **brown_mud_03** albedo — base for furrowed soil composite
+
+Roof tile color/normal maps are original procedural textures for this project.
+
+Island layout, stylized clouds, mountains, hay rolls, lighting/sky and day–night cycle are original code for this project.
 
 ## Audio
 OGG loops/SFX synthesized for the farm project (CC0) — `www/assets/audio/`.

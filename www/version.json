@@ -1,9 +1,9 @@
 {
-  "version": "1.2.0",
-  "versionCode": 12000,
+  "version": "1.3.0",
+  "versionCode": 13000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "1.2.0",
+  "webVersion": "1.3.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v1.2.0: яркая весёлая палитра — насыщенная трава, тёплая земля с бороздами, алый амбар\n• Синее небо + пушистые облака, золотой час, цветные мягкие тени, выше exposure/ambient, CSS grade + vignette\n• Разноцветные тракторы (зелёный/красный/синий/фиолетовый) с водителями; густые культуры, цветы, стога, каменная стена, осенние деревья, блёстки урожая\n• На весь экран без чёрных боковых полей"
+  "changelog": "• v1.3.0: нормальные текстуры с тенями\n• Трава / вспаханная земля / дерево / камень / тропинка / крыша (CC0 ambientCG + Poly Haven, 512²) + normal maps\n• PCF soft shadows, ACES exposure ~0.98, синее небо, цветные горы без пересвета, мягкий AO через hemisphere\n• Снижен CSS-пересвет canvas"
 }
