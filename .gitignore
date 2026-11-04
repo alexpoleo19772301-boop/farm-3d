@@ -6,3 +6,8 @@ android/captures/
 *.apk
 dist/
 .idea/
+# large verification screenshots stay local
+shots/**/*.png
+!shots/**/*strip*.png
+!shots/**/*filmstrip*.png
+!shots/**/*compare*.png
