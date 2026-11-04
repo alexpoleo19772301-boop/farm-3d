@@ -1,4 +1,4 @@
-# Винтики (com.alex.farm3d)
+# Краски / Винтики (com.alex.farm3d)
 
 Оригинальная казуальная игра. Движок: HTML5 Canvas + Matter.js + Capacitor.
 
@@ -16,9 +16,26 @@
 
 Pixabay / не-CC0 источники **не** использовались.
 
-## SFX
+## SFX (v4.0.1) — тихие / мягкие
 
-Синтезированные / старые ассеты проекта (`sfx_*.ogg|wav`) — оригинал проекта.
+Файлы в `www/assets/audio/sfx/sfx_*.ogg` (OGG Vorbis, low-pass, короткие fade, пониженная громкость).
+Дефолт громкости эффектов: **38%** (отдельный слайдер «Громкость эффектов»).
+
+| Файл | Назначение | Источник | Автор | Лицензия |
+|------|------------|----------|-------|----------|
+| `sfx_btn.ogg` | Кнопки UI | [Kenney UI Audio](https://kenney.nl/assets/ui-audio) (`click2`) | Kenney Vleugels | **CC0** |
+| `sfx_tap.ogg` | Выбор колбы | Kenney UI Audio (`rollover2`) | Kenney | **CC0** |
+| `sfx_undo.ogg` | Отмена | Kenney UI Audio (`mouserelease1`) | Kenney | **CC0** |
+| `sfx_box.ogg` / `sfx_reward.ogg` | Бустер / награда | Kenney UI Audio (`switch26`) | Kenney | **CC0** |
+| `sfx_cork.ogg` | Пробка / собранная колба | [bubbles 'pop'](https://opengameart.org/content/bubbles-pop) | farfadet46 (OGA) | **CC0** |
+| `sfx_pour.ogg` | Перелив | мягкий synth (sine bubbles + pink noise) + фрагмент [Water Drops](https://opengameart.org/content/water-drops) | оригинал + ceoxblackj | **CC0** |
+| `sfx_win.ogg` | Победа | мягкий sine-аккорд + [Completion sound](https://opengameart.org/content/completion-sound) (`completetask`) | оригинал + haeldb | **CC0** |
+| `sfx_hint.ogg` | Подсказка | мягкий sine-chime (оригинал проекта) | оригинал | **CC0** |
+| `sfx_coin.ogg` / `sfx_star.ogg` | Монеты / звёзды | мягкий sine-bell (оригинал проекта) | оригинал | **CC0** |
+| `sfx_error.ogg` / `sfx_clunk.ogg` | Ошибка / нельзя | мягкий low sine thud (оригинал проекта) | оригинал | **CC0** |
+
+Kenney UI Audio также зеркалирован на OpenGameArt: [51 UI sound effects](https://opengameart.org/content/51-ui-sound-effects-buttons-switches-and-clicks) (CC0).
+Старые резкие `www/assets/audio/sfx_*.wav|ogg` (вне папки `sfx/`) больше не подключаются.
 
 ## Графика
 

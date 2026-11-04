@@ -1,7 +1,7 @@
-/* Краски v4.0.0 — paint / water sort */
+/* Краски v4.0.1 — paint / water sort */
 (function () {
   'use strict';
-  const VERSION = '4.0.0';
+  const VERSION = '4.0.1';
   const CAP = 4;
   const SAVE_KEY = 'vintiki_save_v40';
   const LEGACY_KEY = 'vintiki_save_v32';
@@ -31,7 +31,9 @@
   let save = loadSave();
   let musicOn = save.musicOn !== false;
   let musicVol = Math.max(0, Math.min(1, +save.musicVol || 0.40));
-  let sfxVol = Math.max(0, Math.min(1, +save.sfxVol || 0.70));
+  let sfxVol = Math.max(0, Math.min(1, save.sfxVol != null ? +save.sfxVol : 0.38));
+  if (!save.sfxSoftened && (+save.sfxVol || 0) >= 0.55) { sfxVol = 0.38; save.sfxVol = 0.38; save.sfxSoftened = 1; }
+  else if (!save.sfxSoftened) { save.sfxSoftened = 1; }
   let vibrateOn = save.vibrateOn !== false;
   let trackId = Math.max(1, Math.min(5, (save.trackId | 0) || 1));
   let settingsReturn = 'home';
@@ -68,7 +70,7 @@
   function loadSave() {
     const defaults = {
       unlocked: 1, coins: 120, stars: {},
-      musicOn: true, musicVol: 0.40, sfxVol: 0.70, vibrateOn: true, trackId: 1,
+      musicOn: true, musicVol: 0.40, sfxVol: 0.38, vibrateOn: true, trackId: 1,
       boosters: { undo: 5, flask: 2, hint: 3 },
       daily: { lastClaim: null, streak: 0, lastQuestDay: null, quests: [] },
       seenTut: {}, starChests: {}, questBadge: false
@@ -217,7 +219,7 @@
     if (save.daily.lastClaim === yesterday) save.daily.streak = Math.min(7, (save.daily.streak|0) + 1);
     else save.daily.streak = 1;
     const gift = DAILY_GIFTS[Math.min(6, (save.daily.streak|0) - 1)];
-    save.coins += gift.coins || 0;
+    save.coins += gift.coins || 0; playSfx('coin', 0.4);
     if (gift.undo) save.boosters.undo += gift.undo;
     if (gift.hint) save.boosters.hint += gift.hint;
     if (gift.flask) save.boosters.flask += gift.flask;
@@ -245,7 +247,7 @@
       btn.onclick = () => {
         const q = save.daily.quests.find(x => x.id === btn.getAttribute('data-qid'));
         if (!q || q.claimed || q.progress < q.target) return;
-        q.claimed = true; save.coins += q.reward; persist(); refreshHud(); renderQuests(); toast('+'+q.reward+' монет');
+        q.claimed = true; save.coins += q.reward; persist(); refreshHud(); renderQuests(); playSfx('coin', 0.4); toast('+'+q.reward+' монет');
       };
     });
   }
@@ -305,7 +307,7 @@
     const top = f.layers[f.layers.length - 1];
     if (top.hidden) {
       top.hidden = false;
-      playSfx('hint', 0.4);
+      playSfx('hint', 0.35);
       toast('Скрытый цвет открыт!');
     }
   }
@@ -314,12 +316,12 @@
     if (f.corked) return;
     if (!flaskComplete(f)) return;
     f.corked = true;
-    playSfx('win', 0.45); buzz(18);
+    playSfx('cork', 0.5); playSfx('star', 0.28); buzz(18);
     spawnSparkles(flaskLayout(idx).cx, flaskLayout(idx).cy - 40);
     questProgress('complete_flask', 1);
     // unlock locked flasks when a colour is completed
     for (const o of flasks) {
-      if (o.locked) { o.locked = false; toast('Замок снят! 🔓'); playSfx('box', 0.5); }
+      if (o.locked) { o.locked = false; toast('Замок снят! 🔓'); playSfx('box', 0.4); }
     }
   }
 
@@ -337,7 +339,7 @@
 
   function startPour(fromIdx, toIdx) {
     const amt = canPour(flasks[fromIdx], flasks[toIdx]);
-    if (amt <= 0) { playSfx('clunk', 0.4); return false; }
+    if (amt <= 0) { playSfx('error', 0.35); return false; }
     pushHistory();
     const color = flasks[fromIdx].layers[flasks[fromIdx].layers.length - 1].color;
     pourAnim = {
@@ -346,7 +348,7 @@
       phase: 'tilt' // tilt -> stream -> settle
     };
     selected = -1;
-    playSfx('pour' in audio ? 'pour' : 'screw', 0.55);
+    playSfx('pour', 0.42);
     buzz(10);
     return true;
   }
@@ -762,7 +764,7 @@
 
   function endWin() {
     if (state !== 'play') return;
-    state = 'win'; playSfx('win', 0.7); buzz([20, 40, 20]); burstConfetti();
+    state = 'win'; playSfx('win', 0.55); buzz([20, 40, 20]); burstConfetti();
     let earned = 1;
     if (!runUsedBooster && !runUsedHint) earned = 2;
     if (earned === 2 && moves <= runPar) earned = 3;
@@ -771,7 +773,7 @@
     const gained = Math.max(0, best - prev);
     save.stars[levelIdx] = best;
     const coins = 40 + levelIdx * 2 + earned * 10;
-    save.coins += coins;
+    save.coins += coins; playSfx('coin', 0.35);
     if (save.unlocked < levelIdx + 2) save.unlocked = levelIdx + 2;
     questProgress('pass_levels', 1);
     if (gained) questProgress('earn_stars', gained);
@@ -835,12 +837,12 @@
     const i = flaskAt(x, y);
     if (i < 0) { selected = -1; return; }
     const f = flasks[i];
-    if (f.frozen) { toast('Колба во льду ❄️'); playSfx('clunk', 0.4); return; }
-    if (f.locked) { toast('Сначала собери цвет 🔒'); playSfx('clunk', 0.4); return; }
+    if (f.frozen) { toast('Колба во льду ❄️'); playSfx('error', 0.35); return; }
+    if (f.locked) { toast('Сначала собери цвет 🔒'); playSfx('error', 0.35); return; }
     if (f.corked) { toast('Уже собрано!'); return; }
     if (selected < 0) {
-      if (!f.layers.length) { playSfx('clunk', 0.3); return; }
-      selected = i; f.lift = 10; playSfx('btn', 0.4); buzz(8);
+      if (!f.layers.length) { playSfx('error', 0.28); return; }
+      selected = i; f.lift = 10; playSfx('tap', 0.45); buzz(8);
       return;
     }
     if (selected === i) { selected = -1; return; }
@@ -877,7 +879,7 @@
     save.boosters.undo--; runUsedBooster = true; persist();
     const snap = history.pop();
     flasks = snap.flasks; moves = snap.moves; selected = -1;
-    refreshHud(); playSfx('btn', 0.5); toast('Отмена');
+    refreshHud(); playSfx('undo', 0.45); toast('Отмена');
   }
   function useExtraFlask() {
     if (state !== 'play' || pourAnim) return;
@@ -885,7 +887,7 @@
     if (flasks.length >= 16) { toast('Слишком много колб'); return; }
     save.boosters.flask--; runUsedBooster = true; persist();
     flasks.push({ layers: [], frozen: false, locked: false, corked: false, lift: 0, wobble: 0 });
-    refreshHud(); playSfx('box', 0.5); toast('Пустая колба +1');
+    refreshHud(); playSfx('box', 0.4); toast('Пустая колба +1');
   }
   function useHint() {
     if (state !== 'play' || pourAnim) return;
@@ -894,7 +896,7 @@
     if (!mv) { toast('Ход не найден'); return; }
     save.boosters.hint--; runUsedHint = true; persist();
     hintMove = { from: mv.from, to: mv.to, t: 2.5 };
-    refreshHud(); playSfx('hint', 0.55); toast('Подсказка: колба ' + (mv.from+1) + ' → ' + (mv.to+1));
+    refreshHud(); playSfx('hint', 0.35); toast('Подсказка: колба ' + (mv.from+1) + ' → ' + (mv.to+1));
   }
 
   /* ---------- boss (reuse simplified from v3.8) ---------- */
@@ -1001,7 +1003,7 @@
     hit.inTray = false; hit.drawW = hit.pw; hit.drawH = hit.ph;
     hit.x = x - hit.pw / 2; hit.y = y - hit.ph / 2;
     bossDrag = { piece: hit, ox: hit.pw / 2, oy: hit.ph / 2 };
-    playSfx('btn', 0.3);
+    playSfx('btn', 0.28);
   }
   function bossPointerMove(x, y) {
     if (!boss) return;
@@ -1020,21 +1022,21 @@
     const snap = Math.min(p.pw, p.ph) * 0.28;
     if (Math.hypot(p.x - p.correctX, p.y - p.correctY) <= snap) {
       p.x = p.correctX; p.y = p.correctY; p.placed = true; p.inTray = false; p.sparkle = 0.5;
-      playSfx('box', 0.6); buzz(10);
+      playSfx('reward', 0.45); buzz(10);
       if (boss.pieces.every(q => q.placed)) completeBoss();
-    } else { p.placed = false; p.inTray = true; playSfx('clunk', 0.35); }
+    } else { p.placed = false; p.inTray = true; playSfx('error', 0.3); }
     layoutBossTray();
   }
   function completeBoss() {
     if (!boss || boss.done) return;
     boss.done = true; boss.revealT = 0;
-    playSfx('win', 0.7); burstConfetti();
+    playSfx('win', 0.55); burstConfetti();
     const elapsed = (performance.now() - boss.startT) / 1000;
     const cells = boss.cols * boss.rows;
     let stars = 1; if (elapsed <= cells * 4.5 * 1.35) stars = 2; if (elapsed <= cells * 4.5 * 0.85) stars = 3;
     const coins = 60 + boss.n * 15 + stars * 20;
     if (!boss.rewardGiven) {
-      boss.rewardGiven = true; save.coins += coins;
+      boss.rewardGiven = true; save.coins += coins; playSfx('coin', 0.4);
       const key = 'boss_' + boss.n;
       save.stars[key] = Math.max(save.stars[key] | 0, stars); persist(); refreshHud();
       boss._reward = { stars, coins };
@@ -1235,13 +1237,21 @@
 
   async function boot() {
     resize(); window.addEventListener('resize', resize);
-    loadAudio('screw', 'assets/audio/sfx_screw.wav');
-    loadAudio('clunk', 'assets/audio/sfx_clunk.wav');
-    loadAudio('box', 'assets/audio/sfx_box.wav');
-    loadAudio('win', 'assets/audio/sfx_win.wav');
-    loadAudio('btn', 'assets/audio/sfx_btn.ogg');
-    loadAudio('hint', 'assets/audio/sfx_hint.ogg');
-    loadAudio('pour', 'assets/audio/sfx_drop.ogg');
+    // Soft CC0 / gentle SFX (v4.0.1) — see CREDITS.md
+    const SFX = 'assets/audio/sfx/';
+    loadAudio('btn', SFX + 'sfx_btn.ogg');
+    loadAudio('tap', SFX + 'sfx_tap.ogg');
+    loadAudio('pour', SFX + 'sfx_pour.ogg');
+    loadAudio('cork', SFX + 'sfx_cork.ogg');
+    loadAudio('win', SFX + 'sfx_win.ogg');
+    loadAudio('error', SFX + 'sfx_error.ogg');
+    loadAudio('clunk', SFX + 'sfx_clunk.ogg'); // soft alias of error
+    loadAudio('box', SFX + 'sfx_box.ogg');
+    loadAudio('reward', SFX + 'sfx_reward.ogg');
+    loadAudio('hint', SFX + 'sfx_hint.ogg');
+    loadAudio('coin', SFX + 'sfx_coin.ogg');
+    loadAudio('star', SFX + 'sfx_star.ogg');
+    loadAudio('undo', SFX + 'sfx_undo.ogg');
     try {
       const r = await fetch('assets/paint_levels.json?v=' + VERSION, { cache: 'no-store' });
       levelPack = await r.json();

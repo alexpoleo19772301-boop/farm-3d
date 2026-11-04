@@ -1,9 +1,9 @@
 {
-  "version": "4.0.0",
-  "versionCode": 40000,
+  "version": "4.0.1",
+  "versionCode": 40001,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "4.0.0",
+  "webVersion": "4.0.1",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v4.0.0: «Краски» — переливай краски в колбах (water/paint sort)\n• 64 уровня (BFS/reverse), бустеры Undo/Колба/Хинт, скрытые/?/лёд/замок\n• Ежедневки, задания, ★, мини-босс-пазл каждые 5 ур., 5 треков\n• Винтики v3.8.1: tag vintiki-final + archive/vintiki-v3.8.1/"
+  "changelog": "• v4.0.1: мягкие тихие SFX (Kenney CC0 + OGA CC0 + soft synth)\n• Дефолт эффектов 38%, слайдер громкости эффектов\n• Новые: pour/cork/tap/coin/star/error в assets/audio/sfx/"
 }
