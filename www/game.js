@@ -1,7 +1,7 @@
-/* Винтики v3.3.2 — inner floor = drawn rim + 10px; rim pixel test */
+/* Винтики v3.4.0 — jigsaw planks + shatter destruction */
 (function () {
   'use strict';
-  const VERSION = '3.3.2';
+  const VERSION = '3.4.0';
   const COLORS = {
     red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
     purple: '#9b4de0', orange: '#f08a2a'
@@ -19,7 +19,8 @@
   let state = 'home', levelIdx = 0, levels = [];
   let save = loadSave();
   let muted = !!save.muted;
-  let animT = 0, particles = [], flyers = [], confetti = [];
+  let animT = 0, particles = [], flyers = [], confetti = [], shards = [];
+  let screenShake = 0;
   let tutStep = 0, tutMsg = '', hintScrewId = null, hammerMode = false;
   let outcomeGen = 0, shakeScrewId = null, shakeT = 0;
   // Source UV cuts past carved lip into flat floor; dest rim matches drawTrayNine
@@ -294,7 +295,7 @@
     state = 'play';
     showScreen('play');
     hammerMode = false; hintScrewId = null; shakeScrewId = null;
-    particles = []; flyers = []; confetti = [];
+    particles = []; flyers = []; confetti = []; shards = []; screenShake = 0;
     removedKeys = new Set();
     const toastEl = $('toast'); if (toastEl) toastEl.style.display = 'none';
     const raw = levels[idx] || levels[0];
@@ -402,6 +403,7 @@
         }
       }
     })();
+    assignPuzzleEdges();
 
     updateLocks();
     refreshHud();
@@ -433,60 +435,215 @@
     return p.screwIds.filter(id => { const s = screws.find(x => x.id === id); return s && s.alive; });
   }
 
-  function startPlankFall(p) {
-    if (!p.alive || p.falling) return;
+  function startPlankFall(p) { startPlankShatter(p); }
+
+  function startPlankShatter(p) {
+    if (!p.alive || p.falling || p.shattering) return;
     if (p.constraint) { try { World.remove(world, p.constraint); } catch (e) {} p.constraint = null; }
-    const ang = p.body.angle;
-    const spin = p.body.angularVelocity || 0;
     try { Body.setStatic(p.body, true); } catch (e) {}
-    p.falling = true;
+    p.falling = true; // reuse flag so band/win logic treats it as gone-in-progress
+    p.shattering = true;
     const px = Number(p.body.position.x) || board.x + board.w / 2;
     const py = Number(p.body.position.y) || board.y + board.h / 2;
-    const safeAng = Number.isFinite(ang) ? ang : 0;
-    const safeSpin = Number.isFinite(spin) ? spin : 0;
-    p.fall = {
-      t: 0,
-      dur: 1.0 + Math.random() * 0.2,
-      x: px,
-      y: py,
-      angle: safeAng,
-      vx: (Math.random() - 0.5) * 120 + Math.sin(safeAng) * 50,
-      vy: 70 + Math.random() * 50,
-      omega: (Math.abs(safeSpin) > 0.01 ? Math.max(-4, Math.min(4, safeSpin * 40)) : ((Math.random() < 0.5 ? -1 : 1) * (2.0 + Math.random() * 2.2))),
-      alpha: 1,
-      clapped: false
-    };
-    playSfx('wood', 0.85);
-    spawnDust(p.body.position.x, p.body.position.y);
+    const ang = Number.isFinite(p.body.angle) ? p.body.angle : 0;
+    const cracks = [];
+    const nCrack = 3 + (Math.random() * 3 | 0);
+    for (let i = 0; i < nCrack; i++) {
+      const a0 = Math.random() * Math.PI * 2;
+      const len = Math.min(p.w, p.h) * (0.35 + Math.random() * 0.45);
+      cracks.push({
+        x0: (Math.random() - 0.5) * p.w * 0.3,
+        y0: (Math.random() - 0.5) * p.h * 0.3,
+        x1: Math.cos(a0) * len, y1: Math.sin(a0) * len,
+        mid: 0.3 + Math.random() * 0.4,
+        kink: (Math.random() - 0.5) * 18
+      });
+    }
+    p.shatter = { t: 0, phase: 'crack', crackDur: 0.15, shards: [], cracks, px, py, ang, tone: p.woodTone };
+    playSfx('wood', 0.95);
+    playSfx('crack', 0.7);
+    screenShake = 0.28;
+    spawnDust(px, py);
     updateLocks();
   }
 
+  function spawnShatterShards(p) {
+    const sh = p.shatter; if (!sh) return;
+    const n = 6 + (Math.random() * 7 | 0);
+    const hw = p.w / 2, hh = p.h / 2;
+    for (let i = 0; i < n; i++) {
+      const lx = (Math.random() - 0.5) * p.w * 0.85;
+      const ly = (Math.random() - 0.5) * p.h * 0.85;
+      const c = Math.cos(sh.ang), s = Math.sin(sh.ang);
+      const wx = sh.px + lx * c - ly * s;
+      const wy = sh.py + lx * s + ly * c;
+      const a = Math.atan2(ly, lx) + sh.ang + (Math.random() - 0.5) * 0.8;
+      const spd = 90 + Math.random() * 220;
+      shards.push({
+        x: wx, y: wy,
+        vx: Math.cos(a) * spd + (Math.random() - 0.5) * 40,
+        vy: Math.sin(a) * spd - 40 - Math.random() * 80,
+        w: 10 + Math.random() * Math.min(28, p.w * 0.35),
+        h: 8 + Math.random() * Math.min(22, p.h * 0.35),
+        rot: Math.random() * Math.PI * 2,
+        omega: (Math.random() - 0.5) * 14,
+        t: 0, life: 0.85 + Math.random() * 0.35,
+        tone: sh.tone + (Math.random() - 0.5) * 0.06
+      });
+    }
+    // sawdust burst
+    for (let i = 0; i < 18; i++) {
+      particles.push({
+        x: sh.px + (Math.random() - 0.5) * p.w * 0.6,
+        y: sh.py + (Math.random() - 0.5) * p.h * 0.6,
+        vx: (Math.random() - 0.5) * 160,
+        vy: -40 - Math.random() * 140,
+        r: 1.2 + Math.random() * 2.8,
+        color: Math.random() < 0.5 ? '#d2a66a' : '#a87840',
+        t: 0, life: 0.55 + Math.random() * 0.45
+      });
+    }
+  }
+
   function tickFalls(dt) {
+    if (screenShake > 0) screenShake = Math.max(0, screenShake - dt);
     for (const p of planks) {
-      if (!p.falling || !p.fall) continue;
-      const f = p.fall;
-      if (!Number.isFinite(f.x) || !Number.isFinite(f.y)) {
-        p.alive = false; p.falling = false; p.fall = null; continue;
-      }
-      f.t += dt;
-      f.vy += 1450 * dt;
-      f.x += f.vx * dt;
-      f.y += f.vy * dt;
-      f.angle += f.omega * dt;
-      f.omega *= (1 - 0.35 * dt);
-      const u = f.t / f.dur;
-      f.alpha = u < 0.5 ? 1 : Math.max(0, 1 - (u - 0.5) / 0.5);
-      if (!f.clapped && u > 0.35) { f.clapped = true; playSfx('wood', 0.4); }
-      try {
-        Body.setPosition(p.body, { x: f.x, y: f.y });
-        Body.setAngle(p.body, f.angle);
-      } catch (e) {}
-      if (f.t >= f.dur || f.y > H + 100 || f.alpha <= 0.02) {
-        p.alive = false; p.falling = false; p.fall = null;
-        try { World.remove(world, p.body); } catch (e) {}
-        updateLocks();
+      if (!p.falling || !p.shatter) continue;
+      const sh = p.shatter;
+      sh.t += dt;
+      if (sh.phase === 'crack') {
+        if (sh.t >= sh.crackDur) {
+          sh.phase = 'burst';
+          spawnShatterShards(p);
+          playSfx('wood', 0.55);
+          playSfx('crack', 0.45);
+          p.alive = false;
+          try { World.remove(world, p.body); } catch (e) {}
+        }
+      } else if (sh.phase === 'burst') {
+        if (sh.t >= sh.crackDur + 1.05) {
+          p.falling = false; p.shattering = false; p.shatter = null;
+          updateLocks();
+        }
       }
     }
+    // tick flying shards
+    shards = shards.filter(s => {
+      s.t += dt;
+      s.vy += 1600 * dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.rot += s.omega * dt;
+      s.omega *= (1 - 0.4 * dt);
+      return s.t < s.life && s.y < H + 80;
+    });
+  }
+
+  function drawShards() {
+    for (const s of shards) {
+      const a = Math.max(0, 1 - s.t / s.life);
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.translate(s.x, s.y);
+      ctx.rotate(s.rot);
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.fillRect(-s.w / 2 + 2, -s.h / 2 + 3, s.w, s.h);
+      roundRect(ctx, -s.w / 2, -s.h / 2, s.w, s.h, 3);
+      ctx.fillStyle = woodFill(s.tone); ctx.fill();
+      ctx.strokeStyle = 'rgba(60,30,10,0.45)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function assignPuzzleEdges() {
+    const TAB = Math.max(11, Math.min(18, Math.min(board.w, board.h) / 22));
+    for (const p of planks) {
+      if (!p.alive) continue;
+      p.tabR = Math.min(TAB, Math.min(p.w, p.h) * 0.22);
+      p.edges = { t: 0, r: 0, b: 0, l: 0 }; // 0 flat, +1 tab out, -1 blank in
+    }
+    const alive = planks.filter(p => p.alive && !p.falling);
+    const tol = TAB * 1.8;
+    for (let i = 0; i < alive.length; i++) {
+      for (let j = i + 1; j < alive.length; j++) {
+        const a = alive[i], b = alive[j];
+        const ax = a.body.position.x, ay = a.body.position.y;
+        const bx = b.body.position.x, by = b.body.position.y;
+        const aL = ax - a.w / 2, aR = ax + a.w / 2, aT = ay - a.h / 2, aB = ay + a.h / 2;
+        const bL = bx - b.w / 2, bR = bx + b.w / 2, bT = by - b.h / 2, bB = by + b.h / 2;
+        const overlapY = Math.min(aB, bB) - Math.max(aT, bT);
+        const overlapX = Math.min(aR, bR) - Math.max(aL, bL);
+        // A left of B (A's right near B's left)
+        if (overlapY > Math.min(a.h, b.h) * 0.35) {
+          const gap = bL - aR;
+          if (gap >= -2 && gap < tol) {
+            if (a.edges.r === 0 && b.edges.l === 0) {
+              const tab = Math.random() < 0.5 ? 1 : -1;
+              a.edges.r = tab; b.edges.l = -tab;
+            }
+          }
+        }
+        // A above B
+        if (overlapX > Math.min(a.w, b.w) * 0.35) {
+          const gap = bT - aB;
+          if (gap >= -2 && gap < tol) {
+            if (a.edges.b === 0 && b.edges.t === 0) {
+              const tab = Math.random() < 0.5 ? 1 : -1;
+              a.edges.b = tab; b.edges.t = -tab;
+            }
+          }
+        }
+      }
+    }
+    // Decorative tabs/blanks on free edges so every piece looks like a puzzle
+    for (const p of alive) {
+      for (const k of ['t', 'r', 'b', 'l']) {
+        if (p.edges[k] === 0) p.edges[k] = Math.random() < 0.5 ? 1 : -1;
+      }
+    }
+    // Outer edges facing rim: never tab outward (flat or blank only)
+    for (const p of alive) {
+      const x = p.body.position.x, y = p.body.position.y;
+      const near = (p.tabR || 10) + 8;
+      if (x - p.w / 2 < board.x + near) p.edges.l = Math.min(0, p.edges.l || -1);
+      if (x + p.w / 2 > board.x + board.w - near) p.edges.r = Math.min(0, p.edges.r || -1);
+      if (y - p.h / 2 < board.y + near) p.edges.t = Math.min(0, p.edges.t || -1);
+      if (y + p.h / 2 > board.y + board.h - near) p.edges.b = Math.min(0, p.edges.b || -1);
+    }
+  }
+
+  /** Jigsaw outline in local space, centered at 0,0. edges: t/r/b/l ∈ {-1,0,1} */
+  function jigsawPath(ctx, w, h, edges, tabR) {
+    const hw = w / 2, hh = h / 2;
+    const tr = Math.max(6, Math.min(tabR || 10, Math.min(w, h) * 0.18));
+    const neck = tr * 0.55;
+    function bump(x0, y0, x1, y1, kind, outwardX, outwardY) {
+      // draw from (x0,y0) to (x1,y1) with optional tab/blank at midpoint
+      const dx = x1 - x0, dy = y1 - y0;
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len, uy = dy / len;
+      const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+      if (!kind) { ctx.lineTo(x1, y1); return; }
+      const s = kind > 0 ? 1 : -1; // tab out along outward, blank opposite
+      const ox = outwardX * s, oy = outwardY * s;
+      // approach mid
+      ctx.lineTo(mx - ux * neck, my - uy * neck);
+      // neck in
+      ctx.lineTo(mx - ux * neck * 0.35 + ox * tr * 0.15, my - uy * neck * 0.35 + oy * tr * 0.15);
+      // tab bulb (quadratic-ish via arc approximation)
+      const bx = mx + ox * tr, by = my + oy * tr;
+      ctx.quadraticCurveTo(mx - ux * tr * 0.85 + ox * tr * 1.05, my - uy * tr * 0.85 + oy * tr * 1.05, bx - uy * tr * 0.95, by + ux * tr * 0.95);
+      ctx.quadraticCurveTo(mx + ox * tr * 1.35, my + oy * tr * 1.35, bx + uy * tr * 0.95, by - ux * tr * 0.95);
+      ctx.quadraticCurveTo(mx + ux * tr * 0.85 + ox * tr * 1.05, my + uy * tr * 0.85 + oy * tr * 1.05, mx + ux * neck * 0.35 + ox * tr * 0.15, my + uy * neck * 0.35 + oy * tr * 0.15);
+      ctx.lineTo(mx + ux * neck, my + uy * neck);
+      ctx.lineTo(x1, y1);
+    }
+    ctx.moveTo(-hw, -hh);
+    bump(-hw, -hh, hw, -hh, edges.t || 0, 0, -1);   // top, outward up
+    bump(hw, -hh, hw, hh, edges.r || 0, 1, 0);       // right
+    bump(hw, hh, -hw, hh, edges.b || 0, 0, 1);       // bottom
+    bump(-hw, hh, -hw, -hh, edges.l || 0, -1, 0);    // left
+    ctx.closePath();
   }
 
   function refreshPlankPhysics(p) {
@@ -704,32 +861,63 @@
   }
 
   function drawPlank(p) {
-    if (!p.alive && !p.falling) return;
-    if (p.body.position.y > H + 120) return;
-    const alpha = p.fall ? p.fall.alpha : 1;
-    const poly = plankWorldPoly(p);
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.beginPath();
-    poly.forEach(([x, y], i) => i ? ctx.lineTo(x + 5, y + 8) : ctx.moveTo(x + 5, y + 8));
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(0,0,0,0.32)'; ctx.fill();
+    if (!p.alive && !p.shattering) return;
+    if (p.shattering && p.shatter && p.shatter.phase === 'burst') return; // shards take over
+    if (!p.body || p.body.position.y > H + 120) return;
+    const edges = p.edges || { t: 0, r: 0, b: 0, l: 0 };
+    const tabR = p.tabR || 10;
     const x = p.body.position.x, y = p.body.position.y;
-    ctx.translate(x, y); ctx.rotate(p.body.angle);
-    const rr = Math.min(14, Math.min(p.w, p.h) * 0.18);
-    roundRect(ctx, -p.w / 2, -p.h / 2, p.w, p.h, rr);
-    ctx.fillStyle = woodFill(p.woodTone); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,235,190,0.45)'; ctx.lineWidth = 3; ctx.stroke();
-    ctx.strokeStyle = 'rgba(70,40,12,0.5)'; ctx.lineWidth = 2; ctx.stroke();
+    const ang = p.body.angle || 0;
+    // drop shadow
     ctx.save();
-    roundRect(ctx, -p.w / 2, -p.h / 2, p.w, p.h, rr); ctx.clip();
-    ctx.strokeStyle = 'rgba(90,50,20,0.16)'; ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.34;
+    ctx.translate(x + 4, y + 7); ctx.rotate(ang);
+    ctx.beginPath(); jigsawPath(ctx, p.w, p.h, edges, tabR);
+    ctx.fillStyle = '#000'; ctx.fill();
+    ctx.restore();
+    // piece body
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(ang);
+    ctx.beginPath(); jigsawPath(ctx, p.w, p.h, edges, tabR);
+    ctx.fillStyle = woodFill(p.woodTone); ctx.fill();
+    // bevel highlight + dark edge
+    ctx.save();
+    ctx.clip();
+    const g = ctx.createLinearGradient(-p.w / 2, -p.h / 2, p.w / 2, p.h / 2);
+    g.addColorStop(0, 'rgba(255,240,200,0.28)');
+    g.addColorStop(0.45, 'rgba(255,240,200,0)');
+    g.addColorStop(1, 'rgba(40,20,5,0.18)');
+    ctx.fillStyle = g; ctx.fillRect(-p.w / 2 - tabR, -p.h / 2 - tabR, p.w + tabR * 2, p.h + tabR * 2);
+    // wood grain
+    ctx.strokeStyle = 'rgba(90,50,20,0.18)'; ctx.lineWidth = 1;
     for (let yy = -p.h / 2; yy < p.h / 2; yy += 5) {
-      ctx.beginPath(); ctx.moveTo(-p.w / 2, yy); ctx.lineTo(p.w / 2, yy + 1); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-p.w / 2 - 4, yy);
+      ctx.bezierCurveTo(-p.w / 6, yy + 1.5, p.w / 6, yy - 1.2, p.w / 2 + 4, yy + 0.8);
+      ctx.stroke();
     }
     ctx.restore();
+    ctx.beginPath(); jigsawPath(ctx, p.w, p.h, edges, tabR);
+    ctx.strokeStyle = 'rgba(255,235,190,0.5)'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.strokeStyle = 'rgba(55,30,8,0.55)'; ctx.lineWidth = 1.6; ctx.stroke();
+    // crack lines during shatter
+    if (p.shattering && p.shatter && p.shatter.phase === 'crack') {
+      const u = Math.min(1, p.shatter.t / p.shatter.crackDur);
+      ctx.strokeStyle = 'rgba(30,12,4,' + (0.35 + 0.55 * u) + ')';
+      ctx.lineWidth = 1.5 + u;
+      ctx.lineCap = 'round';
+      for (const c of p.shatter.cracks) {
+        ctx.beginPath();
+        ctx.moveTo(c.x0, c.y0);
+        const mx = c.x0 + c.x1 * c.mid + c.kink * u;
+        const my = c.y0 + c.y1 * c.mid - c.kink * 0.4 * u;
+        ctx.lineTo(mx, my);
+        ctx.lineTo(c.x0 + c.x1 * u, c.y0 + c.y1 * u);
+        ctx.stroke();
+      }
+    }
     ctx.restore();
-    if (!p.falling) {
+    if (!p.shattering) {
       for (const id of p.screwIds) {
         const sc = screws.find(s => s.id === id); if (!sc || !sc.alive) continue;
         ctx.beginPath(); ctx.arc(sc.x, sc.y, screwR * 0.62, 0, Math.PI * 2);
@@ -938,9 +1126,15 @@ function drawTrayNine() {
         }
       }
       tickBoxes(dt);
+      tickFalls(dt);
+      ctx.save();
+      if (screenShake > 0) {
+        const mag = screenShake * 10;
+        ctx.translate((Math.random() - 0.5) * mag, (Math.random() - 0.5) * mag);
+      }
       drawBoxes();
       drawTrayNine();
-      for (const p of planks) if (p.alive && !p.falling) drawPlank(p);
+      for (const p of planks) if (p.alive || (p.shattering && p.shatter && p.shatter.phase === 'crack')) drawPlank(p);
       drawBandDivider();
       for (const sc of screws) {
         if (!sc.alive) continue;
@@ -952,10 +1146,10 @@ function drawTrayNine() {
       }
       drawWaitRow();
       drawTutorial();
-      // Falling planks + flyers above wait/UI so the drop is obvious
-      for (const p of planks) if (p.falling) drawPlank(p);
+      drawShards();
       drawFlyers(dt);
       drawParticles(dt);
+      ctx.restore();
       if (state === 'play') checkWin();
     }
   }
@@ -1055,6 +1249,7 @@ function drawTrayNine() {
     loadAudio('screw', 'assets/audio/sfx_screw.wav');
     loadAudio('clunk', 'assets/audio/sfx_clunk.wav');
     loadAudio('wood', 'assets/audio/sfx_wood.wav');
+    loadAudio('crack', 'assets/audio/sfx_pebbles.ogg');
     loadAudio('box', 'assets/audio/sfx_box.wav');
     loadAudio('win', 'assets/audio/sfx_win.wav');
     loadAudio('lose', 'assets/audio/sfx_lose_v.wav');
@@ -1076,7 +1271,7 @@ function drawTrayNine() {
     refreshHud(); requestAnimationFrame(loop);
 
     window.__V = {
-      VERSION, startLevel, assertNoOverlapRuntime, plankRects, startPlankFall,
+      VERSION, startLevel, assertNoOverlapRuntime, plankRects, startPlankFall, startPlankShatter, assignPuzzleEdges,
       assertScrewsInside: () => {
         const bad = [];
         for (const sc of screws) {
@@ -1154,7 +1349,9 @@ function drawTrayNine() {
         return { ok: hits.length === 0, hits: hits.slice(0, 20), rim, boardPad: BOARD_PAD, tray: { ...tray }, board: { ...board } };
       },
       getScrews: () => screws.filter(s => s.alive).map(s => ({ id: s.id, x: s.x, y: s.y, plankId: s.plankId, color: s.color })),
-      getFalling: () => planks.filter(p => p.falling).map(p => ({ id: p.id, fall: p.fall && { ...p.fall } })),
+      getFalling: () => planks.filter(p => p.falling).map(p => ({ id: p.id, shatter: p.shatter && { phase: p.shatter.phase, t: p.shatter.t } })),
+      getShards: () => shards.length,
+      getEdges: () => planks.filter(p => p.alive).map(p => ({ id: p.id, edges: p.edges, tabR: p.tabR, w: p.w, h: p.h })),
       getState: () => ({
         state, levelIdx,
         screws: screws.filter(s => s.alive).length,

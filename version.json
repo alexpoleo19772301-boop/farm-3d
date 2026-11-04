@@ -1,9 +1,9 @@
 {
-  "version": "3.3.2",
-  "versionCode": 33002,
+  "version": "3.4.0",
+  "versionCode": 34000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.3.2",
+  "webVersion": "3.4.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.3.2: inner floor = drawn 9-slice rim + 10px; deeper tray UV\n• Pixel rim test (planks must not cover rim pixels)\n• Visible gap plank↔rim on 390/360/412 × L1/5/10/42"
+  "changelog": "• v3.4.0: доски-пазлы (tabs/blanks, зерно, bevel+тень)\n• Разрушение вместо падения: трещины ~150мс → 6–12 осколков + опилки ~1с, shake, sfx\n• Качание на одном винте сохранено; rim pixel test OK"
 }
