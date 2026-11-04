@@ -1,9 +1,9 @@
 {
-  "version": "3.2.0",
-  "versionCode": 32000,
+  "version": "3.2.1",
+  "versionCode": 32001,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.2.0",
+  "webVersion": "3.2.1",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.2.0: доски не налезают и не выходят за поле\n• Блокировка: замки-ключи и ряды (не оверлап)\n• Арт ближе к мокапу, 6 цветов винтов\n• 42 уровня, солвер + проверка геометрии"
+  "changelog": "• v3.2.1: доски строго внутри внутренней области доски (rim art)\n• layout tray + board из одного rect (TRAY_UV)\n• проверка на 390/360/412/1280 — без oob и overlap"
 }

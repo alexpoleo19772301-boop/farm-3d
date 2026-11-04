@@ -1,7 +1,7 @@
-/* Винтики v3.2.0 — non-overlap grid, locks/bands, colour pressure */
+/* Винтики v3.2.1 — tray-art-aligned inner board (no planks past rim) */
 (function () {
   'use strict';
-  const VERSION = '3.2.0';
+  const VERSION = '3.2.1';
   const COLORS = {
     red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
     purple: '#9b4de0', orange: '#f08a2a'
@@ -22,7 +22,11 @@
   let animT = 0, particles = [], flyers = [], confetti = [];
   let tutStep = 0, tutMsg = '', hintScrewId = null, hammerMode = false;
   let outcomeGen = 0, shakeScrewId = null, shakeT = 0;
-  let board = { x: 24, y: 200, w: 342, h: 342 };
+  // Measured UV of recessed floor inside board_tray.webp (conservative vs lip)
+  const TRAY_UV = { l: 0.108, t: 0.105, r: 0.108, b: 0.128 };
+  let tray = { x: 0, y: 0, w: 360, h: 360 }; // outer art draw rect
+  let board = { x: 24, y: 200, w: 280, h: 280 }; // INNER playable = art floor
+  let playOrigin = { x: 0, y: 0, s: 1 };
   let boxes = [], waitSlots = [], maxSlots = 5;
   let planks = [], screws = [], removedKeys = new Set();
   let engine = null, world = null;
@@ -90,6 +94,27 @@
     ctx.closePath();
   }
 
+  function layoutTray() {
+    // Outer tray art fits between top UI (boxes) and bottom UI (wait+boosters)
+    const topUI = Math.max(155, Math.min(175, H * 0.22));
+    const botUI = Math.max(130, Math.min(170, H * 0.22));
+    const availH = Math.max(160, H - topUI - botUI);
+    const availW = Math.max(160, W - 20);
+    let outer = Math.min(availW, availH);
+    if (W > H) outer = Math.min(outer, H * 0.78, 460);
+    else outer = Math.min(outer, 400);
+    tray.w = tray.h = outer;
+    tray.x = (W - outer) / 2;
+    tray.y = topUI + Math.max(0, (availH - outer) * 0.2);
+    if (tray.y + outer > H - botUI) tray.y = H - botUI - outer;
+    if (tray.y < topUI - 12) tray.y = topUI - 12;
+    // Inner = same UV used when drawing the tray sprite
+    board.x = tray.x + tray.w * TRAY_UV.l;
+    board.y = tray.y + tray.h * TRAY_UV.t;
+    board.w = tray.w * (1 - TRAY_UV.l - TRAY_UV.r);
+    board.h = tray.h * (1 - TRAY_UV.t - TRAY_UV.b);
+  }
+
   function resize() {
     const r = wrap.getBoundingClientRect();
     W = r.width; H = r.height;
@@ -97,11 +122,7 @@
     canvas.width = Math.floor(W * dpr); canvas.height = Math.floor(H * dpr);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // Square board fully on screen with room for boxes + wait + boosters
-    const side = Math.min(W - 36, H * 0.42, 360);
-    board.w = side; board.h = side;
-    board.x = (W - side) / 2;
-    board.y = Math.min(210, H * 0.26);
+    layoutTray();
   }
 
   function clearWorld() {
@@ -116,16 +137,22 @@
   }
 
   function scaleLevel(def) {
-    // levels authored in 320x320 local space
-    const S = board.w / 320;
+    // levels authored in 320x320 local space → fit inside INNER board with margin
+    const margin = 8;
+    const usableW = Math.max(40, board.w - margin * 2);
+    const usableH = Math.max(40, board.h - margin * 2);
+    const S = Math.min(usableW, usableH) / 320;
+    const ox = (board.w - 320 * S) / 2;
+    const oy = (board.h - 320 * S) / 2;
+    playOrigin = { x: board.x + ox, y: board.y + oy, s: S };
     return {
       ...def,
       planks: (def.planks || []).map(p => ({
         ...p,
-        x: p.x * S, y: p.y * S, w: p.w * S, h: p.h * S
+        x: ox + p.x * S, y: oy + p.y * S, w: p.w * S, h: p.h * S
       })),
       screws: (def.screws || []).map(s => ({
-        ...s, x: s.x * S, y: s.y * S
+        ...s, x: ox + s.x * S, y: oy + s.y * S
       }))
     };
   }
@@ -160,8 +187,9 @@
       const cx = board.x + pd.x, cy = board.y + pd.y;
       // clamp body fully inside board
       const halfW = pd.w / 2, halfH = pd.h / 2;
-      const minX = board.x + halfW + 4, maxX = board.x + board.w - halfW - 4;
-      const minY = board.y + halfH + 4, maxY = board.y + board.h - halfH - 4;
+      const pad = 2;
+      const minX = board.x + halfW + pad, maxX = board.x + board.w - halfW - pad;
+      const minY = board.y + halfH + pad, maxY = board.y + board.h - halfH - pad;
       const ccx = Math.max(minX, Math.min(maxX, cx));
       const ccy = Math.max(minY, Math.min(maxY, cy));
       const body = Bodies.rectangle(ccx, ccy, pd.w, pd.h, {
@@ -268,7 +296,7 @@
   function slotPos(i) {
     const sw = 40, gap = 8;
     const total = maxSlots * sw + (maxSlots - 1) * gap;
-    return { x: (W - total) / 2 + sw / 2 + i * (sw + gap), y: board.y + board.h + 36 };
+    return { x: (W - total) / 2 + sw / 2 + i * (sw + gap), y: tray.y + tray.h + 30 };
   }
 
   function removeScrew(sc) {
@@ -348,7 +376,7 @@
   function checkWin() {
     if (state !== 'play') return;
     for (const p of planks) {
-      if (p.falling && p.body.position.y > board.y + board.h + 40) {
+      if (p.falling && p.body.position.y > tray.y + tray.h + 50) {
         p.alive = false;
         if (p.constraint) { try { World.remove(world, p.constraint); } catch (e) {} p.constraint = null; }
         try { World.remove(world, p.body); } catch (e) {}
@@ -566,15 +594,15 @@
   function drawTutorial() {
     ctx.save();
     ctx.fillStyle = 'rgba(30,15,5,0.85)';
-    roundRect(ctx, board.x, board.y - 42, board.w, 28, 10); ctx.fill();
+    roundRect(ctx, tray.x + 10, tray.y - 36, tray.w - 20, 28, 10); ctx.fill();
     ctx.fillStyle = '#ffe566';
     ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(goalText, board.x + board.w / 2, board.y - 28);
+    ctx.fillText(goalText, tray.x + tray.w / 2, tray.y - 22);
     if (levelIdx <= 3 && tutMsg) {
       ctx.fillStyle = 'rgba(20,10,5,0.9)';
-      roundRect(ctx, 20, board.y + board.h + 54, W - 40, 38, 12); ctx.fill();
+      roundRect(ctx, 20, tray.y + tray.h + 52, W - 40, 38, 12); ctx.fill();
       ctx.fillStyle = '#fff6e0'; ctx.font = 'bold 12px sans-serif';
-      ctx.fillText(tutMsg, W / 2, board.y + board.h + 73);
+      ctx.fillText(tutMsg, W / 2, tray.y + tray.h + 71);
     }
     if (levelIdx <= 1) {
       const free = screws.find(s => s.alive && !s.blocked);
@@ -651,9 +679,9 @@
       }
       tickBoxes(dt);
       drawBoxes();
-      if (imgs.board_tray) ctx.drawImage(imgs.board_tray, board.x - 12, board.y - 12, board.w + 24, board.h + 24);
+      if (imgs.board_tray) ctx.drawImage(imgs.board_tray, tray.x, tray.y, tray.w, tray.h);
       else {
-        ctx.fillStyle = '#6b4423'; roundRect(ctx, board.x - 8, board.y - 8, board.w + 16, board.h + 16, 18); ctx.fill();
+        ctx.fillStyle = '#6b4423'; roundRect(ctx, tray.x, tray.y, tray.w, tray.h, 18); ctx.fill();
         ctx.fillStyle = '#4a2f16'; roundRect(ctx, board.x, board.y, board.w, board.h, 14); ctx.fill();
       }
       for (const p of planks) if (p.alive || p.falling) drawPlank(p);
@@ -723,23 +751,28 @@
   }
   function loadAudio(name, src) { const a = new Audio(src); a.preload = 'auto'; audio[name] = a; }
 
-  function assertNoOverlapRuntime() {
-    const boxesA = planks.filter(p => p.alive && !p.falling).map(p => ({
+  function plankRects() {
+    return planks.filter(p => p.alive && !p.falling).map(p => ({
       id: p.id,
       x: p.body.position.x - p.w / 2, y: p.body.position.y - p.h / 2, w: p.w, h: p.h
     }));
+  }
+  function assertNoOverlapRuntime() {
+    const boxesA = plankRects();
     for (let i = 0; i < boxesA.length; i++) {
       for (let j = i + 1; j < boxesA.length; j++) {
         const a = boxesA[i], b = boxesA[j];
         const hit = !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
-        if (hit) return { ok: false, a: a.id, b: b.id };
+        if (hit) return { ok: false, reason: 'overlap', a: a.id, b: b.id };
       }
     }
+    const eps = 0.5;
     for (const p of boxesA) {
-      if (p.x < board.x - 1 || p.y < board.y - 1 || p.x + p.w > board.x + board.w + 1 || p.y + p.h > board.y + board.h + 1)
-        return { ok: false, oob: p.id };
+      if (p.x < board.x - eps || p.y < board.y - eps ||
+          p.x + p.w > board.x + board.w + eps || p.y + p.h > board.y + board.h + eps)
+        return { ok: false, reason: 'oob', oob: p.id, plank: p, board: { ...board }, tray: { ...tray } };
     }
-    return { ok: true, count: boxesA.length };
+    return { ok: true, count: boxesA.length, board: { ...board }, tray: { ...tray } };
   }
 
   async function boot() {
@@ -785,7 +818,8 @@
     refreshHud(); requestAnimationFrame(loop);
 
     window.__V = {
-      VERSION, startLevel, assertNoOverlapRuntime,
+      VERSION, startLevel, assertNoOverlapRuntime, plankRects,
+      getLayout: () => ({ W, H, tray: { ...tray }, board: { ...board }, playOrigin: { ...playOrigin }, uv: { ...TRAY_UV } }),
       getState: () => ({
         state, levelIdx,
         screws: screws.filter(s => s.alive).length,
@@ -794,6 +828,7 @@
         wait: waitSlots.filter(Boolean).length,
         boxes: boxes.map(b => ({ c: b.color, n: b.count })),
         geom: assertNoOverlapRuntime(),
+        layout: { tray: { ...tray }, board: { ...board } },
         tutMsg, goalText
       }),
       tapFree: () => {
