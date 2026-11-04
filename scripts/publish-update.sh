@@ -43,7 +43,7 @@ for rel in ["index.html","www/index.html","game.js","www/game.js"]:
            "DEFAULT_MANIFEST_URL=localStorage.getItem('farm3d_manifest_url')||'%s'"%manifest, t)
   path.write_text(t)
 r=pathlib.Path("www")
-for o in [pathlib.Path("docs/www.zip"), pathlib.Path("dist/www.zip")]:
+for o in [pathlib.Path("dist/www.zip")]:
   with zipfile.ZipFile(o,"w",zipfile.ZIP_DEFLATED) as z:
     for p in r.rglob("*"):
       if p.is_file() and p.name!="version-test.json":
@@ -60,13 +60,14 @@ npx cap sync android
 cp -f android/app/build/outputs/apk/debug/app-debug.apk farm-3d-debug.apk
 cp -f farm-3d-debug.apk "dist/farm-3d-$VER-debug.apk"
 cp -f version.json dist/version.json
-cp -f docs/www.zip dist/www.zip
+cp -f dist/www.zip dist/www.zip 2>/dev/null || true
+# dist/www.zip no longer mirrored to Pages
 # GitHub Pages
 rm -rf docs/assets docs/vendor docs/js docs/index.html docs/game.js 2>/dev/null || true
 cp -a www/. docs/
 touch docs/.nojekyll
 cp -f version.json docs/version.json
-cp -f dist/www.zip docs/www.zip
+# cp -f dist/www.zip dist/www.zip  # skip: Pages fails on large zip churn
 
 git add -A
 git commit -m "Release v${VER}" || echo "nothing to commit"
@@ -83,10 +84,10 @@ www.zip: ${WEB_URL}
 Pages: https://${OWNER}.github.io/${REPO}/
 "
 if gh release view "$TAG" >/dev/null 2>&1; then
-  gh release upload "$TAG" farm-3d-debug.apk version.json docs/www.zip --clobber
+  gh release upload "$TAG" farm-3d-debug.apk version.json dist/www.zip --clobber
   gh release edit "$TAG" --notes "$NOTES"
 else
-  gh release create "$TAG" farm-3d-debug.apk version.json docs/www.zip --title "v${VER}" --notes "$NOTES"
+  gh release create "$TAG" farm-3d-debug.apk version.json dist/www.zip --title "v${VER}" --notes "$NOTES"
 fi
 echo "Manifest: ${MANIFEST_URL}"
 echo "Web ZIP:  ${WEB_URL}"
