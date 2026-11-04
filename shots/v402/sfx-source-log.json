@@ -1,0 +1,79 @@
+{
+  "version": "4.0.2",
+  "loaded": {
+    "btn": "/assets/audio/sfx/sfx_btn.ogg",
+    "tap": "/assets/audio/sfx/sfx_tap.ogg",
+    "pour": "/assets/audio/sfx/sfx_pour.ogg",
+    "cork": "/assets/audio/sfx/sfx_cork.ogg",
+    "win": "/assets/audio/sfx/sfx_win.ogg",
+    "error": "/assets/audio/sfx/sfx_error.ogg",
+    "clunk": "/assets/audio/sfx/sfx_clunk.ogg",
+    "box": "/assets/audio/sfx/sfx_box.ogg",
+    "reward": "/assets/audio/sfx/sfx_reward.ogg",
+    "hint": "/assets/audio/sfx/sfx_hint.ogg",
+    "coin": "/assets/audio/sfx/sfx_coin.ogg",
+    "star": "/assets/audio/sfx/sfx_star.ogg",
+    "undo": "/assets/audio/sfx/sfx_undo.ogg"
+  },
+  "sfxLog": [
+    {
+      "t": 1793807809251,
+      "name": "tap",
+      "src": "http://127.0.0.1:8765/assets/audio/sfx/sfx_tap.ogg",
+      "vol": 0.19
+    },
+    {
+      "t": 1793807809252,
+      "name": "pour",
+      "src": "http://127.0.0.1:8765/assets/audio/sfx/sfx_pour.ogg",
+      "vol": 0.1596
+    },
+    {
+      "t": 1793807809355,
+      "name": "btn",
+      "src": "http://127.0.0.1:8765/assets/audio/sfx/sfx_btn.ogg",
+      "vol": 0.15200000000000002
+    },
+    {
+      "t": 1793807809355,
+      "name": "cork",
+      "src": "http://127.0.0.1:8765/assets/audio/sfx/sfx_cork.ogg",
+      "vol": 0.19
+    },
+    {
+      "t": 1793807809356,
+      "name": "win",
+      "src": "http://127.0.0.1:8765/assets/audio/sfx/sfx_win.ogg",
+      "vol": 0.19
+    },
+    {
+      "t": 1793807809356,
+      "name": "error",
+      "src": "http://127.0.0.1:8765/assets/audio/sfx/sfx_error.ogg",
+      "vol": 0.15200000000000002
+    },
+    {
+      "t": 1793807809356,
+      "name": "coin",
+      "src": "http://127.0.0.1:8765/assets/audio/sfx/sfx_coin.ogg",
+      "vol": 0.15200000000000002
+    },
+    {
+      "t": 1793807809356,
+      "name": "undo",
+      "src": "http://127.0.0.1:8765/assets/audio/sfx/sfx_undo.ogg",
+      "vol": 0.15200000000000002
+    }
+  ],
+  "console": [
+    "[sfx] tap sfx/sfx_tap.ogg vol=0.19",
+    "[sfx] pour sfx/sfx_pour.ogg vol=0.16",
+    "[sfx] btn sfx/sfx_btn.ogg vol=0.15",
+    "[sfx] cork sfx/sfx_cork.ogg vol=0.19",
+    "[sfx] win sfx/sfx_win.ogg vol=0.19",
+    "[sfx] error sfx/sfx_error.ogg vol=0.15",
+    "[sfx] coin sfx/sfx_coin.ogg vol=0.15",
+    "[sfx] undo sfx/sfx_undo.ogg vol=0.15"
+  ],
+  "badPaths": []
+}

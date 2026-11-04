@@ -1,7 +1,10 @@
-/* Краски v4.0.1 — paint / water sort */
+/* Краски v4.0.2 — paint / water sort */
 (function () {
   'use strict';
-  const VERSION = '4.0.1';
+  const VERSION = '4.0.2';
+  const APP_VERSION = { version: '4.0.2', versionCode: 40002, webVersion: '4.0.2' };
+  const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
+    'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
   const SAVE_KEY = 'vintiki_save_v40';
   const LEGACY_KEY = 'vintiki_save_v32';
@@ -112,16 +115,37 @@
     if (!vibrateOn) return;
     try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {}
   }
+  const sfxLog = [];
   function playSfx(name, vol) {
     if (sfxVol <= 0.001) return;
-    const a = audio[name]; if (!a) return;
+    const a = audio[name];
+    if (!a) {
+      sfxLog.push({ t: Date.now(), name, err: 'missing', src: null });
+      console.warn('[sfx] missing', name);
+      return;
+    }
     try {
-      const c = a.cloneNode();
+      const c = a.cloneNode(true);
       c.volume = Math.max(0, Math.min(1, (vol || 1) * sfxVol));
-      c.play().catch(() => {});
-    } catch (e) {}
+      const src = a.currentSrc || a.src || '';
+      sfxLog.push({ t: Date.now(), name, src, vol: c.volume });
+      if (sfxLog.length > 40) sfxLog.shift();
+      console.log('[sfx]', name, src.split('/').slice(-2).join('/'), 'vol=' + c.volume.toFixed(2));
+      const p = c.play();
+      if (p && p.catch) p.catch((e) => console.warn('[sfx] play fail', name, e && e.message));
+    } catch (e) {
+      sfxLog.push({ t: Date.now(), name, err: String(e) });
+    }
   }
-  function loadAudio(name, src) { const a = new Audio(src); a.preload = 'auto'; audio[name] = a; }
+  function loadAudio(name, src) {
+    const a = new Audio(src);
+    a.preload = 'auto';
+    a.setAttribute('data-sfx', name);
+    a.addEventListener('error', () => console.warn('[sfx] load error', name, src));
+    a.addEventListener('canplaythrough', () => { a._ready = true; }, { once: true });
+    try { a.load(); } catch (e) {}
+    audio[name] = a;
+  }
   function ensureBgm() {
     if (!musicOn || bgmStarted) return;
     const tr = BGM_TRACKS.find(t => t.id === trackId) || BGM_TRACKS[0];
@@ -1175,6 +1199,21 @@
       list.appendChild(row);
     }
   }
+  function cmpSemver(a, b) {
+    const pa = String(a || '0').split('.').map(n => parseInt(n, 10) || 0);
+    const pb = String(b || '0').split('.').map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < 3; i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d; }
+    return 0;
+  }
+  function getAppUpdatePlugin() {
+    try {
+      const C = window.Capacitor;
+      if (!C) return null;
+      if (C.Plugins && C.Plugins.AppUpdate) return C.Plugins.AppUpdate;
+      if (typeof C.registerPlugin === 'function') return C.registerPlugin('AppUpdate');
+    } catch (e) {}
+    return null;
+  }
   function hardReloadTo(ver) {
     try {
       if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
@@ -1186,16 +1225,65 @@
     location.replace(u.toString());
   }
   async function checkOta(silent) {
+    const url = DEFAULT_MANIFEST_URL;
     try {
-      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
-      const j = await r.json();
-      if (j.webVersion && j.webVersion !== VERSION) {
-        const u = new URL(location.href);
-        if (u.searchParams.get('v') === j.webVersion) { if (!silent) toast('Кэш ещё старый'); return; }
-        if (!silent) toast('Обновление ' + j.webVersion + '…');
-        setTimeout(() => hardReloadTo(j.webVersion), silent ? 80 : 400);
-      } else if (!silent) toast('У вас последняя версия ' + VERSION);
-    } catch (e) { if (!silent) toast('Нет сети для обновления'); }
+      let manifest;
+      const plugin = getAppUpdatePlugin();
+      // Prefer native fetch on Android (avoids CORS), else browser fetch of GitHub release manifest
+      if (plugin && plugin.fetchManifest) {
+        try {
+          const ret = await plugin.fetchManifest({ url });
+          manifest = ret.manifest || JSON.parse(ret.body);
+        } catch (e) { /* fall through */ }
+      }
+      if (!manifest) {
+        const r = await fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store', mode: 'cors' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        manifest = await r.json();
+      }
+      let localWeb = APP_VERSION.webVersion || VERSION;
+      let localCode = APP_VERSION.versionCode || 0;
+      let localName = APP_VERSION.version || VERSION;
+      if (plugin && plugin.getInfo) {
+        try {
+          const info = await plugin.getInfo();
+          localWeb = info.webVersion || localWeb;
+          localCode = info.versionCode || localCode;
+          localName = info.versionName || localName;
+        } catch (e) {}
+      }
+      const remoteWeb = manifest.webVersion || manifest.version;
+      if (manifest.webBundleUrl && cmpSemver(remoteWeb, localWeb) > 0) {
+        if (!silent) toast('Обновление ' + remoteWeb + '…');
+        if (plugin && plugin.downloadAndApplyWebBundle) {
+          await plugin.downloadAndApplyWebBundle({ url: manifest.webBundleUrl, webVersion: remoteWeb });
+          location.reload();
+          return { update: 'web' };
+        }
+        // Browser / Pages: hard reload so cache-busted assets load from Pages once deployed
+        hardReloadTo(remoteWeb);
+        return { update: 'web-reload' };
+      }
+      const remoteCode = parseInt(manifest.versionCode, 10) || 0;
+      const needApk = (remoteCode > localCode) || (cmpSemver(manifest.version, localName) > 0);
+      if (needApk && manifest.apkUrl) {
+        if (!silent) {
+          toast('Доступен APK ' + manifest.version);
+          if (plugin && plugin.downloadAndInstallApk) {
+            try { await plugin.downloadAndInstallApk({ url: manifest.apkUrl }); } catch (e) { window.open(manifest.apkUrl, '_blank'); }
+          } else {
+            window.open(manifest.apkUrl, '_blank');
+          }
+        }
+        return { update: 'apk' };
+      }
+      if (!silent) toast('У вас последняя версия ' + localWeb);
+      return { upToDate: true };
+    } catch (e) {
+      console.warn('OTA', e);
+      if (!silent) toast('Нет сети для обновления');
+      return { error: String(e && e.message || e) };
+    }
   }
 
   function wireUi() {
@@ -1237,7 +1325,7 @@
 
   async function boot() {
     resize(); window.addEventListener('resize', resize);
-    // Soft CC0 / gentle SFX (v4.0.1) — see CREDITS.md
+    // Soft CC0 / gentle SFX (v4.0.2) — ONLY assets/audio/sfx/*.ogg — see CREDITS.md
     const SFX = 'assets/audio/sfx/';
     loadAudio('btn', SFX + 'sfx_btn.ogg');
     loadAudio('tap', SFX + 'sfx_tap.ogg');
@@ -1273,7 +1361,7 @@
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },
       tick: (sec) => { const steps = Math.ceil(sec / 0.016); for (let i = 0; i < steps; i++) { if (pourAnim) { pourAnim.t += 0.016; if (pourAnim.t >= pourAnim.duration) finishPour(); } animT += 0.016; } },
-      solveHint, openDaily, openSettings, checkOta,
+      solveHint, openDaily, openSettings, checkOta, sfxLog, audio, playSfx,
       autoSolve: (maxSteps) => {
         let steps = 0;
         while (steps++ < (maxSteps || 80) && state === 'play') {
