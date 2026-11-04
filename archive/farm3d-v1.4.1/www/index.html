@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="theme-color" content="#ffb347"/>
+<title>Ферма на краю света 3D</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;font-family:"Trebuchet MS",system-ui,Segoe UI,Roboto,sans-serif;background:#4aa3ef;color:#fff8e1;touch-action:manipulation}
+#app{display:flex;flex-direction:column;height:100%;width:100%;max-width:none;margin:0;position:relative;overflow:hidden;background:#2196f3}
+.topbar{display:flex;gap:5px;padding:7px;padding-top:max(7px,env(safe-area-inset-top));background:linear-gradient(180deg,#8d6e63,#5d4037);border-bottom:3px solid #3e2723;flex-wrap:wrap;align-items:center;z-index:30}
+.stat{background:linear-gradient(180deg,#fff8e1,#ffe0b2);color:#4e342e;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800;border:2px solid #a1887f}
+.btn{border:none;border-radius:12px;padding:7px 11px;font-size:12px;font-weight:900;cursor:pointer;background:linear-gradient(180deg,#ffd54f,#f9a825);color:#3e2723;border:2px solid #ef6c00;box-shadow:0 2px 0 #e65100}
+.btn.ghost{background:linear-gradient(180deg,#bcaaa4,#8d6e63);color:#fff8e1;border-color:#5d4037;box-shadow:0 2px 0 #3e2723}
+.btn:active{transform:translateY(1px)}
+.zonebar{display:flex;gap:5px;padding:5px 7px;overflow-x:auto;z-index:25;background:rgba(62,39,35,.8)}
+.zbtn{flex-shrink:0;border:none;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:800;background:linear-gradient(180deg,#a1887f,#6d4c41);color:#fff8e1;border:2px solid #4e342e}
+.zbtn.on{background:linear-gradient(180deg,#ffd54f,#ffb300);color:#3e2723}
+.zbtn:disabled{opacity:.35}
+.stage{flex:1;position:relative;min-height:0;z-index:5}
+#c3d{display:block;width:100%;height:100%;touch-action:none;filter:saturate(1.12) contrast(1.05) brightness(1.0)}
+.stage-vignette{pointer-events:none;position:absolute;inset:0;z-index:12;background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(40,30,20,.14) 100%);mix-blend-mode:multiply}
+@media (orientation:landscape){.topbar{padding:4px 7px}.zonebar{padding:3px 7px}.toolbar{padding:4px 7px}.story{max-height:36px;font-size:10px}.stage{flex:1 1 auto;min-height:55vh}}
+.order-chip{position:absolute;left:8px;right:8px;top:8px;z-index:20;background:linear-gradient(180deg,#fff8e1,#ffe0b2);color:#4e342e;border:3px solid #a1887f;border-radius:14px;padding:7px 9px;font-size:11px;font-weight:700;display:none;box-shadow:0 3px 0 #6d4c41}
+.story{position:absolute;left:8px;right:8px;bottom:8px;z-index:20;font-size:11px;background:rgba(62,39,35,.85);border-left:4px solid #ffd54f;padding:7px 9px;border-radius:0 12px 12px 0;line-height:1.35;max-height:58px;overflow:auto}
+.toolbar{display:flex;gap:5px;padding:7px;padding-bottom:max(7px,env(safe-area-inset-bottom));background:linear-gradient(180deg,#8d6e63,#4e342e);border-top:3px solid #3e2723;overflow-x:auto;z-index:30}
+.tool{min-width:62px;padding:7px 5px;border-radius:14px;border:3px solid #5d4037;background:linear-gradient(180deg,#efebe9,#bcaaa4);color:#3e2723;font-size:10px;font-weight:800;text-align:center;flex-shrink:0}
+.tool.active{border-color:#ffd54f;background:linear-gradient(180deg,#fff59d,#ffca28)}
+.tool .t-ico{font-size:20px;display:block}
+.toast{position:absolute;left:50%;top:72px;transform:translateX(-50%);background:#3e2723;padding:9px 14px;border-radius:12px;font-size:12px;font-weight:700;z-index:60;max-width:92%;text-align:center;pointer-events:none;opacity:0;transition:opacity .25s;border:2px solid #a1887f}
+.toast.show{opacity:1}
+.modal-bg{position:absolute;inset:0;background:rgba(30,15,5,.72);z-index:50;display:none;align-items:flex-end}
+.modal-bg.open{display:flex}
+.modal{background:linear-gradient(180deg,#efebe9,#d7ccc8);color:#3e2723;border-radius:20px 20px 0 0;width:100%;max-height:80%;overflow:auto;padding:14px;padding-bottom:max(14px,env(safe-area-inset-bottom));border-top:4px solid #ffd54f}
+.modal h2{font-size:17px;margin-bottom:8px}
+.row{display:flex;align-items:center;gap:8px;padding:9px;background:#fff8e1;border-radius:12px;margin-bottom:7px;border:2px solid #bcaaa4}
+.row .name{flex:1;font-weight:800;font-size:13px}
+.hint{font-size:11px;opacity:.75}
+#intro{position:absolute;inset:0;z-index:80;background:radial-gradient(ellipse at 50% 30%,#ffb074,#5d4037 70%);display:flex;flex-direction:column;justify-content:center;padding:24px;text-align:center}
+#intro h1{font-size:24px;margin:8px 0;font-weight:900;color:#fff8e1;text-shadow:0 2px 0 rgba(0,0,0,.35)}
+#intro p{font-size:13px;margin-bottom:14px;line-height:1.45;color:#fff8e1}
+.fps{position:absolute;right:6px;bottom:6px;z-index:15;font-size:10px;opacity:.45;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="intro">
+    <div style="font-size:64px;filter:drop-shadow(0 8px 12px rgba(0,0,0,.35))">🚜</div>
+    <h1>Ферма на краю света 3D</h1>
+    <p>Стилизованная 3D-ферма на парящем острове. Сажай, поливай, собирай урожай, гоняй на тракторе к грядкам!</p>
+    <p style="opacity:.75;font-size:12px">v1.4.1 · Three.js · без рекламы</p>
+    <button class="btn" id="btn-start" style="font-size:16px;padding:12px 26px;margin:0 auto">Начать игру</button>
+    <button class="btn ghost" id="btn-continue" style="margin:10px auto 0;display:none">Продолжить</button>
+  </div>
+  <div class="topbar" id="topbar" style="display:none">
+    <div class="stat">🪙 <span id="coins">0</span></div>
+    <div class="stat">⭐ ур.<span id="level">1</span></div>
+    <div class="stat">❤️ <span id="heart-pct">0%</span></div>
+    <div class="stat" id="wx-stat">☀️</div>
+    <div class="stat" id="tod-stat">☀️</div>
+    <button class="btn ghost" id="btn-mute" style="margin-left:auto">🔊</button>
+    <button class="btn ghost" id="btn-market">Рынок</button>
+    <button class="btn ghost" id="btn-book">Книга</button>
+  </div>
+  <div class="zonebar" id="zonebar" style="display:none"></div>
+  <div class="stage" id="stage" style="display:none">
+    <canvas id="c3d"></canvas>
+    <div class="stage-vignette" aria-hidden="true"></div>
+    <div class="order-chip" id="order-chip"></div>
+    <div class="story" id="story"></div>
+    <div class="fps" id="fps"></div>
+  </div>
+  <div class="toolbar" id="toolbar" style="display:none"></div>
+  <div class="toast" id="toast"></div>
+  <div class="modal-bg" id="modal-bg"><div class="modal" id="modal"></div></div>
+</div>
+<script src="vendor/three.min.js"></script>
+<script src="vendor/GLTFLoader.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

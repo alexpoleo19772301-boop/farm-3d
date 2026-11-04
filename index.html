@@ -3,80 +3,106 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
-<meta name="theme-color" content="#ffb347"/>
-<title>Ферма на краю света 3D</title>
+<meta name="theme-color" content="#c45cff"/>
+<title>Спасти принцессу: Маджонг</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overflow:hidden;font-family:"Trebuchet MS",system-ui,Segoe UI,Roboto,sans-serif;background:#4aa3ef;color:#fff8e1;touch-action:manipulation}
-#app{display:flex;flex-direction:column;height:100%;width:100%;max-width:none;margin:0;position:relative;overflow:hidden;background:#2196f3}
-.topbar{display:flex;gap:5px;padding:7px;padding-top:max(7px,env(safe-area-inset-top));background:linear-gradient(180deg,#8d6e63,#5d4037);border-bottom:3px solid #3e2723;flex-wrap:wrap;align-items:center;z-index:30}
-.stat{background:linear-gradient(180deg,#fff8e1,#ffe0b2);color:#4e342e;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800;border:2px solid #a1887f}
-.btn{border:none;border-radius:12px;padding:7px 11px;font-size:12px;font-weight:900;cursor:pointer;background:linear-gradient(180deg,#ffd54f,#f9a825);color:#3e2723;border:2px solid #ef6c00;box-shadow:0 2px 0 #e65100}
-.btn.ghost{background:linear-gradient(180deg,#bcaaa4,#8d6e63);color:#fff8e1;border-color:#5d4037;box-shadow:0 2px 0 #3e2723}
-.btn:active{transform:translateY(1px)}
-.zonebar{display:flex;gap:5px;padding:5px 7px;overflow-x:auto;z-index:25;background:rgba(62,39,35,.8)}
-.zbtn{flex-shrink:0;border:none;border-radius:999px;padding:5px 10px;font-size:11px;font-weight:800;background:linear-gradient(180deg,#a1887f,#6d4c41);color:#fff8e1;border:2px solid #4e342e}
-.zbtn.on{background:linear-gradient(180deg,#ffd54f,#ffb300);color:#3e2723}
-.zbtn:disabled{opacity:.35}
-.stage{flex:1;position:relative;min-height:0;z-index:5}
-#c3d{display:block;width:100%;height:100%;touch-action:none;filter:saturate(1.12) contrast(1.05) brightness(1.0)}
-.stage-vignette{pointer-events:none;position:absolute;inset:0;z-index:12;background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(40,30,20,.14) 100%);mix-blend-mode:multiply}
-@media (orientation:landscape){.topbar{padding:4px 7px}.zonebar{padding:3px 7px}.toolbar{padding:4px 7px}.story{max-height:36px;font-size:10px}.stage{flex:1 1 auto;min-height:55vh}}
-.order-chip{position:absolute;left:8px;right:8px;top:8px;z-index:20;background:linear-gradient(180deg,#fff8e1,#ffe0b2);color:#4e342e;border:3px solid #a1887f;border-radius:14px;padding:7px 9px;font-size:11px;font-weight:700;display:none;box-shadow:0 3px 0 #6d4c41}
-.story{position:absolute;left:8px;right:8px;bottom:8px;z-index:20;font-size:11px;background:rgba(62,39,35,.85);border-left:4px solid #ffd54f;padding:7px 9px;border-radius:0 12px 12px 0;line-height:1.35;max-height:58px;overflow:auto}
-.toolbar{display:flex;gap:5px;padding:7px;padding-bottom:max(7px,env(safe-area-inset-bottom));background:linear-gradient(180deg,#8d6e63,#4e342e);border-top:3px solid #3e2723;overflow-x:auto;z-index:30}
-.tool{min-width:62px;padding:7px 5px;border-radius:14px;border:3px solid #5d4037;background:linear-gradient(180deg,#efebe9,#bcaaa4);color:#3e2723;font-size:10px;font-weight:800;text-align:center;flex-shrink:0}
-.tool.active{border-color:#ffd54f;background:linear-gradient(180deg,#fff59d,#ffca28)}
-.tool .t-ico{font-size:20px;display:block}
-.toast{position:absolute;left:50%;top:72px;transform:translateX(-50%);background:#3e2723;padding:9px 14px;border-radius:12px;font-size:12px;font-weight:700;z-index:60;max-width:92%;text-align:center;pointer-events:none;opacity:0;transition:opacity .25s;border:2px solid #a1887f}
+html,body{height:100%;overflow:hidden;font-family:"Trebuchet MS",system-ui,Segoe UI,Roboto,sans-serif;background:#2a1840;color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#app{position:relative;width:100%;height:100%;max-width:520px;margin:0 auto;overflow:hidden;background:#1a0f2e}
+canvas#game{display:block;width:100%;height:100%;touch-action:none}
+.overlay{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;padding-top:max(20px,env(safe-area-inset-top));padding-bottom:max(20px,env(safe-area-inset-bottom));background:radial-gradient(ellipse at 50% 20%,#6b3fa0,#1a0f2e 70%);text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:26px;font-weight:900;margin:8px 0;text-shadow:0 3px 0 #4a1a7a,0 0 24px rgba(255,120,220,.5);line-height:1.2}
+.overlay p{font-size:14px;opacity:.9;line-height:1.45;max-width:340px;margin:0 auto 12px}
+.btn{border:none;border-radius:16px;padding:12px 22px;font-size:16px;font-weight:900;cursor:pointer;background:linear-gradient(180deg,#ff7ad9,#e040a0);color:#fff;border:3px solid #fff6;box-shadow:0 4px 0 #9a2068,0 8px 20px rgba(0,0,0,.35);margin:6px}
+.btn:active{transform:translateY(2px);box-shadow:0 2px 0 #9a2068}
+.btn.gold{background:linear-gradient(180deg,#ffe082,#ffb300);color:#4a2a00;border-color:#fff8;box-shadow:0 4px 0 #c67c00,0 8px 20px rgba(0,0,0,.35)}
+.btn.ghost{background:linear-gradient(180deg,#7e57c2,#5e35b1);box-shadow:0 4px 0 #311b92,0 8px 20px rgba(0,0,0,.35)}
+.btn.small{font-size:13px;padding:8px 14px;border-radius:12px}
+.hud{position:absolute;left:0;right:0;top:0;z-index:15;display:flex;gap:6px;align-items:center;padding:8px;padding-top:max(8px,env(safe-area-inset-top));pointer-events:none}
+.hud > *{pointer-events:auto}
+.pill{background:rgba(20,8,40,.75);border:2px solid #e1bee7;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800;backdrop-filter:blur(6px)}
+.pill.btnish{cursor:pointer;background:linear-gradient(180deg,#7e57c2,#5e35b1)}
+.bottombar{position:absolute;left:0;right:0;bottom:0;z-index:15;display:flex;gap:8px;justify-content:center;align-items:flex-end;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));pointer-events:none}
+.bottombar > *{pointer-events:auto}
+.boost{width:64px;height:64px;border-radius:18px;border:3px solid #fff8;background:linear-gradient(180deg,#ce93d8,#8e24aa);color:#fff;font-weight:900;font-size:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 4px 0 #4a148c;cursor:pointer;position:relative}
+.boost .ico{font-size:22px;line-height:1}
+.boost .cnt{position:absolute;top:-6px;right:-6px;background:#ff4081;border:2px solid #fff;border-radius:999px;min-width:22px;height:22px;font-size:11px;display:flex;align-items:center;justify-content:center}
+.boost:disabled{opacity:.4;filter:grayscale(.5)}
+.toast{position:absolute;left:50%;top:70px;transform:translateX(-50%);z-index:40;background:rgba(30,10,50,.92);padding:10px 16px;border-radius:14px;font-size:13px;font-weight:700;border:2px solid #ce93d8;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%;text-align:center}
 .toast.show{opacity:1}
-.modal-bg{position:absolute;inset:0;background:rgba(30,15,5,.72);z-index:50;display:none;align-items:flex-end}
-.modal-bg.open{display:flex}
-.modal{background:linear-gradient(180deg,#efebe9,#d7ccc8);color:#3e2723;border-radius:20px 20px 0 0;width:100%;max-height:80%;overflow:auto;padding:14px;padding-bottom:max(14px,env(safe-area-inset-bottom));border-top:4px solid #ffd54f}
-.modal h2{font-size:17px;margin-bottom:8px}
-.row{display:flex;align-items:center;gap:8px;padding:9px;background:#fff8e1;border-radius:12px;margin-bottom:7px;border:2px solid #bcaaa4}
-.row .name{flex:1;font-weight:800;font-size:13px}
-.hint{font-size:11px;opacity:.75}
-#intro{position:absolute;inset:0;z-index:80;background:radial-gradient(ellipse at 50% 30%,#ffb074,#5d4037 70%);display:flex;flex-direction:column;justify-content:center;padding:24px;text-align:center}
-#intro h1{font-size:24px;margin:8px 0;font-weight:900;color:#fff8e1;text-shadow:0 2px 0 rgba(0,0,0,.35)}
-#intro p{font-size:13px;margin-bottom:14px;line-height:1.45;color:#fff8e1}
-.fps{position:absolute;right:6px;bottom:6px;z-index:15;font-size:10px;opacity:.45;pointer-events:none}
+.map-wrap{position:absolute;inset:0;z-index:10;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:16px;padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(80px,env(safe-area-inset-bottom));background:linear-gradient(180deg,#4a148c,#1a0f2e 40%,#311b92);display:none}
+.map-wrap.show{display:block}
+.map-title{text-align:center;font-size:22px;font-weight:900;margin:8px 0 4px;text-shadow:0 2px 0 #0006}
+.map-sub{text-align:center;font-size:12px;opacity:.8;margin-bottom:14px}
+.map-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;max-width:400px;margin:0 auto}
+.lvl{aspect-ratio:1;border-radius:16px;border:3px solid #fff5;background:linear-gradient(180deg,#9575cd,#5e35b1);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 0 #311b92;position:relative}
+.lvl.lock{opacity:.45;filter:grayscale(.6);cursor:default}
+.lvl.done{background:linear-gradient(180deg,#f8bbd0,#ec407a);border-color:#fff8}
+.lvl .stars{font-size:10px;letter-spacing:1px;margin-top:2px}
+.map-top{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.modal-stars{font-size:28px;margin:8px 0;letter-spacing:4px}
+.princess-hero{width:min(36vw,150px);height:auto;filter:drop-shadow(0 8px 16px rgba(0,0,0,.45));margin-bottom:6px}
+.ver{position:absolute;right:8px;bottom:8px;font-size:10px;opacity:.5;z-index:5;pointer-events:none}
 </style>
 </head>
 <body>
 <div id="app">
-  <div id="intro">
-    <div style="font-size:64px;filter:drop-shadow(0 8px 12px rgba(0,0,0,.35))">🚜</div>
-    <h1>Ферма на краю света 3D</h1>
-    <p>Стилизованная 3D-ферма на парящем острове. Сажай, поливай, собирай урожай, гоняй на тракторе к грядкам!</p>
-    <p style="opacity:.75;font-size:12px">v1.4.1 · Three.js · без рекламы</p>
-    <button class="btn" id="btn-start" style="font-size:16px;padding:12px 26px;margin:0 auto">Начать игру</button>
-    <button class="btn ghost" id="btn-continue" style="margin:10px auto 0;display:none">Продолжить</button>
+  <canvas id="game"></canvas>
+  <div class="hud" id="hud" style="display:none">
+    <button class="pill btnish" id="btn-back">← Карта</button>
+    <div class="pill">Ур. <span id="hud-level">1</span></div>
+    <div class="pill">⭐ <span id="hud-stars">0</span></div>
+    <div class="pill" style="margin-left:auto">🪙 <span id="hud-coins">0</span></div>
+    <button class="pill btnish" id="btn-mute">🔊</button>
   </div>
-  <div class="topbar" id="topbar" style="display:none">
-    <div class="stat">🪙 <span id="coins">0</span></div>
-    <div class="stat">⭐ ур.<span id="level">1</span></div>
-    <div class="stat">❤️ <span id="heart-pct">0%</span></div>
-    <div class="stat" id="wx-stat">☀️</div>
-    <div class="stat" id="tod-stat">☀️</div>
-    <button class="btn ghost" id="btn-mute" style="margin-left:auto">🔊</button>
-    <button class="btn ghost" id="btn-market">Рынок</button>
-    <button class="btn ghost" id="btn-book">Книга</button>
+  <div class="bottombar" id="boosts" style="display:none">
+    <button class="boost" id="b-undo" title="Отмена"><span class="ico">↩️</span>Отмена<span class="cnt" id="c-undo">3</span></button>
+    <button class="boost" id="b-hint" title="Подсказка"><span class="ico">💡</span>Ход<span class="cnt" id="c-hint">3</span></button>
+    <button class="boost" id="b-shuffle" title="Перемешать"><span class="ico">🔀</span>Микс<span class="cnt" id="c-shuffle">3</span></button>
   </div>
-  <div class="zonebar" id="zonebar" style="display:none"></div>
-  <div class="stage" id="stage" style="display:none">
-    <canvas id="c3d"></canvas>
-    <div class="stage-vignette" aria-hidden="true"></div>
-    <div class="order-chip" id="order-chip"></div>
-    <div class="story" id="story"></div>
-    <div class="fps" id="fps"></div>
-  </div>
-  <div class="toolbar" id="toolbar" style="display:none"></div>
   <div class="toast" id="toast"></div>
-  <div class="modal-bg" id="modal-bg"><div class="modal" id="modal"></div></div>
+  <div class="ver" id="ver-label">v2.0.0</div>
+
+  <div class="overlay" id="screen-intro">
+    <img class="princess-hero" id="intro-princess" alt="Принцесса" src="assets/sprites/princess.webp"/>
+    <h1>Спасти принцессу</h1>
+    <p>Маджонг в башне. Собирай одинаковые плитки по три в лоток — и принцесса спустится вниз!</p>
+    <p style="opacity:.7;font-size:12px">v2.0.0 · без рекламы · свои символы</p>
+    <button class="btn gold" id="btn-play">Играть</button>
+    <button class="btn ghost small" id="btn-update">⬇ Обновить</button>
+  </div>
+
+  <div class="map-wrap" id="screen-map">
+    <div class="map-top">
+      <button class="btn small ghost" id="map-back">← Меню</button>
+      <div class="pill">🪙 <span id="map-coins">0</span></div>
+      <div class="pill">⭐ <span id="map-stars">0</span></div>
+      <button class="btn small" id="map-update">⬇ Обновить</button>
+      <button class="btn small ghost" id="map-mute">🔊</button>
+    </div>
+    <div class="map-title">Карта уровней</div>
+    <div class="map-sub">Спаси принцессу на каждом этаже башни</div>
+    <div class="map-grid" id="map-grid"></div>
+  </div>
+
+  <div class="overlay hidden" id="screen-win">
+    <img class="princess-hero" src="assets/sprites/princess_win.webp" alt="Победа"/>
+    <h1>Принцесса спасена!</h1>
+    <div class="modal-stars" id="win-stars">⭐⭐⭐</div>
+    <p id="win-msg">Отличная работа</p>
+    <button class="btn gold" id="btn-next">Дальше</button>
+    <button class="btn ghost" id="btn-win-map">Карта</button>
+  </div>
+
+  <div class="overlay hidden" id="screen-lose">
+    <img class="princess-hero" src="assets/sprites/princess.webp" alt="Проигрыш" style="filter:grayscale(.3) drop-shadow(0 8px 16px rgba(0,0,0,.45))"/>
+    <h1>Лоток полон!</h1>
+    <p>Принцесса застряла. Попробуй ещё раз или возьми бустер.</p>
+    <button class="btn gold" id="btn-retry">Ещё раз</button>
+    <button class="btn ghost" id="btn-lose-map">Карта</button>
+  </div>
 </div>
-<script src="vendor/three.min.js"></script>
-<script src="vendor/GLTFLoader.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
