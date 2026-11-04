@@ -1,10 +1,15 @@
-/* Винтики v3.7.0 — daily/quests/stars/obstacles */
+/* Винтики v3.8.0 — bigger screws, metal chain, mini-boss jigsaw */
 (function () {
   'use strict';
-  const VERSION = '3.7.0';
+  const VERSION = '3.8.0';
   const COLORS = {
-    red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
-    purple: '#9b4de0', orange: '#f08a2a'
+    // colour-blind friendly, high-chroma palette (Okabe–Ito inspired)
+    red: '#D55E00', yellow: '#F0E442', green: '#009E73', blue: '#0072B2',
+    purple: '#CC79A7', orange: '#E69F00'
+  };
+  const COLOR_RIM = {
+    red: '#FF7A33', yellow: '#FFF066', green: '#33D4A5', blue: '#33A4E6',
+    purple: '#E8A0C8', orange: '#FFC14D'
   };
   const BOX_CAP = 3;
   const SAVE_KEY = 'vintiki_save_v32';
@@ -31,6 +36,24 @@
   let bombHud = null; // {plankId, left}
   let pendingTut = null; // obstacle tutorial queue
   let starAnimT = 0;
+  let chainDebris = [];
+  let pendingBossAfterWin = false;
+  let boss = null; // mini-boss jigsaw state
+  let bossDrag = null;
+  const BOSS_IMGS = [
+    'assets/boss/boss1_workshop.jpg',
+    'assets/boss/boss2_village.jpg',
+    'assets/boss/boss3_cat.jpg',
+    'assets/boss/boss4_landscape.jpg',
+    'assets/boss/boss5_bakery.jpg',
+    'assets/boss/boss6_forest.jpg',
+    'assets/boss/boss7_beach.jpg',
+    'assets/boss/boss8_winter.jpg'
+  ];
+  const BOSS_TITLES = [
+    'Мастерская', 'Деревня', 'Котик', 'Пейзаж',
+    'Пекарня', 'Лес', 'Пляж', 'Зима'
+  ];
   let animT = 0, particles = [], flyers = [], confetti = [], shards = [];
   let screenShake = 0;
   let tutStep = 0, tutMsg = '', hintScrewId = null, hammerMode = false;
@@ -39,7 +62,7 @@
   const TRAY_UV = { l: 0.195, t: 0.200, r: 0.195, b: 0.215 };
   const RIM_PX = 36;
   const BOARD_PAD = 10; // extra margin inside drawn rim — planks never touch lip
-  const MIN_SCREW_DIST = 48;
+  const MIN_SCREW_DIST = 54;
   let screwR = 20;
   let tray = { x: 0, y: 0, w: 360, h: 360 }; // outer art draw rect
   let board = { x: 24, y: 200, w: 280, h: 280 }; // INNER playable = art floor
@@ -595,7 +618,7 @@
     board.y = tray.y + rim + BOARD_PAD;
     board.w = Math.max(40, tray.w - 2 * (rim + BOARD_PAD));
     board.h = Math.max(40, tray.h - 2 * (rim + BOARD_PAD));
-    screwR = Math.max(16, Math.min(21, Math.min(board.w, board.h) / 20));
+    screwR = Math.max(20, Math.min(28, Math.min(board.w, board.h) / 15.5));
   }
 
   function resize() {
@@ -727,7 +750,7 @@
       }
     })();
     assignPuzzleEdges();
-
+    retargetChainPairs();
     updateLocks();
     refreshHud();
     ensureBgm();
@@ -1366,6 +1389,15 @@
       toast('Ржавый винт — ещё раз!');
       return true;
     }
+    // break metal chain visually + free remaining linked screws
+    if (sc.chainId) {
+      const mates = screws.filter(s => s.alive && s.id !== sc.id && s.chainId === sc.chainId);
+      for (const m of mates) {
+        spawnChainBreak(sc.x, sc.y, m.x, m.y);
+        m.chainId = null;
+      }
+      sc.chainId = null;
+    }
     sc.alive = false;
     removedKeys.add(sc.id);
     playSfx('screw', 0.7); buzz(16);
@@ -1489,6 +1521,10 @@
     if (chests.length) coinMsg += ' · сундук!';
     const wc = $('win-coins'); if (wc) wc.textContent = coinMsg;
     const wr = $('win-replay'); if (wr) wr.style.display = (best < 3) ? 'inline-flex' : 'none';
+    const lvlNum = levelIdx + 1;
+    pendingBossAfterWin = (lvlNum % 5 === 0) && lvlNum >= 5;
+    const bn = $('btn-next');
+    if (bn) bn.textContent = pendingBossAfterWin ? '🧩 Мини-босс' : 'Дальше';
     showScreen('win'); refreshHud();
   }
   function endLose() {
@@ -1535,8 +1571,22 @@
   }
   canvas.addEventListener('pointerdown', (e) => {
     const r = canvas.getBoundingClientRect();
-    onPointer(e.clientX - r.left, e.clientY - r.top);
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    if (state === 'boss') { bossPointerDown(x, y, e.pointerId); return; }
+    onPointer(x, y);
   });
+  canvas.addEventListener('pointermove', (e) => {
+    if (state !== 'boss' || !bossDrag) return;
+    const r = canvas.getBoundingClientRect();
+    bossPointerMove(e.clientX - r.left, e.clientY - r.top);
+  });
+  function bossPointerEnd(e) {
+    if (state !== 'boss') return;
+    const r = canvas.getBoundingClientRect();
+    bossPointerUp(e.clientX - r.left, e.clientY - r.top);
+  }
+  canvas.addEventListener('pointerup', bossPointerEnd);
+  canvas.addEventListener('pointercancel', bossPointerEnd);
 
   function useHint() {
     if (state !== 'play' || save.boosters.hint <= 0) return;
@@ -1658,52 +1708,118 @@
     }
   }
 
+  function shadeHex(hex, amt) {
+    const h = String(hex || '#888').replace('#', '');
+    const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+    const n = parseInt(full, 16);
+    if (!Number.isFinite(n)) return hex;
+    const r = Math.max(0, Math.min(255, ((n >> 16) & 255) + amt));
+    const g = Math.max(0, Math.min(255, ((n >> 8) & 255) + amt));
+    const b = Math.max(0, Math.min(255, (n & 255) + amt));
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
   function drawScrewHead(x, y, color, spin, scale, blocked, shaking, isKey, opts) {
-    // draw ~15% smaller than layout radius so wood padding is always visible
-    const r = screwR * 0.85 * (scale || 1);
+    // ~25-30% bigger visual vs old 0.85*screwR; wide saturated rim, small cross
+    const r = screwR * 1.08 * (scale || 1);
     ctx.save();
     ctx.translate(x + (shaking ? Math.sin(animT * 55) * 3 : 0), y);
     ctx.rotate(spin || 0);
-    const im = imgs['screw_' + color];
-    if (im) ctx.drawImage(im, -r, -r, r * 2, r * 2);
-    else {
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
-      ctx.fillStyle = COLORS[color] || '#ccc'; ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.4, 0); ctx.lineTo(r * 0.4, 0);
-      ctx.moveTo(0, -r * 0.4); ctx.lineTo(0, r * 0.4);
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.stroke();
-    }
+    const col = COLORS[color] || '#888';
+    const rim = (typeof COLOR_RIM !== 'undefined' && COLOR_RIM[color]) || col;
+
+    // soft drop shadow
+    ctx.beginPath();
+    ctx.arc(1.6, 2.4, r * 1.02, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    ctx.fill();
+
+    // saturated colour body + wide rim (colour reads clearly)
+    const grd = ctx.createRadialGradient(-r * 0.28, -r * 0.32, r * 0.08, 0, 0, r);
+    grd.addColorStop(0, rim);
+    grd.addColorStop(0.5, col);
+    grd.addColorStop(1, shadeHex(col, -38));
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = grd;
+    ctx.fill();
+
+    // bright outer colour ring
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.97, 0, Math.PI * 2);
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = Math.max(3.8, r * 0.24);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    // metal centre disc (smaller so colour rim dominates)
+    const metalR = r * 0.52;
+    const mg = ctx.createRadialGradient(-metalR * 0.3, -metalR * 0.35, 1, 0, 0, metalR);
+    mg.addColorStop(0, '#f5f3eb');
+    mg.addColorStop(0.55, '#c9c5b8');
+    mg.addColorStop(1, '#8b8778');
+    ctx.beginPath();
+    ctx.arc(0, 0, metalR, 0, Math.PI * 2);
+    ctx.fillStyle = mg;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // smaller cross slot
+    const slot = metalR * 0.52;
+    const sw = Math.max(2.0, r * 0.11);
+    ctx.strokeStyle = '#2e2c26';
+    ctx.lineWidth = sw;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-slot, 0); ctx.lineTo(slot, 0);
+    ctx.moveTo(0, -slot); ctx.lineTo(0, slot);
+    ctx.stroke();
+
+    // specular
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.3, -r * 0.34, r * 0.22, r * 0.11, -0.55, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.42)';
+    ctx.fill();
+
     opts = opts || {};
     if (opts.rusty) {
-      ctx.fillStyle = 'rgba(120,70,30,0.45)';
+      ctx.fillStyle = 'rgba(120,70,30,0.40)';
       ctx.beginPath(); ctx.arc(0, 0, r + 2, 0, Math.PI * 2); ctx.fill();
-      ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = Math.max(11, r * 0.55) + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('🧱', r * 0.55, -r * 0.55);
     }
     if (opts.ice && !opts.iceBroken) {
-      ctx.fillStyle = 'rgba(180,220,255,0.55)';
+      ctx.fillStyle = 'rgba(180,220,255,0.50)';
       ctx.beginPath(); ctx.arc(0, 0, r + 3, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(-r * 0.6, -r * 0.2); ctx.lineTo(r * 0.5, r * 0.5); ctx.stroke();
-      ctx.font = '12px sans-serif'; ctx.fillStyle = '#e8f6ff'; ctx.fillText('❄️', 0, 0);
+      ctx.beginPath(); ctx.moveTo(-r * 0.55, -r * 0.15); ctx.lineTo(r * 0.45, r * 0.45); ctx.stroke();
+      ctx.font = Math.max(11, r * 0.5) + 'px sans-serif';
+      ctx.fillStyle = '#e8f6ff'; ctx.fillText('❄️', 0, 0);
     } else if (opts.ice && opts.iceBroken) {
       ctx.strokeStyle = 'rgba(200,230,255,0.7)'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(-r * 0.5, -r * 0.3); ctx.lineTo(r * 0.4, r * 0.4); ctx.stroke();
     }
     if (opts.chainId) {
-      ctx.font = '13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = Math.max(12, r * 0.55) + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('🔗', -r * 0.55, -r * 0.55);
     }
     if (isKey && !blocked) {
-      ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = Math.max(13, r * 0.58) + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('🔑', r * 0.55, -r * 0.55);
     }
     if (blocked) {
       ctx.fillStyle = 'rgba(40,40,40,0.55)';
       ctx.beginPath(); ctx.arc(0, 0, r + 1, 0, Math.PI * 2); ctx.fill();
-      ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'bold ' + Math.max(12, r * 0.55) + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = '#fff'; ctx.fillText('🔒', 0, 1);
     }
     ctx.restore();
@@ -1715,18 +1831,184 @@
       seen.add(sc.chainId);
       const group = screws.filter(s => s.alive && s.chainId === sc.chainId);
       if (group.length < 2) continue;
+      for (let i = 0; i < group.length - 1; i++) {
+        drawMetalChain(group[i].x, group[i].y, group[i + 1].x, group[i + 1].y);
+      }
+    }
+    for (let i = chainDebris.length - 1; i >= 0; i--) {
+      const d = chainDebris[i];
+      d.vy += 0.38;
+      d.x += d.vx; d.y += d.vy; d.rot += d.vr;
+      d.life -= 1;
       ctx.save();
-      ctx.strokeStyle = 'rgba(200,200,210,0.85)';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([5, 4]);
-      ctx.beginPath();
-      ctx.moveTo(group[0].x, group[0].y);
-      for (let i = 1; i < group.length; i++) ctx.lineTo(group[i].x, group[i].y);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.globalAlpha = Math.max(0, Math.min(1, d.life / 38));
+      ctx.translate(d.x, d.y);
+      ctx.rotate(d.rot);
+      drawChainLink(0, 0, d.face, d.scale || 1);
+      ctx.restore();
+      if (d.life <= 0 || d.y > H + 50) chainDebris.splice(i, 1);
+    }
+  }
+
+
+  function retargetChainPairs() {
+    // If a chain pair is too close for the metal links to read, reassign to a farther free pair.
+    const by = {};
+    for (const sc of screws) {
+      if (!sc.alive || !sc.chainId) continue;
+      (by[sc.chainId] = by[sc.chainId] || []).push(sc);
+    }
+    const minDist = screwR * 3.2;
+    for (const cid of Object.keys(by)) {
+      const g = by[cid];
+      if (g.length < 2) continue;
+      const d0 = Math.hypot(g[0].x - g[1].x, g[0].y - g[1].y);
+      if (d0 >= minDist) continue;
+      // clear and find best distant free pair on same-ish area
+      for (const s of g) s.chainId = null;
+      const free = screws.filter(s => s.alive && !s.chainId && !s.locked && !s.isKey && !s.rusty && !s.ice);
+      let best = null, bestD = 0;
+      for (let i = 0; i < free.length; i++) {
+        for (let j = i + 1; j < free.length; j++) {
+          const d = Math.hypot(free[i].x - free[j].x, free[i].y - free[j].y);
+          if (d >= minDist && d < screwR * 9 && d > bestD) { bestD = d; best = [free[i], free[j]]; }
+        }
+      }
+      if (best) { best[0].chainId = cid; best[1].chainId = cid; }
+      else { // keep original even if close — sagging loop still draws
+        g[0].chainId = cid; g[1].chainId = cid;
+      }
+    }
+  }
+
+  function drawMetalChain(x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const dist = Math.hypot(dx, dy) || 1;
+    const ux = dx / dist, uy = dy / dist;
+    // inset from screw centres so chain starts at rim
+    const inset = Math.min(screwR * 0.95, dist * 0.35);
+    const ax = x1 + ux * inset, ay = y1 + uy * inset;
+    const bx = x2 - ux * inset, by = y2 - uy * inset;
+    const adx = bx - ax, ady = by - ay;
+    const adist = Math.hypot(adx, ady) || 1;
+    // pronounced hanging loop — even when screws are close, chain reads below them
+    const sag = Math.max(38, Math.min(72, 55 - adist * 0.15));
+    // perpendicular "down-ish" bias (screen +Y)
+    const nx = -ady / adist, ny = adx / adist;
+    // prefer sag toward +Y
+    const flip = (ny > 0 ? 1 : -1);
+    const midX = (ax + bx) / 2 + nx * 6 * flip;
+    const midY = (ay + by) / 2 + sag;
+    const linkPitch = 16;
+    const n = Math.max(5, Math.round((adist + sag * 1.6) / linkPitch));
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const omt = 1 - t;
+      const px = omt * omt * ax + 2 * omt * t * midX + t * t * bx;
+      const py = omt * omt * ay + 2 * omt * t * midY + t * t * by;
+      const tx = 2 * omt * (midX - ax) + 2 * t * (bx - midX);
+      const ty = 2 * omt * (midY - ay) + 2 * t * (by - midY);
+      const ang = Math.atan2(ty, tx);
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(ang);
+      drawChainLink(0, 0, i % 2 === 0, 1.45);
       ctx.restore();
     }
   }
+
+  function drawChainLink(x, y, faceOn, scale) {
+    const s = scale || 1;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+    // soft contact shadow under link
+    ctx.beginPath();
+    ctx.ellipse(0.8, 1.6, faceOn ? 9 : 4, faceOn ? 5.5 : 7, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fill();
+    if (faceOn) {
+      // Face-on oval ring — steel gradient
+      const lg = ctx.createLinearGradient(-9, -6, 9, 6);
+      lg.addColorStop(0, '#f2f0ea');
+      lg.addColorStop(0.25, '#c2bfb4');
+      lg.addColorStop(0.55, '#7a776c');
+      lg.addColorStop(0.8, '#4e4b42');
+      lg.addColorStop(1, '#d0cdc2');
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 10, 6.4, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 5.2, 3.2, 0, 0, Math.PI * 2);
+      ctx.fillStyle = lg;
+      ctx.fill('evenodd');
+      ctx.strokeStyle = 'rgba(20,18,12,0.55)';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 10, 6.4, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 5.2, 3.2, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      // highlight + rim shine
+      ctx.beginPath();
+      ctx.ellipse(-3.6, -2.6, 2.8, 1.3, -0.45, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.65)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(3.2, 2.2, 2.0, 1.0, 0.35, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fill();
+    } else {
+      // Side-on link (shows thickness / interlocking)
+      const lg = ctx.createLinearGradient(0, -6, 0, 6);
+      lg.addColorStop(0, '#ebe8e0');
+      lg.addColorStop(0.35, '#9a978c');
+      lg.addColorStop(0.7, '#555248');
+      lg.addColorStop(1, '#2e2c26');
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 4.2, 8.2, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 1.55, 4.8, 0, 0, Math.PI * 2);
+      ctx.fillStyle = lg;
+      ctx.fill('evenodd');
+      ctx.strokeStyle = 'rgba(15,12,8,0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 4.2, 8.2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      // top specular edge
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillRect(-1.0, -5.8, 2.0, 3.2);
+      // bottom dark
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.fillRect(-0.9, 3.2, 1.8, 2.4);
+    }
+    ctx.restore();
+  }
+
+  function spawnChainBreak(x1, y1, x2, y2) {
+    const dist = Math.hypot(x2 - x1, y2 - y1) || 1;
+    const n = Math.max(5, Math.round(dist / 13));
+    const sag = Math.min(18, dist * 0.12);
+    const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2 + sag;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const omt = 1 - t;
+      const px = omt * omt * x1 + 2 * omt * t * midX + t * t * x2;
+      const py = omt * omt * y1 + 2 * omt * t * midY + t * t * y2;
+      chainDebris.push({
+        x: px, y: py,
+        vx: (Math.random() - 0.5) * 4.5,
+        vy: -1.2 - Math.random() * 3.2,
+        rot: Math.random() * Math.PI * 2,
+        vr: (Math.random() - 0.5) * 0.35,
+        life: 32 + Math.random() * 28,
+        face: i % 2 === 0,
+        scale: 0.85 + Math.random() * 0.25
+      });
+    }
+  }
+
 
   function drawBoxes() {
     for (const b of boxes) {
@@ -1889,6 +2171,11 @@ function drawTrayNine() {
       return;
     }
 
+    if (state === 'boss') {
+      drawBoss(dt);
+      return;
+    }
+
     if (state === 'play' || state === 'win' || state === 'lose') {
       if (engine && state === 'play') {
         Engine.update(engine, Math.min(32, dt * 1000));
@@ -1939,10 +2226,15 @@ function drawTrayNine() {
       const el = $('sc-' + s); if (el) el.classList.toggle('on', s === name);
     });
     const playing = name === 'play';
-    $('hud').style.display = playing ? 'block' : 'none';
+    const bossing = name === 'boss';
+    $('hud').style.display = (playing || bossing) ? 'block' : 'none';
     $('boosters').style.display = playing ? 'flex' : 'none';
     const hg = $('btn-home-settings');
     if (hg) hg.style.display = (name === 'home' || name === 'settings' || name === 'daily') ? 'block' : 'none';
+    if (bossing) {
+      const lp = $('lvl-pill');
+      if (lp && boss) lp.textContent = '🧩 ' + (boss.title || 'Пазл');
+    }
   }
   function refreshHud() {
     $('lvl-pill').textContent = 'Ур. ' + (levelIdx + 1);
@@ -2079,7 +2371,15 @@ function drawTrayNine() {
     $('btn-home-map').onclick = () => { buildMap(); showScreen('map'); };
     $('btn-map-back').onclick = () => showScreen('home');
     $('btn-map').onclick = () => { buildMap(); showScreen('map'); };
-    $('btn-next').onclick = () => startLevel(Math.min(levelIdx + 1, levels.length - 1));
+    $('btn-next').onclick = () => {
+      if (pendingBossAfterWin) {
+        pendingBossAfterWin = false;
+        const bn = $('btn-next'); if (bn) bn.textContent = 'Дальше';
+        startBoss(Math.floor((levelIdx + 1) / 5) - 1);
+        return;
+      }
+      startLevel(Math.min(levelIdx + 1, levels.length - 1));
+    };
     $('btn-win-map').onclick = () => { buildMap(); showScreen('map'); };
     $('btn-retry').onclick = () => startLevel(levelIdx);
     $('btn-lose-map').onclick = () => { buildMap(); showScreen('map'); };
@@ -2279,8 +2579,487 @@ forceLose: () => { waitSlots = waitSlots.map(() => ({ color: 'red', id: 'x' }));
         const st = window.__V.getState();
         if (st.state === 'play' && st.planks === 0 && st.screws === 0) endWin();
         return window.__V.getState();
-      }
+      },
+      startBoss: (n) => startBoss(n == null ? 0 : (n | 0)),
+      getBoss: () => boss && ({
+        done: !!boss.done, cols: boss.cols, rows: boss.rows, title: boss.title,
+        placed: boss.pieces.filter(p => p.placed).length,
+        total: boss.pieces.length, revealT: boss.revealT || 0,
+        pieces: boss.pieces.map(p => ({ id: p.id, placed: p.placed, x: p.x, y: p.y, cx: p.correctX, cy: p.correctY, pw: p.pw, ph: p.ph, inTray: !!p.inTray }))
+      }),
+      placeBossN: (n) => {
+        if (!boss) return 0;
+        let k = 0;
+        for (const p of boss.pieces) {
+          if (p.placed) continue;
+          p.x = p.correctX; p.y = p.correctY; p.placed = true; p.inTray = false; p.sparkle = 0.4;
+          k++;
+          if (k >= n) break;
+        }
+        layoutBossTray();
+        if (boss.pieces.every(q => q.placed)) completeBoss();
+        return k;
+      },
+      finishBoss: () => finishBoss()
     };
   }
   boot();
+
+  /* ===== Mini-boss jigsaw (every 5th level) ===== */
+  function bossGridFor(bossN) {
+    // bossN 0-based: after L5, L10, ...
+    if (bossN <= 1) return [3, 3];
+    if (bossN === 2) return [3, 4];
+    if (bossN <= 4) return [4, 4];
+    return [4, 5];
+  }
+
+  function bossEdgeSeed(cols, rows, seed) {
+    // edges[r][c] = {n,e,s,w} each -1|0|1 (tab out / flat / tab in)
+    let s = (seed * 1103515245 + 12345) >>> 0;
+    const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return (s & 0xffff) / 0xffff; };
+    const edges = [];
+    for (let r = 0; r < rows; r++) {
+      edges[r] = [];
+      for (let c = 0; c < cols; c++) {
+        const e = { n: 0, e: 0, s: 0, w: 0 };
+        if (r === 0) e.n = 0; else e.n = -edges[r - 1][c].s;
+        if (c === 0) e.w = 0; else e.w = -edges[r][c - 1].e;
+        if (r < rows - 1) e.s = rnd() < 0.5 ? 1 : -1; else e.s = 0;
+        if (c < cols - 1) e.e = rnd() < 0.5 ? 1 : -1; else e.e = 0;
+        edges[r][c] = e;
+      }
+    }
+    return edges;
+  }
+
+  function bossPiecePath(ctx, w, h, e, tab) {
+    const t = tab || Math.min(w, h) * 0.22;
+    const mid = (a, b) => (a + b) * 0.5;
+    ctx.moveTo(0, 0);
+    // north
+    if (!e.n) { ctx.lineTo(w, 0); }
+    else {
+      const m = mid(0, w), sign = e.n;
+      ctx.lineTo(m - t, 0);
+      ctx.bezierCurveTo(m - t * 0.2, 0, m - t * 0.9, -sign * t, m, -sign * t);
+      ctx.bezierCurveTo(m + t * 0.9, -sign * t, m + t * 0.2, 0, m + t, 0);
+      ctx.lineTo(w, 0);
+    }
+    // east
+    if (!e.e) { ctx.lineTo(w, h); }
+    else {
+      const m = mid(0, h), sign = e.e;
+      ctx.lineTo(w, m - t);
+      ctx.bezierCurveTo(w, m - t * 0.2, w + sign * t, m - t * 0.9, w + sign * t, m);
+      ctx.bezierCurveTo(w + sign * t, m + t * 0.9, w, m + t * 0.2, w, m + t);
+      ctx.lineTo(w, h);
+    }
+    // south
+    if (!e.s) { ctx.lineTo(0, h); }
+    else {
+      const m = mid(0, w), sign = e.s;
+      ctx.lineTo(m + t, h);
+      ctx.bezierCurveTo(m + t * 0.2, h, m + t * 0.9, h + sign * t, m, h + sign * t);
+      ctx.bezierCurveTo(m - t * 0.9, h + sign * t, m - t * 0.2, h, m - t, h);
+      ctx.lineTo(0, h);
+    }
+    // west
+    if (!e.w) { ctx.lineTo(0, 0); }
+    else {
+      const m = mid(0, h), sign = e.w;
+      ctx.lineTo(0, m + t);
+      ctx.bezierCurveTo(0, m + t * 0.2, -sign * t, m + t * 0.9, -sign * t, m);
+      ctx.bezierCurveTo(-sign * t, m - t * 0.9, 0, m - t * 0.2, 0, m - t);
+      ctx.lineTo(0, 0);
+    }
+    ctx.closePath();
+  }
+
+  function cutBossPiece(img, cols, rows, c, r, edges, pw, ph, tab) {
+    const pad = Math.ceil(tab + 4);
+    const cw = Math.ceil(pw + pad * 2);
+    const ch = Math.ceil(ph + pad * 2);
+    const off = document.createElement('canvas');
+    off.width = cw; off.height = ch;
+    const octx = off.getContext('2d');
+    octx.save();
+    octx.translate(pad, pad);
+    octx.beginPath();
+    bossPiecePath(octx, pw, ph, edges[r][c], tab);
+    octx.clip();
+    const sx = (c / cols) * img.width;
+    const sy = (r / rows) * img.height;
+    const sw = img.width / cols;
+    const sh = img.height / rows;
+    octx.drawImage(img, sx, sy, sw, sh, 0, 0, pw, ph);
+    octx.restore();
+    // outline
+    octx.save();
+    octx.translate(pad, pad);
+    octx.beginPath();
+    bossPiecePath(octx, pw, ph, edges[r][c], tab);
+    octx.strokeStyle = 'rgba(255,255,255,0.55)';
+    octx.lineWidth = 2;
+    octx.stroke();
+    octx.strokeStyle = 'rgba(0,0,0,0.35)';
+    octx.lineWidth = 1;
+    octx.stroke();
+    octx.restore();
+    return { canvas: off, pad, pw, ph };
+  }
+
+  function startBoss(bossN) {
+    bossN = Math.max(0, bossN | 0);
+    const [cols, rows] = bossGridFor(bossN);
+    const title = BOSS_TITLES[bossN % BOSS_TITLES.length];
+    const src = BOSS_IMGS[bossN % BOSS_IMGS.length];
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const narrow = W < 420;
+      const stripH = narrow ? Math.min(150, H * 0.22) : Math.min(130, H * 0.18);
+      const topBar = 56;
+      const boardPad = 12;
+      const availW = W - boardPad * 2;
+      const availH = H - topBar - stripH - 24;
+      const side = Math.min(availW, availH);
+      const bx = (W - side) / 2;
+      const by = topBar + Math.max(8, (availH - side) / 2);
+      const pw = side / cols;
+      const ph = side / rows;
+      const tab = Math.min(pw, ph) * 0.22;
+      const edges = bossEdgeSeed(cols, rows, 9000 + bossN * 77 + (levelIdx | 0));
+      const pieces = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const cut = cutBossPiece(img, cols, rows, c, r, edges, pw, ph, tab);
+          pieces.push({
+            r, c, id: r + '_' + c,
+            canvas: cut.canvas, pad: cut.pad, pw, ph,
+            correctX: bx + c * pw,
+            correctY: by + r * ph,
+            x: 0, y: 0,
+            placed: false,
+            sparkle: 0
+          });
+        }
+      }
+      // shuffle into strip
+      for (let i = pieces.length - 1; i > 0; i--) {
+        const j = (Math.random() * (i + 1)) | 0;
+        const t = pieces[i]; pieces[i] = pieces[j]; pieces[j] = t;
+      }
+      const slotW = Math.min(pw, ph) * 0.85 + tab;
+      pieces.forEach((p, i) => {
+        p.trayIndex = i;
+        p.x = 16 + i * (slotW + 8);
+        p.y = H - stripH + (stripH - slotW) / 2;
+        p.drawW = slotW;
+        p.drawH = slotW * (ph / pw);
+      });
+      boss = {
+        n: bossN, title, img, cols, rows, edges, tab,
+        board: { x: bx, y: by, w: side, h: side },
+        strip: { y: H - stripH, h: stripH },
+        pieces, scroll: 0, maxScroll: 0,
+        startT: performance.now(),
+        done: false, revealT: 0,
+        rewardGiven: false,
+        sparks: []
+      };
+      layoutBossTray();
+      showScreen('boss');
+      toast('Собери пазл: «' + title + '»');
+    };
+    img.onerror = () => {
+      toast('Не удалось загрузить картинку босса');
+      pendingBossAfterWin = false;
+      startLevel(Math.min(levelIdx + 1, levels.length - 1));
+    };
+    img.src = src + '?v=' + VERSION;
+  }
+
+  function layoutBossTray() {
+    if (!boss) return;
+    const unplaced = boss.pieces.filter(p => !p.placed && (!bossDrag || bossDrag.piece !== p));
+    const slot = Math.min(boss.board.w / boss.cols, boss.board.h / boss.rows) * 0.82;
+    const gap = 10;
+    const total = unplaced.length * (slot + gap) + 24;
+    boss.maxScroll = Math.max(0, total - W);
+    boss.scroll = Math.max(0, Math.min(boss.scroll, boss.maxScroll));
+    unplaced.forEach((p, i) => {
+      p.drawW = slot;
+      p.drawH = slot * (p.ph / p.pw);
+      p.x = 12 + i * (slot + gap) - boss.scroll;
+      p.y = boss.strip.y + (boss.strip.h - p.drawH) / 2;
+      p.inTray = true;
+    });
+  }
+
+  function bossPointerDown(x, y, pid) {
+    if (!boss || boss.done) {
+      if (boss && boss.done && boss.revealT > 0.6) finishBoss();
+      return;
+    }
+    // scroll strip drag start
+    if (y >= boss.strip.y) {
+      boss._scrollDrag = { x, scroll: boss.scroll, moved: false };
+    }
+    // topmost unplaced piece under pointer (prefer those not in strip if overlapping board)
+    let hit = null;
+    for (let i = boss.pieces.length - 1; i >= 0; i--) {
+      const p = boss.pieces[i];
+      if (p.placed) continue;
+      const dw = p.inTray ? p.drawW : p.pw;
+      const dh = p.inTray ? p.drawH : p.ph;
+      if (x >= p.x && x <= p.x + dw && y >= p.y && y <= p.y + dh) { hit = p; break; }
+    }
+    if (!hit) return;
+    // bring to end (top)
+    const idx = boss.pieces.indexOf(hit);
+    boss.pieces.splice(idx, 1);
+    boss.pieces.push(hit);
+    hit.inTray = false;
+    const dw = hit.drawW || hit.pw;
+    const dh = hit.drawH || hit.ph;
+    bossDrag = {
+      piece: hit, pid,
+      ox: x - hit.x, oy: y - hit.y,
+      fromTray: !!boss._scrollDrag
+    };
+    // scale up to full size while dragging
+    hit.drawW = hit.pw;
+    hit.drawH = hit.ph;
+    hit.x = x - hit.pw / 2;
+    hit.y = y - hit.ph / 2;
+    bossDrag.ox = hit.pw / 2;
+    bossDrag.oy = hit.ph / 2;
+    playSfx('btn', 0.35);
+  }
+
+  function bossPointerMove(x, y) {
+    if (!boss) return;
+    if (boss._scrollDrag && !bossDrag) {
+      const dx = boss._scrollDrag.x - x;
+      if (Math.abs(dx) > 4) boss._scrollDrag.moved = true;
+      boss.scroll = Math.max(0, Math.min(boss.maxScroll, boss._scrollDrag.scroll + dx));
+      layoutBossTray();
+      return;
+    }
+    if (!bossDrag) return;
+    const p = bossDrag.piece;
+    p.x = x - bossDrag.ox;
+    p.y = y - bossDrag.oy;
+  }
+
+  function bossPointerUp(x, y) {
+    if (!boss) return;
+    if (boss._scrollDrag && !bossDrag) {
+      boss._scrollDrag = null;
+      return;
+    }
+    boss._scrollDrag = null;
+    if (!bossDrag) return;
+    const p = bossDrag.piece;
+    bossDrag = null;
+    const snap = Math.min(p.pw, p.ph) * 0.28;
+    const dx = p.x - p.correctX;
+    const dy = p.y - p.correctY;
+    if (Math.hypot(dx, dy) <= snap) {
+      p.x = p.correctX; p.y = p.correctY;
+      p.placed = true; p.inTray = false;
+      p.sparkle = 0.55;
+      playSfx('box', 0.65); buzz(10);
+      for (let i = 0; i < 10; i++) {
+        boss.sparks.push({
+          x: p.x + p.pw / 2, y: p.y + p.ph / 2,
+          vx: (Math.random() - 0.5) * 120, vy: (Math.random() - 0.5) * 120,
+          life: 0.45 + Math.random() * 0.25, t: 0
+        });
+      }
+      if (boss.pieces.every(q => q.placed)) completeBoss();
+    } else {
+      // return to tray
+      p.placed = false; p.inTray = true;
+      playSfx('clunk', 0.4);
+    }
+    layoutBossTray();
+  }
+
+  function completeBoss() {
+    if (!boss || boss.done) return;
+    boss.done = true;
+    boss.revealT = 0;
+    playSfx('win', 0.75); buzz([18, 30, 18]);
+    burstConfetti();
+    const elapsed = (performance.now() - boss.startT) / 1000;
+    const cells = boss.cols * boss.rows;
+    // stars by time vs soft target
+    const target = cells * 4.5;
+    let stars = 1;
+    if (elapsed <= target * 1.35) stars = 2;
+    if (elapsed <= target * 0.85) stars = 3;
+    const coins = 60 + boss.n * 15 + stars * 20;
+    if (!boss.rewardGiven) {
+      boss.rewardGiven = true;
+      save.coins += coins;
+      // store boss stars under key 'boss_'+n
+      const key = 'boss_' + boss.n;
+      const prev = save.stars[key] | 0;
+      save.stars[key] = Math.max(prev, stars);
+      persist();
+      boss._reward = { stars, coins, elapsed };
+      refreshHud();
+    }
+    toast('Пазл собран! 🎁');
+  }
+
+  function finishBoss() {
+    boss = null; bossDrag = null;
+    startLevel(Math.min(levelIdx + 1, levels.length - 1));
+  }
+
+  function drawBoss(dt) {
+    if (!boss) return;
+    // background
+    ctx.fillStyle = '#2a180c';
+    ctx.fillRect(0, 0, W, H);
+    if (imgs.workshop_bg) {
+      ctx.globalAlpha = 0.35;
+      ctx.drawImage(imgs.workshop_bg, 0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
+    // title
+    ctx.fillStyle = '#fff6e0';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🧩 Мини-босс: ' + boss.title, W / 2, 34);
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = 'rgba(255,232,192,0.75)';
+    ctx.fillText(boss.cols + '×' + boss.rows + ' · перетащи кусочки на картинку', W / 2, 52);
+
+    const b = boss.board;
+    // board frame
+    ctx.fillStyle = 'rgba(40,22,10,0.85)';
+    roundRect(ctx, b.x - 8, b.y - 8, b.w + 16, b.h + 16, 14); ctx.fill();
+    ctx.strokeStyle = '#e8c48a'; ctx.lineWidth = 3;
+    roundRect(ctx, b.x - 8, b.y - 8, b.w + 16, b.h + 16, 14); ctx.stroke();
+
+    // faded template
+    if (!boss.done) {
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.drawImage(boss.img, b.x, b.y, b.w, b.h);
+      ctx.restore();
+      // grid hint
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 1;
+      for (let c = 1; c < boss.cols; c++) {
+        ctx.beginPath(); ctx.moveTo(b.x + c * (b.w / boss.cols), b.y);
+        ctx.lineTo(b.x + c * (b.w / boss.cols), b.y + b.h); ctx.stroke();
+      }
+      for (let r = 1; r < boss.rows; r++) {
+        ctx.beginPath(); ctx.moveTo(b.x, b.y + r * (b.h / boss.rows));
+        ctx.lineTo(b.x + b.w, b.y + r * (b.h / boss.rows)); ctx.stroke();
+      }
+    }
+
+    // placed pieces first
+    for (const p of boss.pieces) {
+      if (!p.placed) continue;
+      ctx.drawImage(p.canvas, p.x - p.pad, p.y - p.pad);
+      if (p.sparkle > 0) {
+        p.sparkle -= dt;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.sparkle) * 1.2;
+        ctx.strokeStyle = '#ffe566';
+        ctx.lineWidth = 3;
+        roundRect(ctx, p.x - 2, p.y - 2, p.pw + 4, p.ph + 4, 6); ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // strip tray
+    ctx.fillStyle = 'rgba(20,10,5,0.88)';
+    ctx.fillRect(0, boss.strip.y - 4, W, boss.strip.h + 4);
+    ctx.strokeStyle = '#c9a06a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, boss.strip.y - 4); ctx.lineTo(W, boss.strip.y - 4); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,232,192,0.7)';
+    ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('Кусочки ↓ (свайп)', 12, boss.strip.y + 12);
+
+    // unplaced (not dragging last)
+    for (const p of boss.pieces) {
+      if (p.placed) continue;
+      if (bossDrag && bossDrag.piece === p) continue;
+      if (p.inTray) {
+        ctx.drawImage(p.canvas, p.x - p.pad * (p.drawW / p.pw), p.y - p.pad * (p.drawH / p.ph),
+          p.canvas.width * (p.drawW / p.pw), p.canvas.height * (p.drawH / p.ph));
+      } else {
+        ctx.drawImage(p.canvas, p.x - p.pad, p.y - p.pad);
+      }
+    }
+    // dragging on top
+    if (bossDrag) {
+      const p = bossDrag.piece;
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.45)';
+      ctx.shadowBlur = 12;
+      ctx.drawImage(p.canvas, p.x - p.pad, p.y - p.pad);
+      ctx.restore();
+      // snap ghost
+      const snap = Math.min(p.pw, p.ph) * 0.28;
+      if (Math.hypot(p.x - p.correctX, p.y - p.correctY) <= snap * 1.6) {
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.strokeStyle = '#9de06a';
+        ctx.lineWidth = 3;
+        roundRect(ctx, p.correctX, p.correctY, p.pw, p.ph, 4); ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // sparks
+    for (let i = boss.sparks.length - 1; i >= 0; i--) {
+      const s = boss.sparks[i];
+      s.t += dt; s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 180 * dt;
+      const a = 1 - s.t / s.life;
+      if (a <= 0) { boss.sparks.splice(i, 1); continue; }
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#ffe566';
+      ctx.beginPath(); ctx.arc(s.x, s.y, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    if (boss.done) {
+      boss.revealT += dt;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, boss.revealT * 1.2);
+      ctx.drawImage(boss.img, b.x, b.y, b.w, b.h);
+      ctx.restore();
+      // reward card
+      const rw = Math.min(320, W - 40), rh = 160;
+      const rx = (W - rw) / 2, ry = H * 0.38;
+      ctx.fillStyle = 'rgba(20,10,5,0.82)';
+      roundRect(ctx, rx, ry, rw, rh, 18); ctx.fill();
+      ctx.strokeStyle = '#e8c48a'; ctx.lineWidth = 3;
+      roundRect(ctx, rx, ry, rw, rh, 18); ctx.stroke();
+      const rew = boss._reward || { stars: 3, coins: 80 };
+      ctx.fillStyle = '#fff6e0';
+      ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('Пазл собран! 🎁', W / 2, ry + 40);
+      ctx.fillStyle = '#ffd76a';
+      ctx.font = '28px sans-serif';
+      ctx.fillText('★'.repeat(rew.stars) + '☆'.repeat(3 - rew.stars), W / 2, ry + 78);
+      ctx.fillStyle = '#ffe8c0';
+      ctx.font = '15px sans-serif';
+      ctx.fillText('+' + rew.coins + ' монет · сундук!', W / 2, ry + 108);
+      ctx.font = '13px sans-serif';
+      ctx.fillStyle = 'rgba(255,232,192,0.8)';
+      ctx.fillText('Нажми, чтобы продолжить', W / 2, ry + 138);
+    }
+  }
+
+
 })();

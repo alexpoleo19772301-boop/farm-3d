@@ -1,9 +1,9 @@
 {
-  "version": "3.7.0",
-  "versionCode": 37000,
+  "version": "3.8.0",
+  "versionCode": 38000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.7.0",
+  "webVersion": "3.8.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.7.0: ежедневная награда (серия 7 дней) и 3 задания дня\n• Звёзды 1–3 за уровень, карта, сундуки-вехи\n• Новые препятствия: ржавый винт, стекло, цепь, лёд, бомба-доска + туториалы\n• Сохранения совместимы с v3.6"
+  "changelog": "• v3.8.0: шляпки винтов крупнее + насыщенный цветной ободок (удобно для дальтоников)\n• Реалистичная металлическая цепь с провисанием и разлётом звеньев\n• Мини-босс-пазл после каждого 5-го уровня (3×3 → 4×5), кусочки сбоку, сборка по центру"
 }
