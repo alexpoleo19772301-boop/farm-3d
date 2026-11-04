@@ -1,0 +1,17 @@
+{
+  "keyCount": 125,
+  "miss": {
+    "uk": [],
+    "en": []
+  },
+  "unused": [
+    "gift_undo",
+    "gift_flask",
+    "gift_hint",
+    "gift_coins"
+  ],
+  "missingUsed": [],
+  "cyrillicInGame": [],
+  "htmlMissing": [],
+  "htmlKeys": 37
+}

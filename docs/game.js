@@ -1,14 +1,16 @@
-/* Краски v4.0.5 — paint / water sort */
+/* Краски v4.0.6 — paint / water sort + i18n */
 (function () {
   'use strict';
-  const VERSION = '4.0.5';
-  const APP_VERSION = { version: '4.0.5', versionCode: 40005, webVersion: '4.0.5' };
+  const VERSION = '4.0.6';
+  const APP_VERSION = { version: '4.0.6', versionCode: 40006, webVersion: '4.0.6' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
   const SAVE_KEY = 'vintiki_save_v40';
   const LEGACY_KEY = 'vintiki_save_v32';
   const $ = (id) => document.getElementById(id);
+  const t = (key, vars) => (window.I18N ? I18N.t(key, vars) : key);
+  let langPref = 'auto';
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
   const wrap = $('wrap');
@@ -43,6 +45,8 @@
   } else if (!save.sfxBoost404) { save.sfxBoost404 = 1; }
   let vibrateOn = save.vibrateOn !== false;
   let trackId = Math.max(1, Math.min(5, (save.trackId | 0) || 1));
+  langPref = (save.langPref === 'ru' || save.langPref === 'uk' || save.langPref === 'en') ? save.langPref : 'auto';
+  if (window.I18N) I18N.init(langPref);
   let pourSfxId = (save.pourSfxId == null ? 1 : (save.pourSfxId | 0)); // 0=off, 1..5
   if (pourSfxId < 0 || pourSfxId > 5) pourSfxId = 1;
   let settingsReturn = 'home';
@@ -63,33 +67,43 @@
   let levelPack = null;
   let tutPending = null;
 
-  const BGM_TRACKS = [
-    { id: 1, file: 'assets/audio/bgm/track1.ogg', name: 'Тихий рояль', desc: 'мягкое соло-фортепиано' },
-    { id: 2, file: 'assets/audio/bgm/track2.ogg', name: 'Закатные струны', desc: 'акустическая гитара' },
-    { id: 3, file: 'assets/audio/bgm/track3.ogg', name: 'Лёгкий ветер', desc: 'эмбиент' },
-    { id: 4, file: 'assets/audio/bgm/track4.ogg', name: 'Вечерняя комната', desc: 'спокойный фон' },
-    { id: 5, file: 'assets/audio/bgm/track5.ogg', name: 'Мягкий пульс', desc: 'минимал' }
+  const BGM_TRACK_FILES = [
+    { id: 1, file: 'assets/audio/bgm/track1.ogg', nameKey: 'track1', descKey: 'track1_d' },
+    { id: 2, file: 'assets/audio/bgm/track2.ogg', nameKey: 'track2', descKey: 'track2_d' },
+    { id: 3, file: 'assets/audio/bgm/track3.ogg', nameKey: 'track3', descKey: 'track3_d' },
+    { id: 4, file: 'assets/audio/bgm/track4.ogg', nameKey: 'track4', descKey: 'track4_d' },
+    { id: 5, file: 'assets/audio/bgm/track5.ogg', nameKey: 'track5', descKey: 'track5_d' }
   ];
+  function getBgmTracks() {
+    return BGM_TRACK_FILES.map(x => ({ id: x.id, file: x.file, name: t(x.nameKey), desc: t(x.descKey) }));
+  }
 
-  const POUR_OPTIONS = [
-    { id: 0, name: 'Выкл', desc: 'без звука переливания', file: null },
-    { id: 1, name: 'В стакан (бутылка)', desc: 'пластиковая бутылка → стеклянный стакан', file: 'assets/audio/sfx/sfx_pour_1.ogg' },
-    { id: 2, name: 'В стакан №2', desc: 'другой дубль наполнения стакана', file: 'assets/audio/sfx/sfx_pour_2.ogg' },
-    { id: 3, name: 'В кружку (мягко)', desc: 'вода комнатной температуры в кружку', file: 'assets/audio/sfx/sfx_pour_3.ogg' },
-    { id: 4, name: 'В кружку №2', desc: 'ровная струя в кружку', file: 'assets/audio/sfx/sfx_pour_4.ogg' },
-    { id: 5, name: 'Ручеёк', desc: 'мягкий поток воды (OpenGameArt)', file: 'assets/audio/sfx/sfx_pour_5.ogg' }
+  const POUR_OPTION_FILES = [
+    { id: 0, nameKey: 'pour0', descKey: 'pour0_d', file: null },
+    { id: 1, nameKey: 'pour1', descKey: 'pour1_d', file: 'assets/audio/sfx/sfx_pour_1.ogg' },
+    { id: 2, nameKey: 'pour2', descKey: 'pour2_d', file: 'assets/audio/sfx/sfx_pour_2.ogg' },
+    { id: 3, nameKey: 'pour3', descKey: 'pour3_d', file: 'assets/audio/sfx/sfx_pour_3.ogg' },
+    { id: 4, nameKey: 'pour4', descKey: 'pour4_d', file: 'assets/audio/sfx/sfx_pour_4.ogg' },
+    { id: 5, nameKey: 'pour5', descKey: 'pour5_d', file: 'assets/audio/sfx/sfx_pour_5.ogg' }
   ];
+  function getPourOptions() {
+    return POUR_OPTION_FILES.map(x => ({ id: x.id, name: t(x.nameKey), desc: t(x.descKey), file: x.file }));
+  }
 
   const BOSS_IMGS = [
     'assets/boss/boss1_workshop.jpg','assets/boss/boss2_village.jpg','assets/boss/boss3_cat.jpg','assets/boss/boss4_landscape.jpg',
     'assets/boss/boss5_bakery.jpg','assets/boss/boss6_forest.jpg','assets/boss/boss7_beach.jpg','assets/boss/boss8_winter.jpg'
   ];
-  const BOSS_TITLES = ['Мастерская','Деревня','Котик','Пейзаж','Пекарня','Лес','Пляж','Зима'];
+  const BOSS_TITLE_KEYS = ['boss0','boss1','boss2','boss3','boss4','boss5','boss6','boss7'];
+  function bossTitleAt(i) {
+    const n = BOSS_TITLE_KEYS.length;
+    return t(BOSS_TITLE_KEYS[((i % n) + n) % n]);
+  }
 
   function loadSave() {
     const defaults = {
       unlocked: 1, coins: 120, stars: {},
-      musicOn: true, musicVol: 0.40, sfxVol: 0.55, vibrateOn: true, trackId: 1, pourSfxId: 1,
+      musicOn: true, musicVol: 0.40, sfxVol: 0.55, vibrateOn: true, trackId: 1, pourSfxId: 1, langPref: 'auto',
       boosters: { undo: 5, flask: 2, hint: 3 },
       daily: { lastClaim: null, streak: 0, lastQuestDay: null, quests: [] },
       seenTut: {}, starChests: {}, questBadge: false
@@ -292,7 +306,7 @@
   /** Start or resume the single BGM element for current trackId. */
   function ensureBgm(forceRestart) {
     if (!musicOn) { stopBgm(); stopPreview(); return; }
-    const tr = BGM_TRACKS.find(t => t.id === trackId) || BGM_TRACKS[0];
+    const tr = getBgmTracks().find(t => t.id === trackId) || getBgmTracks()[0];
     let a = audio.bgm;
     const needNew = forceRestart || !a || a._track !== trackId || !a.src;
     if (needNew) {
@@ -390,11 +404,11 @@
     const day = todayKey();
     if (save.daily.lastQuestDay === day && save.daily.quests && save.daily.quests.length) return;
     const pool = [
-      { id: 'pour', label: 'Перелей краску 20 раз', target: 20, progress: 0, reward: 40, claimed: false },
-      { id: 'complete_flask', label: 'Собери 5 колб', target: 5, progress: 0, reward: 50, claimed: false },
-      { id: 'pass_levels', label: 'Пройди 3 уровня', target: 3, progress: 0, reward: 60, claimed: false },
-      { id: 'earn_stars', label: 'Заработай 5 ★', target: 5, progress: 0, reward: 45, claimed: false },
-      { id: 'win_no_boost', label: 'Победи без бустеров', target: 1, progress: 0, reward: 55, claimed: false }
+      { id: 'pour', labelKey: 'q_pour', target: 20, progress: 0, reward: 40, claimed: false },
+      { id: 'complete_flask', labelKey: 'q_complete_flask', target: 5, progress: 0, reward: 50, claimed: false },
+      { id: 'pass_levels', labelKey: 'q_pass_levels', target: 3, progress: 0, reward: 60, claimed: false },
+      { id: 'earn_stars', labelKey: 'q_earn_stars', target: 5, progress: 0, reward: 45, claimed: false },
+      { id: 'win_no_boost', labelKey: 'q_win_no_boost', target: 1, progress: 0, reward: 55, claimed: false }
     ];
     const pick = [];
     const rng = (todayKey().split('').reduce((a,c)=>a+c.charCodeAt(0),0));
@@ -444,15 +458,15 @@
       if (gift.undo) label += ' ↩️';
       if (gift.hint) label += ' 💡';
       if (gift.flask) label += ' 🧪';
-      cell.innerHTML = '<div class="d-day">День ' + (i+1) + '</div><div class="d-gift">' + label + '</div>';
+      cell.innerHTML = '<div class="d-day">' + t('day_n', { n: i+1 }) + '</div><div class="d-gift">' + label + '</div>';
       g.appendChild(cell);
     }
-    const st = $('daily-streak'); if (st) st.textContent = 'Серия: ' + streak + ' / 7' + (claimedToday ? ' · сегодня забрано' : '');
+    const st = $('daily-streak'); if (st) st.textContent = t('streak', { n: streak }) + (claimedToday ? t('claimed_today_suffix') : '');
     const btn = $('btn-daily-claim');
-    if (btn) { btn.disabled = claimedToday; btn.textContent = claimedToday ? 'Уже забрано' : 'Забрать награду'; }
+    if (btn) { btn.disabled = claimedToday; btn.textContent = claimedToday ? t('claimed') : t('claim_reward'); }
   }
   function claimDaily() {
-    if (save.daily.lastClaim === todayKey()) { toast('Уже забрано сегодня'); return; }
+    if (save.daily.lastClaim === todayKey()) { toast(t('toast_claimed_today')); return; }
     const yesterday = (() => { const d = new Date(); d.setDate(d.getDate()-1); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); })();
     if (save.daily.lastClaim === yesterday) save.daily.streak = Math.min(7, (save.daily.streak|0) + 1);
     else save.daily.streak = 1;
@@ -463,7 +477,7 @@
     if (gift.flask) save.boosters.flask += gift.flask;
     save.daily.lastClaim = todayKey();
     persist(); renderDaily(); refreshHud();
-    toast('Награда получена!');
+    toast(t('toast_reward'));
   }
   function renderQuests() {
     ensureQuests();
@@ -474,18 +488,18 @@
       const ready = q.progress >= q.target;
       row.className = 'quest-row' + (q.claimed ? ' claimed' : (ready ? ' ready' : ''));
       const pct = Math.min(100, 100 * q.progress / q.target);
-      row.innerHTML = '<div class="q-label">' + q.label + '</div>' +
+      row.innerHTML = '<div class="q-label">' + t(q.labelKey || '') + '</div>' +
         '<div class="q-bar"><div class="q-fill" style="width:' + pct + '%"></div></div>' +
         '<div class="q-meta">' + q.progress + ' / ' + q.target + ' · 🪙' + q.reward + '</div>' +
         (q.claimed ? '<div class="q-done">✓</div>' :
-          (ready ? '<button class="btn green q-claim" data-qid="' + q.id + '">Забрать</button>' : ''));
+          (ready ? '<button class="btn green q-claim" data-qid="' + q.id + '">' + t('claim') + '</button>' : ''));
       list.appendChild(row);
     }
     list.querySelectorAll('.q-claim').forEach(btn => {
       btn.onclick = () => {
         const q = save.daily.quests.find(x => x.id === btn.getAttribute('data-qid'));
         if (!q || q.claimed || q.progress < q.target) return;
-        q.claimed = true; save.coins += q.reward; persist(); refreshHud(); renderQuests(); playSfx('coin', 0.4); toast('+'+q.reward+' монет');
+        q.claimed = true; save.coins += q.reward; persist(); refreshHud(); renderQuests(); playSfx('coin', 0.4); toast(t('coins_plus', { n: q.reward }));
       };
     });
   }
@@ -546,7 +560,7 @@
     if (top.hidden) {
       top.hidden = false;
       playSfx('hint', 0.35);
-      toast('Скрытый цвет открыт!');
+      toast(t('toast_hidden'));
     }
   }
 
@@ -559,7 +573,7 @@
     questProgress('complete_flask', 1);
     // unlock locked flasks when a colour is completed
     for (const o of flasks) {
-      if (o.locked) { o.locked = false; toast('Замок снят! 🔓'); playSfx('box', 0.4); }
+      if (o.locked) { o.locked = false; toast(t('toast_unlock')); playSfx('box', 0.4); }
     }
   }
 
@@ -605,7 +619,7 @@
     questProgress('pour', 1);
     tryCompleteFlask(dst, to);
     pourAnim = null;
-    $('moves-pill').textContent = 'ходы ' + moves;
+    $('moves-pill').textContent = t('moves', { n: moves });
     checkWin();
   }
 
@@ -1034,16 +1048,16 @@
     ensureBgm();
     // tutorials
     if (idx === 0 && !save.seenTut.basic) {
-      showTut('Как играть', 'Нажми колбу с краской — она поднимется. Затем нажми другую колбу, чтобы перелить верхний цвет. Собери 4 одинаковых слоя!');
+      showTut(t('tut_basic_t'), t('tut_basic_b'));
       save.seenTut.basic = 1; persist();
     } else if (def.hidden && !save.seenTut.hidden) {
-      showTut('Скрытые слои', 'Слои с «?» откроются, когда окажутся сверху. Планируй ходы!');
+      showTut(t('tut_hidden_t'), t('tut_hidden_b'));
       save.seenTut.hidden = 1; persist();
     } else if (def.frozen && !save.seenTut.frozen) {
-      showTut('Лёд', 'Замороженную колбу нельзя трогать. Обходи её!');
+      showTut(t('tut_frozen_t'), t('tut_frozen_b'));
       save.seenTut.frozen = 1; persist();
     } else if (def.locked && !save.seenTut.locked) {
-      showTut('Замок', 'Закрытая колба откроется, когда соберёшь любую полную колбу одного цвета.');
+      showTut(t('tut_locked_t'), t('tut_locked_b'));
       save.seenTut.locked = 1; persist();
     }
   }
@@ -1073,11 +1087,11 @@
     persist();
     const starStr = '★'.repeat(earned) + '☆'.repeat(3 - earned);
     const ws = $('win-stars'); if (ws) { ws.textContent = starStr; ws.className = 'win-stars-anim'; }
-    const wc = $('win-coins'); if (wc) wc.textContent = '+' + coins + ' монет · ходы ' + moves + '/' + runPar;
+    const wc = $('win-coins'); if (wc) wc.textContent = t('coins_win', { coins: coins, moves: moves, par: runPar });
     const wr = $('btn-win-replay'); if (wr) wr.style.display = (best < 3) ? 'inline-flex' : 'none';
     const lvlNum = levelIdx + 1;
     pendingBossAfterWin = (lvlNum % 5 === 0) && lvlNum >= 5;
-    const bn = $('btn-next'); if (bn) bn.textContent = pendingBossAfterWin ? '🧩 Мини-босс' : 'Дальше';
+    const bn = $('btn-next'); if (bn) bn.textContent = pendingBossAfterWin ? t('mini_boss') : t('next');
     showScreen('win'); refreshHud();
   }
 
@@ -1092,13 +1106,13 @@
     $('boosters').style.display = playing ? 'flex' : 'none';
     const hg = $('btn-home-settings');
     if (hg) hg.style.display = (name === 'home' || name === 'settings' || name === 'daily') ? 'block' : 'none';
-    if (bossing) { const lp = $('lvl-pill'); if (lp) lp.textContent = '🧩 Босс'; }
+    if (bossing) { const lp = $('lvl-pill'); if (lp) lp.textContent = t('boss_pill'); }
   }
   function refreshHud() {
-    $('lvl-pill').textContent = state === 'boss' ? '🧩 Босс' : ('Ур. ' + (levelIdx + 1));
+    $('lvl-pill').textContent = state === 'boss' ? t('boss_pill') : t('level', { n: levelIdx + 1 });
     $('coin-pill').textContent = '🪙 ' + (save.coins | 0);
     const sc = $('star-pill'); if (sc) sc.textContent = '★ ' + totalStars();
-    const mp = $('moves-pill'); if (mp) mp.textContent = 'ходы ' + moves;
+    const mp = $('moves-pill'); if (mp) mp.textContent = t('moves', { n: moves });
     $('badge-undo').textContent = save.boosters.undo;
     $('badge-flask').textContent = save.boosters.flask;
     $('badge-hint').textContent = save.boosters.hint;
@@ -1129,9 +1143,9 @@
     const i = flaskAt(x, y);
     if (i < 0) { selected = -1; return; }
     const f = flasks[i];
-    if (f.frozen) { toast('Колба во льду ❄️'); playSfx('error', 0.35); return; }
-    if (f.locked) { toast('Сначала собери цвет 🔒'); playSfx('error', 0.35); return; }
-    if (f.corked) { toast('Уже собрано!'); return; }
+    if (f.frozen) { toast(t('toast_ice')); playSfx('error', 0.35); return; }
+    if (f.locked) { toast(t('toast_need_color')); playSfx('error', 0.35); return; }
+    if (f.corked) { toast(t('toast_done')); return; }
     if (selected < 0) {
       if (!f.layers.length) { playSfx('error', 0.28); return; }
       selected = i; f.lift = 10; playSfx('tap', 0.45); buzz(8);
@@ -1166,29 +1180,29 @@
   /* ---------- boosters ---------- */
   function useUndo() {
     if (state !== 'play' || pourAnim) return;
-    if (save.boosters.undo <= 0) { toast('Нет отмен'); return; }
-    if (!history.length) { toast('Нечего отменять'); return; }
+    if (save.boosters.undo <= 0) { toast(t('toast_no_undo')); return; }
+    if (!history.length) { toast(t('toast_nothing_undo')); return; }
     save.boosters.undo--; runUsedBooster = true; persist();
     const snap = history.pop();
     flasks = snap.flasks; moves = snap.moves; selected = -1;
-    refreshHud(); playSfx('undo', 0.45); toast('Отмена');
+    refreshHud(); playSfx('undo', 0.45); toast(t('toast_undo'));
   }
   function useExtraFlask() {
     if (state !== 'play' || pourAnim) return;
-    if (save.boosters.flask <= 0) { toast('Нет колб'); return; }
-    if (flasks.length >= 16) { toast('Слишком много колб'); return; }
+    if (save.boosters.flask <= 0) { toast(t('toast_no_flask')); return; }
+    if (flasks.length >= 16) { toast(t('toast_too_many')); return; }
     save.boosters.flask--; runUsedBooster = true; persist();
     flasks.push({ layers: [], frozen: false, locked: false, corked: false, lift: 0, wobble: 0 });
-    refreshHud(); playSfx('box', 0.4); toast('Пустая колба +1');
+    refreshHud(); playSfx('box', 0.4); toast(t('toast_flask_plus'));
   }
   function useHint() {
     if (state !== 'play' || pourAnim) return;
-    if (save.boosters.hint <= 0) { toast('Нет подсказок'); return; }
+    if (save.boosters.hint <= 0) { toast(t('toast_no_hint')); return; }
     const mv = solveHint();
-    if (!mv) { toast('Ход не найден'); return; }
+    if (!mv) { toast(t('toast_no_move')); return; }
     save.boosters.hint--; runUsedHint = true; persist();
     hintMove = { from: mv.from, to: mv.to, t: 2.5 };
-    refreshHud(); playSfx('hint', 0.35); toast('Подсказка: колба ' + (mv.from+1) + ' → ' + (mv.to+1));
+    refreshHud(); playSfx('hint', 0.35); toast(t('toast_hint', { from: mv.from+1, to: mv.to+1 }));
   }
 
   /* ---------- boss (reuse simplified from v3.8) ---------- */
@@ -1244,7 +1258,7 @@
   function startBoss(bossN) {
     bossN = Math.max(0, bossN | 0);
     const [cols, rows] = bossGridFor(bossN);
-    const title = BOSS_TITLES[bossN % BOSS_TITLES.length];
+    const title = bossTitleAt(bossN % BOSS_TITLES.length);
     const img = new Image();
     img.onload = () => {
       const stripH = Math.min(140, H * 0.2);
@@ -1263,9 +1277,9 @@
       boss = { n: bossN, title, img, cols, rows, tab, board: { x: bx, y: by, w: side, h: side },
         strip: { y: H - stripH, h: stripH }, pieces, scroll: 0, maxScroll: 0, startT: performance.now(),
         done: false, revealT: 0, rewardGiven: false, sparks: [] };
-      layoutBossTray(); showScreen('boss'); toast('Собери пазл: «' + title + '»');
+      layoutBossTray(); showScreen('boss'); toast(t('toast_boss', { title: title }));
     };
-    img.onerror = () => { toast('Нет картинки босса'); startLevel(Math.min(levelIdx + 1, levels.length - 1)); };
+    img.onerror = () => { toast(t('toast_no_boss_img')); startLevel(Math.min(levelIdx + 1, levels.length - 1)); };
     img.src = BOSS_IMGS[bossN % BOSS_IMGS.length] + '?v=' + VERSION;
   }
   function layoutBossTray() {
@@ -1333,7 +1347,7 @@
       save.stars[key] = Math.max(save.stars[key] | 0, stars); persist(); refreshHud();
       boss._reward = { stars, coins };
     }
-    toast('Пазл собран! 🎁');
+    toast(t('toast_puzzle_done'));
   }
   function finishBoss() { boss = null; bossDrag = null; startLevel(Math.min(levelIdx + 1, levels.length - 1)); }
   function drawBoss(dt) {
@@ -1341,9 +1355,9 @@
     drawStudioBg();
     const titleY = 72;
     ctx.fillStyle = '#fff6ff'; ctx.font = 'bold 17px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('Мини-босс: ' + boss.title, W / 2, titleY);
+    ctx.fillText(t('boss_title', { title: boss.title }), W / 2, titleY);
     ctx.font = '12px sans-serif'; ctx.fillStyle = 'rgba(255,232,255,0.8)';
-    ctx.fillText(boss.cols + '×' + boss.rows + ' · перетащи кусочки', W / 2, titleY + 20);
+    ctx.fillText(t('boss_drag', { cols: boss.cols, rows: boss.rows }), W / 2, titleY + 20);
     ctx.textBaseline = 'alphabetic';
     const b = boss.board;
     ctx.fillStyle = 'rgba(40,20,50,0.85)'; roundRect(ctx, b.x - 8, b.y - 8, b.w + 16, b.h + 16, 14); ctx.fill();
@@ -1357,7 +1371,7 @@
     ctx.fillStyle = 'rgba(20,10,30,0.88)'; ctx.fillRect(0, boss.strip.y - 4, W, boss.strip.h + 4);
     ctx.strokeStyle = '#d89ae0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, boss.strip.y - 4); ctx.lineTo(W, boss.strip.y - 4); ctx.stroke();
     ctx.fillStyle = 'rgba(255,232,255,0.7)'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText('Кусочки (свайп)', 12, boss.strip.y + 12);
+    ctx.fillText(t('boss_pieces'), 12, boss.strip.y + 12);
     for (const p of boss.pieces) {
       if (p.placed || (bossDrag && bossDrag.piece === p)) continue;
       if (p.inTray) ctx.drawImage(p.canvas, p.x - p.pad * (p.drawW / p.pw), p.y - p.pad * (p.drawH / p.ph), p.canvas.width * (p.drawW / p.pw), p.canvas.height * (p.drawH / p.ph));
@@ -1372,13 +1386,13 @@
       ctx.strokeStyle = '#e8b8f0'; ctx.lineWidth = 3; roundRect(ctx, rx, ry, rw, rh, 18); ctx.stroke();
       const rew = boss._reward || { stars: 3, coins: 80 };
       ctx.fillStyle = '#fff6ff'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('Пазл собран! 🎁', W / 2, ry + 40);
+      ctx.fillText(t('boss_done'), W / 2, ry + 40);
       ctx.fillStyle = '#ffd76a'; ctx.font = '28px sans-serif';
       ctx.fillText('★'.repeat(rew.stars) + '☆'.repeat(3 - rew.stars), W / 2, ry + 78);
       ctx.fillStyle = '#ffe8ff'; ctx.font = '15px sans-serif';
-      ctx.fillText('+' + rew.coins + ' монет', W / 2, ry + 110);
+      ctx.fillText(t('coins_plus', { n: rew.coins }), W / 2, ry + 110);
       ctx.font = '13px sans-serif'; ctx.fillStyle = 'rgba(255,232,255,0.8)';
-      ctx.fillText('Нажми, чтобы продолжить', W / 2, ry + 132);
+      ctx.fillText(t('boss_tap'), W / 2, ry + 132);
     }
   }
 
@@ -1414,7 +1428,7 @@
       if (state === 'play' && levelIdx === 0 && moves === 0 && selected < 0) {
         ctx.fillStyle = 'rgba(255,232,255,0.85)';
         ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText('Нажми колбу, затем другую — перелей краску', W / 2, 88);
+        ctx.fillText(t('tip_pour'), W / 2, 88);
       }
     }
   }
@@ -1444,6 +1458,30 @@
     else showScreen('home');
     applyBgmVol(); persist();
   }
+
+  function applyI18nDom() {
+    document.querySelectorAll('[data-i18n]').forEach((el) => {
+      const key = el.getAttribute('data-i18n');
+      if (!key) return;
+      const val = t(key);
+      if (el.tagName === 'TITLE') { document.title = val; el.textContent = val; }
+      else el.textContent = val;
+    });
+    if (window.I18N && I18N.fitAll) I18N.fitAll();
+    refreshHud();
+  }
+
+  function setLanguagePref(pref) {
+    langPref = (pref === 'ru' || pref === 'uk' || pref === 'en') ? pref : 'auto';
+    save.langPref = langPref;
+    persist();
+    if (window.I18N) I18N.setPref(langPref);
+    applyI18nDom();
+    renderSettings();
+    renderDaily();
+    renderQuests();
+  }
+
   function renderSettings() {
     const tm = $('tog-music'); if (tm) tm.checked = musicOn;
     const tv = $('tog-vib'); if (tv) tv.checked = vibrateOn;
@@ -1452,10 +1490,28 @@
     const vm = $('val-music'); if (vm) vm.textContent = Math.round(musicVol * 100) + '%';
     const vs = $('val-sfx'); if (vs) vs.textContent = Math.round(sfxVol * 100) + '%';
 
+
+    const llist = $('lang-list');
+    if (llist) {
+      llist.innerHTML = '';
+      const opts = (window.I18N && I18N.LANG_OPTS) || [
+        { id: 'auto', nameKey: 'lang_auto', descKey: 'lang_auto_desc' },
+        { id: 'ru', nameKey: 'lang_ru' }, { id: 'uk', nameKey: 'lang_uk' }, { id: 'en', nameKey: 'lang_en' }
+      ];
+      for (const opt of opts) {
+        const row = document.createElement('div');
+        row.className = 'track-item' + (opt.id === langPref ? ' on' : '');
+        const desc = opt.descKey ? ('<div class="td">' + t(opt.descKey) + '</div>') : '';
+        row.innerHTML = '<div style="flex:1"><div class="tn">' + t(opt.nameKey) + '</div>' + desc + '</div>';
+        row.onclick = () => setLanguagePref(opt.id);
+        llist.appendChild(row);
+      }
+    }
+
     const plist = $('pour-list');
     if (plist) {
       plist.innerHTML = '';
-      for (const opt of POUR_OPTIONS) {
+      for (const opt of getPourOptions()) {
         const row = document.createElement('div');
         row.className = 'track-item' + (opt.id === pourSfxId ? ' on' : '');
         row.innerHTML = '<div style="flex:1"><div class="tn">' + opt.name + '</div><div class="td">' + opt.desc + '</div></div>' +
@@ -1477,10 +1533,10 @@
 
     const list = $('track-list'); if (!list) return;
     list.innerHTML = '';
-    for (const t of BGM_TRACKS) {
+    for (const trk of getBgmTracks()) {
       const row = document.createElement('div');
-      row.className = 'track-item' + (t.id === trackId ? ' on' : '');
-      row.innerHTML = '<div style="flex:1"><div class="tn">' + t.name + '</div><div class="td">' + t.desc + '</div></div><button class="preview" data-id="' + t.id + '">▶</button>';
+      row.className = 'track-item' + (trk.id === trackId ? ' on' : '');
+      row.innerHTML = '<div style="flex:1"><div class="tn">' + trk.name + '</div><div class="td">' + trk.desc + '</div></div><button class="preview" data-id="' + trk.id + '">▶</button>';
       row.onclick = (ev) => {
         if (ev.target.classList.contains('preview')) {
           // Preview uses the same singleton pipeline: stop everything, play this track once as preview
@@ -1490,8 +1546,8 @@
           const a = new Audio();
           a.preload = 'auto';
           a.loop = false;
-          a._track = t.id;
-          a.src = t.file;
+          a._track = trk.id;
+          a.src = trk.file;
           a.volume = musicVol;
           _bgmPool.add(a);
           previewAudio = a;
@@ -1501,7 +1557,7 @@
           a.onended = () => { if (previewAudio === a) { previewAudio = null; _killAudioEl(a); } };
           return;
         }
-        setBgmTrack(t.id);
+        setBgmTrack(trk.id);
         renderSettings();
       };
       list.appendChild(row);
@@ -1562,7 +1618,7 @@
       }
       const remoteWeb = manifest.webVersion || manifest.version;
       if (manifest.webBundleUrl && cmpSemver(remoteWeb, localWeb) > 0) {
-        if (!silent) toast('Обновление ' + remoteWeb + '…');
+        if (!silent) toast(t('toast_updating', { v: remoteWeb }));
         if (plugin && plugin.downloadAndApplyWebBundle) {
           await plugin.downloadAndApplyWebBundle({ url: manifest.webBundleUrl, webVersion: remoteWeb });
           location.reload();
@@ -1576,7 +1632,7 @@
       const needApk = (remoteCode > localCode) || (cmpSemver(manifest.version, localName) > 0);
       if (needApk && manifest.apkUrl) {
         if (!silent) {
-          toast('Доступен APK ' + manifest.version);
+          toast(t('toast_apk', { v: manifest.version }));
           if (plugin && plugin.downloadAndInstallApk) {
             try { await plugin.downloadAndInstallApk({ url: manifest.apkUrl }); } catch (e) { window.open(manifest.apkUrl, '_blank'); }
           } else {
@@ -1585,11 +1641,11 @@
         }
         return { update: 'apk' };
       }
-      if (!silent) toast('У вас последняя версия ' + localWeb);
+      if (!silent) toast(t('toast_latest', { v: localWeb }));
       return { upToDate: true };
     } catch (e) {
       console.warn('OTA', e);
-      if (!silent) toast('Нет сети для обновления');
+      if (!silent) toast(t('toast_offline'));
       return { error: String(e && e.message || e) };
     }
   }
@@ -1606,7 +1662,7 @@
     $('btn-next').onclick = () => {
       if (pendingBossAfterWin) {
         pendingBossAfterWin = false;
-        const bn = $('btn-next'); if (bn) bn.textContent = 'Дальше';
+        const bn = $('btn-next'); if (bn) bn.textContent = t('next');
         startBoss(Math.floor((levelIdx + 1) / 5) - 1);
         return;
       }
@@ -1677,6 +1733,7 @@
     }
     wireUi();
     ensureQuests();
+    applyI18nDom();
     refreshHud();
     showScreen('home');
     requestAnimationFrame(loop);
@@ -1689,8 +1746,8 @@
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },
       tick: (sec) => { const steps = Math.ceil(sec / 0.016); for (let i = 0; i < steps; i++) { if (pourAnim) { pourAnim.t += 0.016; if (pourAnim.t >= pourAnim.duration) finishPour(); } animT += 0.016; } },
-      solveHint, openDaily, openSettings, checkOta, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx, POUR_OPTIONS, getPourSfxId: () => pourSfxId, setPourSfxId: (id) => { pourSfxId = Math.max(0, Math.min(5, id|0)); save.pourSfxId = pourSfxId; persist(); },
-      ensureBgm, stopBgm, setBgmTrack, countPlayingBgm, stopPreview, BGM_TRACKS,
+      solveHint, openDaily, openSettings, checkOta, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx, getPourOptions, getBgmTracks, langPref: () => langPref, setLanguagePref, applyI18nDom, getPourSfxId: () => pourSfxId, setPourSfxId: (id) => { pourSfxId = Math.max(0, Math.min(5, id|0)); save.pourSfxId = pourSfxId; persist(); },
+      ensureBgm, stopBgm, setBgmTrack, countPlayingBgm, stopPreview, getBgmTracks,
       autoSolve: (maxSteps) => {
         let steps = 0;
         while (steps++ < (maxSteps || 80) && state === 'play') {

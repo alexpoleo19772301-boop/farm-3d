@@ -1,0 +1,17 @@
+{
+  "lang": "en",
+  "i18nLang": "en",
+  "play": "Play",
+  "settingsTitle": "🔊 Sound",
+  "langLabel": "Language",
+  "langItems": [
+    "Auto (device)\nfollow phone language",
+    "Русский",
+    "Українська",
+    "English"
+  ],
+  "hudLevel": "Lv. 1",
+  "hudMoves": "moves 0",
+  "undo": "↩️Undo5",
+  "bad": []
+}

@@ -1,9 +1,9 @@
 {
-  "version": "4.0.5",
-  "versionCode": 40005,
+  "version": "4.0.6",
+  "versionCode": 40006,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "4.0.5",
+  "webVersion": "4.0.6",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v4.0.5: звук переливания — 5 реальных CC0 записей (не synth); выбор в настройках «Звук переливания» + Выкл\n• Источники: BigSoundBank (Joseph Sardin) + OpenGameArt Waterflow (TyberiusGames), все CC0\n• Дефолт: «В стакан (бутылка)» (#1)"
+  "changelog": "• v4.0.6: выбор языка RU / UK / EN (по умолчанию — язык устройства)\n• Словари: весь HUD, кнопки, настройки, треки, звуки переливания, карта, награды, квесты, босс, win/lose, тосты, туториал\n• Настройки → «Язык / Мова / Language»: Авто · Русский · Українська · English (сразу, без перезапуска)\n• Android label: Краски / Фарби / Paints"
 }

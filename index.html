@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
 <meta name="theme-color" content="#2a1a3a"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<title>Краски</title>
+<title data-i18n="app_title">Краски</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none}
 html,body{width:100%;height:100%;overflow:hidden;background:#1a1028;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#fff}
@@ -82,7 +82,7 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
   <canvas id="game"></canvas>
   <div id="hud" style="display:none">
     <div class="row">
-      <button class="iconbtn" id="btn-map">Карта</button>
+      <button class="iconbtn" id="btn-map" data-i18n="map">Карта</button>
       <span class="pill" id="lvl-pill">Ур. 1</span>
       <span class="pill" id="coin-pill">🪙 0</span>
       <span class="pill" id="star-pill">★ 0</span>
@@ -93,100 +93,103 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     </div>
   </div>
   <div id="boosters" style="display:none">
-    <div class="booster" id="b-undo"><div class="ic">↩️</div>Отмена<div class="badge" id="badge-undo">3</div></div>
-    <div class="booster" id="b-flask"><div class="ic">🧪</div>Колба<div class="badge" id="badge-flask">2</div></div>
-    <div class="booster" id="b-hint"><div class="ic">💡</div>Хинт<div class="badge" id="badge-hint">3</div></div>
+    <div class="booster" id="b-undo" data-i18n-fit data-i18n-max="11" data-i18n-min="8"><div class="ic">↩️</div><span data-i18n="undo">Отмена</span><div class="badge" id="badge-undo">3</div></div>
+    <div class="booster" id="b-flask" data-i18n-fit data-i18n-max="11" data-i18n-min="8"><div class="ic">🧪</div><span data-i18n="flask">Колба</span><div class="badge" id="badge-flask">2</div></div>
+    <div class="booster" id="b-hint" data-i18n-fit data-i18n-max="11" data-i18n-min="8"><div class="ic">💡</div><span data-i18n="hint">Хинт</span><div class="badge" id="badge-hint">3</div></div>
   </div>
   <div class="screen on" id="sc-home">
-    <div id="logoTitle">Краски</div>
-    <div class="sub">Переливай · сортируй · освобождай колбы</div>
+    <div id="logoTitle" data-i18n="app_title">Краски</div>
+    <div class="sub" data-i18n="home_sub">Переливай · сортируй · освобождай колбы</div>
     <div class="card">
-      <p>Нажми колбу с краской, затем другую — перелей верхний цвет. Собери одинаковые цвета!</p>
+      <p data-i18n="home_blurb">Нажми колбу с краской, затем другую — перелей верхний цвет. Собери одинаковые цвета!</p>
       <div class="home-daily-wrap">
-        <button class="btn green" id="btn-play">Играть</button>
+        <button class="btn green" id="btn-play" data-i18n="play" data-i18n-fit>Играть</button>
         <span id="badge-daily">!</span>
       </div>
-      <button class="btn ghost" id="btn-home-daily">🎁 Награды и задания</button>
-      <button class="btn ghost" id="btn-home-map">Карта уровней</button>
-      <button class="btn ghost" id="btn-home-update">Обновить</button>
-      <button class="btn ghost" id="btn-home-sound">🎵 Звук</button>
+      <button class="btn ghost" id="btn-home-daily" data-i18n="daily_btn" data-i18n-fit data-i18n-max="16" data-i18n-min="11">🎁 Награды и задания</button>
+      <button class="btn ghost" id="btn-home-map" data-i18n="map_levels" data-i18n-fit>Карта уровней</button>
+      <button class="btn ghost" id="btn-home-update" data-i18n="update" data-i18n-fit>Обновить</button>
+      <button class="btn ghost" id="btn-home-sound" data-i18n="sound_btn" data-i18n-fit>🎵 Звук</button>
     </div>
   </div>
   <div class="screen" id="sc-map">
     <div class="card" style="width:min(96%,400px)">
-      <h1>Карта</h1>
+      <h1 data-i18n="map_title">Карта</h1>
       <p id="map-stars" style="margin:0 0 8px;color:#ffd76a;font-weight:800">★ 0</p>
       <div id="mapgrid"></div>
-      <button class="btn ghost" id="btn-map-back">Назад</button>
+      <button class="btn ghost" id="btn-map-back" data-i18n="back">Назад</button>
     </div>
   </div>
   <div class="screen" id="sc-win">
     <div class="card">
-      <h1>Победа! 🎉</h1>
+      <h1 data-i18n="win_title">Победа! 🎉</h1>
       <p id="win-stars">★★★</p>
       <p id="win-coins">+50 монет</p>
-      <button class="btn green" id="btn-next">Дальше</button>
-      <button class="btn ghost" id="btn-win-replay" style="display:none">Ещё раз ★</button>
-      <button class="btn ghost" id="btn-win-map">Карта</button>
+      <button class="btn green" id="btn-next" data-i18n="next" data-i18n-fit>Дальше</button>
+      <button class="btn ghost" id="btn-win-replay" style="display:none" data-i18n="replay" data-i18n-fit>Ещё раз ★</button>
+      <button class="btn ghost" id="btn-win-map" data-i18n="map">Карта</button>
     </div>
   </div>
   <div class="screen" id="sc-lose">
     <div class="card">
-      <h1>Застряли?</h1>
-      <p>Попробуй отмену или добавь пустую колбу!</p>
-      <button class="btn" id="btn-retry">Заново</button>
-      <button class="btn ghost" id="btn-lose-map">Карта</button>
+      <h1 data-i18n="lose_title">Застряли?</h1>
+      <p data-i18n="lose_body">Попробуй отмену или добавь пустую колбу!</p>
+      <button class="btn" id="btn-retry" data-i18n="retry">Заново</button>
+      <button class="btn ghost" id="btn-lose-map" data-i18n="map">Карта</button>
     </div>
   </div>
   <div class="screen" id="sc-settings">
     <div class="card settings-card">
-      <h1>🔊 Звук</h1>
+      <h1 data-i18n="settings_title">🔊 Звук</h1>
       <div class="set-row">
-        <label for="tog-music">Музыка</label>
+        <label for="tog-music" data-i18n="music">Музыка</label>
         <input type="checkbox" class="toggle" id="tog-music" checked/>
       </div>
       <div class="set-row">
-        <label for="sl-music">Громкость музыки</label>
+        <label for="sl-music" data-i18n="music_vol">Громкость музыки</label>
         <input type="range" class="set-slider" id="sl-music" min="0" max="100" value="40"/>
         <span class="val" id="val-music">40%</span>
       </div>
       <div class="set-row">
-        <label for="sl-sfx">Громкость эффектов</label>
+        <label for="sl-sfx" data-i18n="sfx_vol">Громкость эффектов</label>
         <input type="range" class="set-slider" id="sl-sfx" min="0" max="100" value="55"/>
         <span class="val" id="val-sfx">55%</span>
       </div>
       <div class="set-row">
-        <label for="tog-vib">Вибрация</label>
+        <label for="tog-vib" data-i18n="vibrate">Вибрация</label>
         <input type="checkbox" class="toggle" id="tog-vib" checked/>
       </div>
-      <p style="margin:12px 0 6px;font-weight:800;color:#fff6ff;font-size:15px;text-align:left">Звук переливания</p>
+            <p style="margin:12px 0 6px;font-weight:800;color:#fff6ff;font-size:15px;text-align:left" data-i18n="language_section">Язык</p>
+      <div class="track-list" id="lang-list"></div>
+<p style="margin:12px 0 6px;font-weight:800;color:#fff6ff;font-size:15px;text-align:left" data-i18n="pour_section">Звук переливания</p>
       <div class="track-list" id="pour-list"></div>
-      <p style="margin:12px 0 6px;font-weight:800;color:#fff6ff;font-size:15px;text-align:left">Мелодия</p>
+      <p style="margin:12px 0 6px;font-weight:800;color:#fff6ff;font-size:15px;text-align:left" data-i18n="melody_section">Мелодия</p>
       <div class="track-list" id="track-list"></div>
-      <button class="btn green" id="btn-settings-done" style="width:100%;margin-top:14px">Готово</button>
+      <button class="btn green" id="btn-settings-done" style="width:100%;margin-top:14px" data-i18n="done">Готово</button>
     </div>
   </div>
   <div class="screen" id="sc-daily">
     <div class="card settings-card">
-      <h1>🎁 Ежедневки</h1>
+      <h1 data-i18n="daily_title">🎁 Ежедневки</h1>
       <p id="daily-streak" style="margin:4px 0 8px;font-weight:700">Серия: 0 / 7</p>
       <div class="daily-grid" id="daily-grid"></div>
-      <button class="btn green" id="btn-daily-claim" style="width:100%">Забрать награду</button>
-      <h1 style="margin-top:16px;font-size:22px">📋 Задания дня</h1>
+      <button class="btn green" id="btn-daily-claim" style="width:100%" data-i18n="claim_reward" data-i18n-fit>Забрать награду</button>
+      <h1 style="margin-top:16px;font-size:22px" data-i18n="daily_quests">📋 Задания дня</h1>
       <div id="quest-list"></div>
-      <button class="btn ghost" id="btn-daily-back" style="width:100%;margin-top:10px">Назад</button>
+      <button class="btn ghost" id="btn-daily-back" style="width:100%;margin-top:10px" data-i18n="back">Назад</button>
     </div>
   </div>
   <div class="screen" id="sc-tut">
     <div class="card">
       <h1 id="tut-title">Подсказка</h1>
       <p id="tut-body">…</p>
-      <button class="btn green" id="btn-tut-ok">Понятно</button>
+      <button class="btn green" id="btn-tut-ok" data-i18n="tut_ok">Понятно</button>
     </div>
   </div>
   <div id="toast"></div>
-  <div id="ver">v4.0.5</div>
+  <div id="ver">v4.0.6</div>
 </div>
-<script src="game.js?v=4.0.5"></script>
+<script src="i18n.js?v=4.0.6"></script>
+<script src="game.js?v=4.0.6"></script>
 </body>
 </html>
