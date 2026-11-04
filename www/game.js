@@ -1,7 +1,7 @@
-/* Винтики v3.3.1 — fill tray with scaled planks; goal banner fix */
+/* Винтики v3.3.2 — inner floor = drawn rim + 10px; rim pixel test */
 (function () {
   'use strict';
-  const VERSION = '3.3.1';
+  const VERSION = '3.3.2';
   const COLORS = {
     red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
     purple: '#9b4de0', orange: '#f08a2a'
@@ -22,9 +22,10 @@
   let animT = 0, particles = [], flyers = [], confetti = [];
   let tutStep = 0, tutMsg = '', hintScrewId = null, hammerMode = false;
   let outcomeGen = 0, shakeScrewId = null, shakeT = 0;
-  // Source UV for 9-slice; destination rim is RIM_PX
-  const TRAY_UV = { l: 0.108, t: 0.105, r: 0.108, b: 0.128 };
-  const RIM_PX = 22;
+  // Source UV cuts past carved lip into flat floor; dest rim matches drawTrayNine
+  const TRAY_UV = { l: 0.195, t: 0.200, r: 0.195, b: 0.215 };
+  const RIM_PX = 36;
+  const BOARD_PAD = 10; // extra margin inside drawn rim — planks never touch lip
   const MIN_SCREW_DIST = 48;
   let screwR = 20;
   let tray = { x: 0, y: 0, w: 360, h: 360 }; // outer art draw rect
@@ -98,6 +99,10 @@
     ctx.closePath();
   }
 
+  function trayRimPx() {
+    // MUST match drawTrayNine destination rim exactly
+    return Math.min(RIM_PX, tray.w * 0.09, tray.h * 0.09);
+  }
   function layoutTray() {
     // Room for HUD + colour boxes + goal strip, then tray fills the rest
     const boxY = 78, boxH = 62, goalStrip = 32;
@@ -107,12 +112,13 @@
     tray.w = Math.max(160, W - 8);
     tray.y = topUI;
     tray.h = Math.max(180, H - topUI - botUI);
-    const rim = Math.min(RIM_PX, tray.w * 0.07, tray.h * 0.07);
-    board.x = tray.x + rim;
-    board.y = tray.y + rim;
-    board.w = tray.w - rim * 2;
-    board.h = tray.h - rim * 2;
-    screwR = Math.max(17, Math.min(22, Math.min(board.w, board.h) / 20));
+    const rim = trayRimPx();
+    // Inner floor = drawn 9-slice rim + BOARD_PAD — never let planks sit on the lip
+    board.x = tray.x + rim + BOARD_PAD;
+    board.y = tray.y + rim + BOARD_PAD;
+    board.w = Math.max(40, tray.w - 2 * (rim + BOARD_PAD));
+    board.h = Math.max(40, tray.h - 2 * (rim + BOARD_PAD));
+    screwR = Math.max(16, Math.min(21, Math.min(board.w, board.h) / 20));
   }
 
   function resize() {
@@ -138,7 +144,7 @@
 
   function scaleLevel(def) {
     // Fit CONTENT bbox into full inner board (planks grow with the enlarged tray)
-    const margin = 14;
+    const margin = 8;
     const usableW = Math.max(40, board.w - margin * 2);
     const usableH = Math.max(40, board.h - margin * 2);
     const srcPlanks = def.planks || [];
@@ -892,7 +898,7 @@ function drawTrayNine() {
     const sl = Math.round(iw * TRAY_UV.l), st = Math.round(ih * TRAY_UV.t);
     const sr = Math.round(iw * TRAY_UV.r), sb = Math.round(ih * TRAY_UV.b);
     const sw = iw - sl - sr, sh = ih - st - sb;
-    const rim = Math.min(RIM_PX, tray.w * 0.07, tray.h * 0.07);
+    const rim = trayRimPx();
     const dl = rim, dt = rim, dr = rim, db = rim;
     const dw = tray.w - dl - dr, dh = tray.h - dt - db;
     const dx = tray.x, dy = tray.y;
@@ -1088,7 +1094,65 @@ function drawTrayNine() {
         return { ok: bad.length === 0, bad, screwR };
       },
 
-      getLayout: () => ({ W, H, tray: { ...tray }, board: { ...board }, playOrigin: { ...playOrigin }, uv: { ...TRAY_UV }, screwR }),
+      getLayout: () => ({ W, H, tray: { ...tray }, board: { ...board }, playOrigin: { ...playOrigin }, uv: { ...TRAY_UV }, screwR, rim: trayRimPx(), boardPad: BOARD_PAD }),
+      trayRimPx,
+      assertPlanksInsideBoard: () => {
+        const bad = [];
+        for (const p of planks) {
+          if (!p.alive || p.falling) continue;
+          const x = p.body.position.x, y = p.body.position.y;
+          const l = x - p.w / 2, r = x + p.w / 2, t0 = y - p.h / 2, b0 = y + p.h / 2;
+          if (l < board.x - 0.5 || r > board.x + board.w + 0.5 || t0 < board.y - 0.5 || b0 > board.y + board.h + 0.5)
+            bad.push({ id: p.id, l, r, t0, b0, board: { ...board } });
+        }
+        return { ok: bad.length === 0, bad, board: { ...board }, rim: trayRimPx() };
+      },
+      /** Pixel test: rim band from tray-only render must stay unchanged with planks drawn. */
+      assertRimPixels: () => {
+        const rim = trayRimPx();
+        const step = 2; // sample stride in CSS pixels
+        // 1) Capture tray-only reference
+        const saved = planks.map(p => ({ alive: p.alive, falling: p.falling }));
+        const savedS = screws.map(s => s.alive);
+        for (const p of planks) { p.alive = false; p.falling = false; }
+        for (const s of screws) s.alive = false;
+        frame(0);
+        const ref = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        // 2) Restore and draw with planks
+        for (let i = 0; i < planks.length; i++) { planks[i].alive = saved[i].alive; planks[i].falling = saved[i].falling; }
+        for (let i = 0; i < screws.length; i++) screws[i].alive = savedS[i];
+        frame(0);
+        const cur = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const hits = [];
+        const scale = dpr;
+        // Rim band in CSS px: tray edge strip of width rim (the drawn 9-slice rim)
+        const bands = [
+          { x0: tray.x, y0: tray.y, x1: tray.x + tray.w, y1: tray.y + rim }, // top
+          { x0: tray.x, y0: tray.y + tray.h - rim, x1: tray.x + tray.w, y1: tray.y + tray.h }, // bottom
+          { x0: tray.x, y0: tray.y + rim, x1: tray.x + rim, y1: tray.y + tray.h - rim }, // left
+          { x0: tray.x + tray.w - rim, y0: tray.y + rim, x1: tray.x + tray.w, y1: tray.y + tray.h - rim }, // right
+        ];
+        for (const b of bands) {
+          for (let y = b.y0; y < b.y1; y += step) {
+            for (let x = b.x0; x < b.x1; x += step) {
+              const px = Math.floor(x * scale), py = Math.floor(y * scale);
+              if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) continue;
+              const i = (py * canvas.width + px) * 4;
+              const dr = Math.abs(ref.data[i] - cur.data[i]);
+              const dg = Math.abs(ref.data[i + 1] - cur.data[i + 1]);
+              const db = Math.abs(ref.data[i + 2] - cur.data[i + 2]);
+              // plank wood is much lighter; ignore tiny AA/anti-alias diffs
+              if (dr + dg + db > 40) {
+                hits.push({ x: +x.toFixed(1), y: +y.toFixed(1), dr, dg, db });
+                if (hits.length > 40) break;
+              }
+            }
+            if (hits.length > 40) break;
+          }
+          if (hits.length > 40) break;
+        }
+        return { ok: hits.length === 0, hits: hits.slice(0, 20), rim, boardPad: BOARD_PAD, tray: { ...tray }, board: { ...board } };
+      },
       getScrews: () => screws.filter(s => s.alive).map(s => ({ id: s.id, x: s.x, y: s.y, plankId: s.plankId, color: s.color })),
       getFalling: () => planks.filter(p => p.falling).map(p => ({ id: p.id, fall: p.fall && { ...p.fall } })),
       getState: () => ({

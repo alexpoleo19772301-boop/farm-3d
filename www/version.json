@@ -1,9 +1,9 @@
 {
-  "version": "3.3.1",
-  "versionCode": 33001,
+  "version": "3.3.2",
+  "versionCode": 33002,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.3.1",
+  "webVersion": "3.3.2",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.3.1: баннер цели под коробками, авто-скрытие ~2с\n• Раскладка на весь лоток (anisotropic fill), винты с padding внутри доски\n• Доски крупнее и разнесены; проверка 390/360/412 × L1/5/10/42"
+  "changelog": "• v3.3.2: inner floor = drawn 9-slice rim + 10px; deeper tray UV\n• Pixel rim test (planks must not cover rim pixels)\n• Visible gap plank↔rim on 390/360/412 × L1/5/10/42"
 }
