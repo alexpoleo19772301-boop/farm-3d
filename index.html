@@ -24,12 +24,12 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
 .hud-row>*{pointer-events:auto}
 .pill{background:rgba(20,8,40,.78);border:2px solid #e1bee7;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800;backdrop-filter:blur(6px)}
 .pill.btnish{cursor:pointer;background:linear-gradient(180deg,#7e57c2,#5e35b1)}
-.pill.warn{border-color:#ff8a80;background:rgba(80,10,30,.85);animation:pulseRed 0.7s ease-in-out infinite}
+.pill.warn{border-color:#ff8a80;background:rgba(80,10,30,.85);animation:pulseRed .7s ease-in-out infinite}
 @keyframes pulseRed{0%,100%{box-shadow:0 0 0 0 rgba(255,80,80,.55)}50%{box-shadow:0 0 0 6px rgba(255,80,80,0)}}
-.goal{align-self:center;background:rgba(20,8,40,.85);border:2px solid #ffe082;border-radius:14px;padding:6px 12px;font-size:12px;font-weight:800;color:#ffe082;text-align:center;max-width:92%;pointer-events:none}
-.danger-bar{height:10px;border-radius:999px;background:rgba(0,0,0,.45);border:2px solid #fff4;overflow:hidden;flex:1;min-width:80px}
-.danger-bar>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#ffca28,#ff7043,#e53935);border-radius:999px;transition:width .15s linear}
-.hint-line{position:absolute;left:50%;transform:translateX(-50%);top:108px;z-index:16;background:rgba(30,10,50,.92);border:2px solid #80d8ff;border-radius:12px;padding:8px 12px;font-size:13px;font-weight:800;max-width:90%;text-align:center;pointer-events:none;display:none}
+.goal{align-self:center;background:rgba(20,8,40,.85);border:2px solid #ffe082;border-radius:14px;padding:6px 12px;font-size:12px;font-weight:800;color:#ffe082;text-align:center;max-width:94%;pointer-events:none}
+.danger-bar{height:10px;border-radius:999px;background:rgba(0,0,0,.45);border:2px solid #fff4;overflow:hidden;flex:1;min-width:70px}
+.danger-bar>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#ffca28,#ff7043,#e53935);border-radius:999px;transition:width .12s linear}
+.hint-line{position:absolute;left:50%;transform:translateX(-50%);top:112px;z-index:16;background:rgba(30,10,50,.92);border:2px solid #80d8ff;border-radius:12px;padding:8px 12px;font-size:13px;font-weight:800;max-width:90%;text-align:center;pointer-events:none;display:none}
 .hint-line.show{display:block}
 .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:15;display:flex;gap:8px;justify-content:center;align-items:flex-end;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));pointer-events:none}
 .bottombar>*{pointer-events:auto}
@@ -43,7 +43,7 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
 .map-title{text-align:center;font-size:22px;font-weight:900;margin:8px 0 4px;text-shadow:0 2px 0 #0006}
 .map-sub{text-align:center;font-size:12px;opacity:.8;margin-bottom:14px}
 .map-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;max-width:400px;margin:0 auto}
-.lvl{aspect-ratio:1;border-radius:16px;border:3px solid #fff5;background:linear-gradient(180deg,#9575cd,#5e35b1);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 0 #311b92;position:relative}
+.lvl{aspect-ratio:1;border-radius:16px;border:3px solid #fff5;background:linear-gradient(180deg,#9575cd,#5e35b1);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 0 #311b92}
 .lvl.lock{opacity:.45;filter:grayscale(.6);cursor:default}
 .lvl.done{background:linear-gradient(180deg,#f8bbd0,#ec407a);border-color:#fff8}
 .lvl .stars{font-size:10px;letter-spacing:1px;margin-top:2px}
@@ -60,12 +60,12 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     <div class="hud-row">
       <button class="pill btnish" id="btn-back">← Карта</button>
       <div class="pill">Ур. <span id="hud-level">1</span></div>
-      <div class="danger-bar" title="Опасность"><i id="danger-fill"></i></div>
-      <div class="pill" id="hud-danger">⚠ <span id="hud-stones">0</span>%</div>
+      <div class="danger-bar" title="До шипов"><i id="danger-fill"></i></div>
+      <div class="pill" id="hud-danger">🛡 <span id="hud-stones">100</span>%</div>
       <div class="pill">🪙 <span id="hud-coins">0</span></div>
       <button class="pill btnish" id="btn-mute">🔊</button>
     </div>
-    <div class="goal" id="hud-goal">Открой путь камням вниз!</div>
+    <div class="goal" id="hud-goal">Слей гравий — отодвинь доску от шипов!</div>
   </div>
   <div class="hint-line" id="hint-line"></div>
   <div class="bottombar" id="boosts" style="display:none">
@@ -73,13 +73,13 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     <button class="boost" id="b-shuffle"><span class="ico">🔀</span>Микс<span class="cnt" id="c-shuffle">3</span></button>
   </div>
   <div class="toast" id="toast"></div>
-  <div class="ver" id="ver-label">v2.3.0</div>
+  <div class="ver" id="ver-label">v2.4.0</div>
 
   <div class="overlay" id="screen-intro">
-    <img class="princess-hero" id="intro-princess" alt="Принцесса" src="assets/sprites/princess.webp"/>
+    <img class="princess-hero" src="assets/sprites/princess.webp" alt=""/>
     <h1>Спасти принцессу</h1>
-    <p>Камни всё сильнее давят! Собери <b>пары</b> плиток — открой путь вниз, пока галька не завалила принцессу.</p>
-    <p style="opacity:.7;font-size:12px">v2.3.0 · давление · туториал · без рекламы</p>
+    <p>Тяжёлая <b>доска</b> давит её к <b>шипам</b>! Собери пары плиток — открой ямы, чтобы гравий высыпался и давление упало.</p>
+    <p style="opacity:.7;font-size:12px">v2.4.0 · доска · шипы · без рекламы</p>
     <button class="btn gold" id="btn-play">Играть</button>
     <button class="btn ghost small" id="btn-update">⬇ Обновить</button>
   </div>
@@ -92,7 +92,7 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <button class="btn small ghost" id="map-update">⬇ Обновить</button>
     </div>
     <div class="map-title">Карта уровней</div>
-    <div class="map-sub">36 уровней · спаси принцессу</div>
+    <div class="map-sub">36 уровней · отодвинь доску</div>
     <div class="map-grid" id="map-grid"></div>
   </div>
 
@@ -100,15 +100,15 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     <img class="princess-hero" src="assets/sprites/princess_win.webp" alt=""/>
     <h1>Спасена!</h1>
     <div class="modal-stars" id="win-stars">⭐⭐⭐</div>
-    <p id="win-msg">Камни стекли вниз!</p>
+    <p id="win-msg">Доска отступила!</p>
     <button class="btn gold" id="btn-next">Дальше</button>
     <button class="btn ghost small" id="btn-win-map">Карта</button>
   </div>
 
   <div class="overlay hidden" id="screen-lose">
     <img class="princess-hero" src="assets/sprites/princess_scared.webp" alt=""/>
-    <h1>Завалило!</h1>
-    <p>Камни засыпали принцессу. Открой путь раньше!</p>
+    <h1>Ай! Шипы!</h1>
+    <p>Доска прижала принцессу к шипам. Слей гравий быстрее!</p>
     <button class="btn gold" id="btn-retry">Ещё раз</button>
     <button class="btn ghost small" id="btn-lose-map">Карта</button>
   </div>

@@ -1,9 +1,9 @@
 {
-  "version": "2.3.0",
-  "versionCode": 23000,
+  "version": "2.4.0",
+  "versionCode": 24000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "2.3.0",
+  "webVersion": "2.4.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v2.3.0: камни давят и сыплются к принцессе по таймеру\n• Полоска опасности + цель «Открой путь камням вниз!»\n• Туториал ур.1–2: рука, подсветка пары, первый пролив\n• Пассивный слив вниз, победа когда труба опустела\n• Звуки гальки + мелодия, faceted gems"
+  "changelog": "• Доска давит принцессу к шипам\n• Гравий в трубе — давление на доску\n• Пары плиток открывают ямы — гравий сыплется\n• Победа: доска отошла; поражение: шипы (Ай!)\n• Туториал с пальцем на ур.1–2"
 }
