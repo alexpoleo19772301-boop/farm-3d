@@ -1,7 +1,7 @@
-/* Винтики v3.5.0 — assembled polyomino jigsaw grid */
+/* Винтики v3.5.1 — melodic cozy workshop BGM */
 (function () {
   'use strict';
-  const VERSION = '3.5.0';
+  const VERSION = '3.5.1';
   const COLORS = {
     red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
     purple: '#9b4de0', orange: '#f08a2a'
@@ -60,11 +60,26 @@
     const a = audio[name]; if (!a) return;
     try { const c = a.cloneNode(); c.volume = vol == null ? 0.55 : vol; c.play().catch(() => {}); } catch (e) {}
   }
+  const BGM_VOL = 0.22; // keep under SFX (~0.55–0.7)
+  function syncBgmVolume() {
+    if (audio.bgm) audio.bgm.volume = muted ? 0 : BGM_VOL;
+  }
   function ensureBgm() {
-    if (muted || bgmStarted) return;
     const a = audio.bgm; if (!a) return;
-    a.loop = true; a.volume = 0.25;
-    a.play().then(() => { bgmStarted = true; }).catch(() => {});
+    a.loop = true;
+    syncBgmVolume();
+    if (muted) { try { a.pause(); } catch (e) {} return; }
+    if (document.hidden) { try { a.pause(); } catch (e) {} return; }
+    const p = a.play();
+    if (p && p.then) p.then(() => { bgmStarted = true; }).catch(() => {});
+    else bgmStarted = true;
+  }
+  function pauseBgm() {
+    if (audio.bgm) try { audio.bgm.pause(); } catch (e) {}
+  }
+  function onAppVisible(vis) {
+    if (!vis) pauseBgm();
+    else if (!muted) ensureBgm();
   }
 
   function shapeVerts(type, w, h) {
@@ -1417,7 +1432,7 @@ function drawTrayNine() {
     loadAudio('win', 'assets/audio/sfx_win.wav');
     loadAudio('lose', 'assets/audio/sfx_lose_v.wav');
     loadAudio('btn', 'assets/audio/sfx_btn.ogg');
-    loadAudio('bgm', 'assets/audio/music_vintiki.wav');
+    loadAudio('bgm', 'assets/audio/music_vintiki.ogg');
 
     $('btn-play').onclick = () => startLevel(Math.min(save.unlocked - 1, levels.length - 1));
     $('btn-home-map').onclick = () => { buildMap(); showScreen('map'); };
@@ -1427,11 +1442,21 @@ function drawTrayNine() {
     $('btn-win-map').onclick = () => { buildMap(); showScreen('map'); };
     $('btn-retry').onclick = () => startLevel(levelIdx);
     $('btn-lose-map').onclick = () => { buildMap(); showScreen('map'); };
-    $('btn-sound').onclick = () => { muted = !muted; persist(); refreshHud(); if (muted && audio.bgm) audio.bgm.pause(); else ensureBgm(); };
+    $('btn-sound').onclick = () => { muted = !muted; persist(); refreshHud(); syncBgmVolume(); if (muted) pauseBgm(); else ensureBgm(); };
     $('btn-update').onclick = checkOta;
     $('btn-home-update').onclick = checkOta;
     $('b-hint').onclick = useHint; $('b-slot').onclick = useSlot; $('b-hammer').onclick = useHammer;
     refreshHud(); checkOta(true); requestAnimationFrame(loop);
+    document.addEventListener('visibilitychange', () => onAppVisible(!document.hidden));
+    window.addEventListener('pagehide', () => pauseBgm());
+    window.addEventListener('freeze', () => pauseBgm());
+    window.addEventListener('pageshow', () => { if (!muted) ensureBgm(); });
+    window.addEventListener('blur', () => { /* keep playing if still visible tab */ });
+    // Capacitor / WebView pause hooks when available
+    try {
+      document.addEventListener('pause', () => pauseBgm(), false);
+      document.addEventListener('resume', () => { if (!muted) ensureBgm(); }, false);
+    } catch (e) {}
 
     window.__V = {
       VERSION, startLevel, assertNoOverlapRuntime, plankRects, startPlankFall, startPlankShatter, assignPuzzleEdges,

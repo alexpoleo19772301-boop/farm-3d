@@ -1,9 +1,9 @@
 {
-  "version": "3.5.0",
-  "versionCode": 35000,
+  "version": "3.5.1",
+  "versionCode": 35001,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.5.0",
+  "webVersion": "3.5.1",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.5.0: доски — собранный jigsaw-пазл (полиомино на сетке)\n• Вкладки только на общих рёбрах, входят в пазы соседей вплотную\n• Внешние края ровные; винты вне blanks; shatter/замки/ряды сохранены\n• OTA: cache-bust game.js + авто-обновление со старых версий"
+  "changelog": "• v3.5.1: новая мелодичная фоновая музыка (kalimba lead, уютный lo-fi loop)\n• 32 такта ~90 BPM, I–vi–IV–V, seamless loop, громкость ниже SFX\n• Пауза BGM при сворачивании/фоне; переключатель звука сохранён"
 }
