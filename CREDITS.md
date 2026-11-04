@@ -23,7 +23,7 @@
 
 ## Textures
 
-All textures (grass, soil, wood planks, shingles, path, rock, cliff strata) are original procedural cartoon textures generated for this project (v1.4.0). Public domain / no attribution required.
+All textures (grass, soil, wood planks, shingles, path, rock, cliff strata) are original procedural cartoon textures generated for this project (v1.4.0–1.4.1; incl. fur and paint detail maps). Public domain / no attribution required.
 
 Island layout, stylized clouds, mountains, hay rolls, lighting/sky and day–night cycle are original code for this project.
 

@@ -66,7 +66,7 @@ const SEASONS=['spring','summer','autumn','winter'];
 const SEASON_RU={spring:'Весна',summer:'Лето',autumn:'Осень',winter:'Зима'};
 const SEASON_EMO={spring:'🌸',summer:'☀️',autumn:'🍂',winter:'❄️'};
 const WX_RU={clear:'Ясно',rain:'Дождь',drought:'Засуха',storm:'Шторм'};
-const APP_VERSION={version: '1.4.0',versionCode: 14000,webVersion: '1.4.0'};
+const APP_VERSION={version: '1.4.1',versionCode: 14001,webVersion: '1.4.1'};
 const DEFAULT_MANIFEST_URL=localStorage.getItem('farm3d_manifest_url')||'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
 
 function growSec(c){return Math.max(7,Math.round(c.grow*GROW_SCALE));}
@@ -301,11 +301,26 @@ const World3D=(function(){
     }
     UV.needsUpdate=true; return geo;
   }
+  const _olCache=new WeakMap();
+  function outlineGeo(geo){
+    if(_olCache.has(geo)) return _olCache.get(geo);
+    const g=geo.clone(), P=g.attributes.position, n=P.count, acc=new Map(), key=i=>Math.round(P.getX(i)*1e3)+'_'+Math.round(P.getY(i)*1e3)+'_'+Math.round(P.getZ(i)*1e3);
+    if(!g.attributes.normal) g.computeVertexNormals();
+    const Nn=g.attributes.normal;
+    for(let i=0;i<n;i++){ const k=key(i); let v=acc.get(k); if(!v){ v=[0,0,0]; acc.set(k,v);} v[0]+=Nn.getX(i); v[1]+=Nn.getY(i); v[2]+=Nn.getZ(i); }
+    const out=new Float32Array(n*3);
+    for(let i=0;i<n;i++){ const v=acc.get(key(i)); const l=Math.hypot(v[0],v[1],v[2])||1; out[i*3]=v[0]/l; out[i*3+1]=v[1]/l; out[i*3+2]=v[2]/l; }
+    g.setAttribute('normal',new THREE.BufferAttribute(out,3)); _olCache.set(geo,g); return g;
+  }
   function addOutline(mesh, w){
-    if(!mesh.isMesh||mesh.userData.outlined) return; mesh.userData.outlined=true;
+        if(!mesh.isMesh||mesh.userData.outlined) return; mesh.userData.outlined=true;
     const m=new THREE.MeshBasicMaterial({color:0x2a1a10, side:THREE.BackSide});
-    m.onBeforeCompile=sh=>{ sh.vertexShader=sh.vertexShader.replace('#include <begin_vertex>','vec3 transformed = position + normal * '+(w||0.03).toFixed(3)+';'); };
-    const o=new THREE.Mesh(mesh.geometry,m); o.userData.outlined=true; o.userData.isOutline=true; o.castShadow=false; o.receiveShadow=false; o.raycast=()=>{}; mesh.add(o);
+    const ow=w||0.03; m.onBeforeCompile=sh=>{ sh.uniforms.olW={value:ow}; sh.vertexShader='uniform float olW;\n'+sh.vertexShader.replace('#include <begin_vertex>','vec3 transformed = position + normal * olW;'); };
+    const ol=mesh.isSkinnedMesh?mesh.geometry:outlineGeo(mesh.geometry);
+    let o;
+    if(mesh.isSkinnedMesh){ o=new THREE.SkinnedMesh(ol,m); o.bind(mesh.skeleton, mesh.bindMatrix); }
+    else o=new THREE.Mesh(ol,m);
+    o.userData.outlined=true; o.userData.isOutline=true; o.castShadow=false; o.receiveShadow=false; o.raycast=()=>{}; o.frustumCulled=mesh.frustumCulled; mesh.add(o);
   }
   // --- PBR texture pack (CC0 ambientCG / Poly Haven + procedural fallbacks) ---
   const TEX={}; let texReady=false; let maxAniso=4;
@@ -419,6 +434,8 @@ const World3D=(function(){
       ['roof','assets/textures/roof_color.jpg',true,[1,1]],
       ['planks','assets/textures/planks_light.jpg',true,[1,1]],
       ['shingle','assets/textures/shingle_light.jpg',true,[1,1]],
+      ['fur','assets/textures/fur_light.jpg',true,[1,1]],
+      ['paint','assets/textures/paint_light.jpg',true,[1,1]],
     ];
     return Promise.all(jobs.map(([key,url,srgb,rep])=>new Promise(res=>{
       loader.load(url, t=>{
@@ -478,13 +495,17 @@ const World3D=(function(){
             } else if(!m.isMeshToonMaterial){
               // Kenney nature packs ship metallic=1 (rendered dark under PBR); toon ignores metal, so pre-darken
               if(m.metalness>0.5 && m.color && !m.map){ const h={}; m.color.getHSL(h); const leaf=/leaf|grass|green/i.test(m.name||'');
-                m.color.setHSL(leaf?Math.max(0,h.h-0.09):h.h, Math.min(1,h.s*1.1), h.l*0.42); }
-              const t=toonMat({map:m.map||null, color:m.color?m.color.clone():new THREE.Color(0xffffff), transparent:m.transparent, opacity:m.opacity, vertexColors:!!m.vertexColors});
+                m.color.setHSL(leaf?Math.max(0,h.h-0.09):h.h, Math.min(1,h.s*1.1), h.l*0.42);
+                const nm=m.name||'';
+                if(/dirt/i.test(nm)) m.color.setHex(0x9c7a55).convertSRGBToLinear();
+                else if(/bark|wood/i.test(nm)) m.color.setHex(0x8a5e3c).convertSRGBToLinear();
+                m.userData.natural=/dirt|bark|wood/i.test(nm); }
+              const t=toonMat({map:m.map||null, color:m.color?m.color.clone():new THREE.Color(0xffffff), transparent:m.transparent, opacity:m.opacity, vertexColors:!!m.vertexColors}); t.userData.natural=!!m.userData.natural;
               if(Array.isArray(o.material)){ const i=o.material.indexOf(m); o.material[i]=t; } else o.material=t;
               m=t;
             }
             // mild cheer under calibrated exposure (v1.3)
-            if(m.color){
+            if(m.color && !m.userData.natural){
               const hsl={h:0,s:0,l:0}; m.color.getHSL(hsl);
               m.color.setHSL(hsl.h, Math.min(1, hsl.s*1.18+0.04), Math.min(0.62, hsl.l*1.04+0.02));
             }
@@ -652,7 +673,7 @@ const World3D=(function(){
     trees.forEach(([x,z,k,h])=>{
       const t=cloneTpl(k,h)||makeFallbackTree(x,z,h/2.5);
       if(t.position) t.position.set(x,0.05,z); else { /* fallback already placed */ }
-      if(templates[k]) { t.position.set(x,0.05,z); t.rotation.y=Math.random()*6.28; t.updateMatrixWorld(true); const s0=new THREE.Vector3(); const ms=[]; t.traverse(o=>{ if(o.isMesh) ms.push(o); }); ms.forEach(o=>{ o.getWorldScale(s0); addOutline(o,0.03/Math.max(s0.x,0.001)); }); g.add(t); }
+      if(templates[k]) { t.position.set(x,0.05,z); t.rotation.y=Math.random()*6.28; t.updateMatrixWorld(true); const s0=new THREE.Vector3(); const ms=[]; t.traverse(o=>{ if(o.isMesh) ms.push(o); }); ms.forEach(o=>{ o.getWorldScale(s0); addOutline(o,0.03/Math.max(s0.x,s0.y,s0.z,0.001)); }); g.add(t); }
       else g.add(t);
     });
     // bushes
@@ -747,83 +768,90 @@ const World3D=(function(){
     g.position.set(x,0,z); return g;
   }
 
+  function dressBuilding(root, outline, mode){
+    mode=mode||'building';
+    if(!root) return;
+    root.updateMatrixWorld(true);
+    const ws=new THREE.Vector3(), cache={};
+    const bb=new THREE.Box3().setFromObject(root), H=bb.max.y-bb.min.y, yRoof=bb.min.y+H*0.5;
+    const meshes=[]; root.traverse(o=>{ if(o.isMesh&&o.material&&!o.userData.isOutline) meshes.push(o); });
+    meshes.forEach(o=>{
+      if(o.isSkinnedMesh){ o.getWorldScale(ws); const ms=Array.isArray(o.material)?o.material:[o.material];
+        const nm=ms.map(m=>{ const h={}; m.color.clone().convertLinearToSRGB().getHSL(h); const t=(h.l>0.12)?(mode==='paint'?TEX.paint:TEX.fur):null; return toonMat({color:m.color.clone(), map:t||null, vertexColors:!!m.vertexColors}); });
+        const gg=boxUV(o.geometry, 0.45, ws); gg.groups=o.geometry.groups; o.geometry=gg; o.material=Array.isArray(o.material)?nm:nm[0]; o.castShadow=true; return; } // skinned: no inverted hull (bone-space scale is unreliable)
+      o.castShadow=true; o.receiveShadow=true;
+      o.getWorldScale(ws);
+      const src=Array.isArray(o.material)?o.material:[o.material];
+      const g0=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();
+      const P=g0.attributes.position, UV=g0.attributes.uv, n=P.count;
+      const groupsSrc=g0.groups.length?g0.groups:[{start:0,count:n,materialIndex:0}];
+      const a=new THREE.Vector3(),b=new THREE.Vector3(),c=new THREE.Vector3(),N=new THREE.Vector3(),wp=new THREE.Vector3();
+      const tris=[]; // {i, key}
+      groupsSrc.forEach(gr=>{
+        const m=src[gr.materialIndex]||src[0]; const pix=atlasPixels(m.map);
+        for(let i=gr.start;i<gr.start+gr.count;i+=3){
+          let col=m.color?m.color.clone():new THREE.Color(1,1,1);
+          if(pix&&UV){ const u=(UV.getX(i)+UV.getX(i+1)+UV.getX(i+2))/3, v=(UV.getY(i)+UV.getY(i+1)+UV.getY(i+2))/3;
+            const px=Math.min(pix.w-1,Math.max(0,Math.floor(((u%1)+1)%1*pix.w))), py=Math.min(pix.h-1,Math.max(0,Math.floor((((v%1)+1)%1)*(m.map.flipY?-1:1)*pix.h+(m.map.flipY?pix.h:0))));
+            const k=(py*pix.w+px)*4; const t=new THREE.Color(); t.setRGB(pix.d[k]/255,pix.d[k+1]/255,pix.d[k+2]/255); t.convertSRGBToLinear(); col.multiply(t); }
+          a.fromBufferAttribute(P,i); b.fromBufferAttribute(P,i+1); c.fromBufferAttribute(P,i+2);
+          N.subVectors(c,b).cross(a.clone().sub(b)).normalize().transformDirection(o.matrixWorld);
+          wp.copy(a).add(b).add(c).multiplyScalar(1/3).applyMatrix4(o.matrixWorld);
+          const hsl={}; col.clone().convertLinearToSRGB().getHSL(hsl);
+          let cls='flat';
+          if(mode==='building'){ if(N.y>0.3 && wp.y>yRoof) cls='roof'; else if(Math.abs(N.y)<0.5 && hsl.l<0.85) cls='wall'; }
+          else if(mode==='fur'){ if(hsl.l>0.12) cls='fur'; }
+          else if(mode==='paint'){ if(hsl.l>0.14) cls='paint'; }
+          const q=col.clone().convertLinearToSRGB(); const key=cls+'_'+q.getHexString();
+          tris.push([i,key,col,cls]);
+        }
+      });
+      // rebuild geometry grouped by key, with box UVs in world units
+      const keys=[...new Set(tris.map(t=>t[1]))];
+      const pos=new Float32Array(n*3), mats=[]; let w=0; const g=new THREE.BufferGeometry();
+      keys.forEach((key,mi)=>{
+        const st=w; let info=null;
+        tris.forEach(t=>{ if(t[1]!==key) return; info=t; for(let k=0;k<3;k++){ pos[(w)*3]=P.getX(t[0]+k); pos[w*3+1]=P.getY(t[0]+k); pos[w*3+2]=P.getZ(t[0]+k); w++; } });
+        g.addGroup(st,w-st,mi);
+        if(!cache[key]){
+          const [,,col,cls]=info;
+          const opt={color:col};
+          if(cls==='roof') opt.map=TEX.shingle||roofTexture();
+          else if(cls==='wall') opt.map=TEX.planks||woodTexture();
+          else if(cls==='fur') opt.map=TEX.fur||null;
+          else if(cls==='paint') opt.map=TEX.paint||null;
+          cache[key]=toonMat(opt);
+        }
+        mats.push(cache[key]);
+      });
+      g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.computeVertexNormals();
+      const ug=boxUV(g, mode==='building'?1.1:mode==='fur'?0.45:0.8, ws); ug.groups=g.groups;
+      o.geometry=ug; o.material=mats;
+      if(outline) addOutline(o, outline/Math.max(ws.x,ws.y,ws.z,0.001));
+    });
+  }
+  function atlasPixels(tex){
+    if(!tex||!tex.image) return null; if(tex.userData.pix) return tex.userData.pix;
+    try{ const im=tex.image, cw=im.width, ch=im.height; const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+      const cx=cv.getContext('2d'); cx.drawImage(im,0,0); tex.userData.pix={w:cw,h:ch,d:cx.getImageData(0,0,cw,ch).data}; return tex.userData.pix; }catch(e){ return null; }
+  }
   function placeBuildings(){
     const g=new THREE.Group();
-    function dressBuilding(root, outline){
-      if(!root) return;
-      root.updateMatrixWorld(true);
-      const ws=new THREE.Vector3(), cache={};
-      const bb=new THREE.Box3().setFromObject(root), H=bb.max.y-bb.min.y, yRoof=bb.min.y+H*0.5;
-      const meshes=[]; root.traverse(o=>{ if(o.isMesh&&o.material&&!o.userData.isOutline) meshes.push(o); });
-      meshes.forEach(o=>{
-        o.castShadow=true; o.receiveShadow=true;
-        o.getWorldScale(ws);
-        const src=Array.isArray(o.material)?o.material:[o.material];
-        const g0=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();
-        const P=g0.attributes.position, UV=g0.attributes.uv, n=P.count;
-        const groupsSrc=g0.groups.length?g0.groups:[{start:0,count:n,materialIndex:0}];
-        const a=new THREE.Vector3(),b=new THREE.Vector3(),c=new THREE.Vector3(),N=new THREE.Vector3(),wp=new THREE.Vector3();
-        const tris=[]; // {i, key}
-        groupsSrc.forEach(gr=>{
-          const m=src[gr.materialIndex]||src[0]; const pix=atlasPixels(m.map);
-          for(let i=gr.start;i<gr.start+gr.count;i+=3){
-            let col=m.color?m.color.clone():new THREE.Color(1,1,1);
-            if(pix&&UV){ const u=(UV.getX(i)+UV.getX(i+1)+UV.getX(i+2))/3, v=(UV.getY(i)+UV.getY(i+1)+UV.getY(i+2))/3;
-              const px=Math.min(pix.w-1,Math.max(0,Math.floor(((u%1)+1)%1*pix.w))), py=Math.min(pix.h-1,Math.max(0,Math.floor((((v%1)+1)%1)*(m.map.flipY?-1:1)*pix.h+(m.map.flipY?pix.h:0))));
-              const k=(py*pix.w+px)*4; const t=new THREE.Color(); t.setRGB(pix.d[k]/255,pix.d[k+1]/255,pix.d[k+2]/255); t.convertSRGBToLinear(); col.multiply(t); }
-            a.fromBufferAttribute(P,i); b.fromBufferAttribute(P,i+1); c.fromBufferAttribute(P,i+2);
-            N.subVectors(c,b).cross(a.clone().sub(b)).normalize().transformDirection(o.matrixWorld);
-            wp.copy(a).add(b).add(c).multiplyScalar(1/3).applyMatrix4(o.matrixWorld);
-            const hsl={}; col.clone().convertLinearToSRGB().getHSL(hsl);
-            let cls='flat';
-            if(N.y>0.3 && wp.y>yRoof) cls='roof';
-            else if(Math.abs(N.y)<0.5 && hsl.l<0.85) cls='wall';
-            const q=col.clone().convertLinearToSRGB(); const key=cls+'_'+q.getHexString();
-            tris.push([i,key,col,cls]);
-          }
-        });
-        // rebuild geometry grouped by key, with box UVs in world units
-        const keys=[...new Set(tris.map(t=>t[1]))];
-        const pos=new Float32Array(n*3), mats=[]; let w=0; const g=new THREE.BufferGeometry();
-        keys.forEach((key,mi)=>{
-          const st=w; let info=null;
-          tris.forEach(t=>{ if(t[1]!==key) return; info=t; for(let k=0;k<3;k++){ pos[(w)*3]=P.getX(t[0]+k); pos[w*3+1]=P.getY(t[0]+k); pos[w*3+2]=P.getZ(t[0]+k); w++; } });
-          g.addGroup(st,w-st,mi);
-          if(!cache[key]){
-            const [,,col,cls]=info;
-            const opt={color:col};
-            if(cls==='roof') opt.map=TEX.shingle||roofTexture();
-            else if(cls==='wall') opt.map=TEX.planks||woodTexture();
-            cache[key]=toonMat(opt);
-          }
-          mats.push(cache[key]);
-        });
-        g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.computeVertexNormals();
-        const ug=boxUV(g, 1.1, ws); ug.groups=g.groups;
-        o.geometry=ug; o.material=mats;
-        if(outline) addOutline(o, 0.035/Math.max(ws.x,0.001));
-      });
-    }
-    function atlasPixels(tex){
-      if(!tex||!tex.image) return null; if(tex.userData.pix) return tex.userData.pix;
-      try{ const im=tex.image, cw=im.width, ch=im.height; const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
-        const cx=cv.getContext('2d'); cx.drawImage(im,0,0); tex.userData.pix={w:cw,h:ch,d:cx.getImageData(0,0,cw,ch).data}; return tex.userData.pix; }catch(e){ return null; }
-    }
     const barn=cloneTpl('barn', 4.2);
-    if(barn){ barn.position.set(-7.2,0.05,-5.0); barn.rotation.y=Math.PI*0.15; dressBuilding(barn,true); g.add(barn); }
+    if(barn){ barn.position.set(-7.2,0.05,-5.0); barn.rotation.y=Math.PI*0.15; dressBuilding(barn,0.06); g.add(barn); }
     else {
       const fb=new THREE.Group(); fb.add(box(4.2,2.6,3.2,'#c62828',0,1.3,0));
       const roof=new THREE.Mesh(new THREE.ConeGeometry(3.2,1.4,4), stdMat({map:roofTexture(), color:0xffffff, roughness:0.8})); roof.position.y=3.2; roof.rotation.y=Math.PI/4; roof.castShadow=true; fb.add(roof);
       fb.position.set(-7.2,0.05,-5); g.add(fb);
     }
     const silo=cloneTpl('silo', 4.5);
-    if(silo){ silo.position.set(-4.6,0.05,-6.2); dressBuilding(silo,true); g.add(silo); }
+    if(silo){ silo.position.set(-4.6,0.05,-6.2); dressBuilding(silo,0.06); g.add(silo); }
     const house=cloneTpl('house', 3.2);
-    if(house){ house.position.set(-9.5,0.05,1.5); house.rotation.y=0.4; dressBuilding(house,true); g.add(house); }
+    if(house){ house.position.set(-9.5,0.05,1.5); house.rotation.y=0.4; dressBuilding(house,0.06); g.add(house); }
     const house2=cloneTpl('houseB', 2.8);
-    if(house2){ house2.position.set(-9.0,0.05,4.8); house2.rotation.y=-0.3; dressBuilding(house2,true); g.add(house2); }
+    if(house2){ house2.position.set(-9.0,0.05,4.8); house2.rotation.y=-0.3; dressBuilding(house2,0.06); g.add(house2); }
     const wm=cloneTpl('windmill', 5.5);
-    if(wm){ wm.position.set(9.5,0.05,-6.5); wm.rotation.y=-0.5; dressBuilding(wm,true); g.add(wm); }
+    if(wm){ wm.position.set(9.5,0.05,-6.5); wm.rotation.y=-0.5; dressBuilding(wm,0.06); g.add(wm); }
     const stall=cloneTpl('stall', 2.0);
     if(stall){ stall.position.set(6.8,0.05,5.5); stall.rotation.y=Math.PI; g.add(stall); }
     const cart=cloneTpl('cart', 1.1);
@@ -834,7 +862,7 @@ const World3D=(function(){
   function makeTractorRig(){
     const g=new THREE.Group();
     const body=cloneTpl('tractor', 1.35);
-    if(body){ g.add(body); }
+    if(body){ body.traverse(o=>{ if(o.isMesh&&o.material){ o.material=toonMat({color:/wheel|tire/i.test(o.name||'')?0x222222:0x43a047}); }}); g.add(body); dressBuilding(body, 0.03, 'paint'); }
     else {
       g.add(box(1.6,0.7,1.0,'#43a047',0,0.85,0));
       g.add(box(0.7,0.55,0.85,'#42a5f5',-0.15,1.4,0));
@@ -884,6 +912,8 @@ const World3D=(function(){
         shell.material=toonMat({color:bodyHex[i], roughness:0.4, metalness:0.08});
         const cab=box(0.5,0.42,0.55, '#'+accentHex[i].toString(16).padStart(6,'0'), -0.05, 1.35, 0);
         cab.material=toonMat({color:accentHex[i], roughness:0.45, metalness:0.05});
+        [shell,cab].forEach(b=>{ b.geometry=boxUV(b.geometry,0.8); b.material.map=TEX.paint||null; b.material.needsUpdate=true; addOutline(b,0.03); });
+        dressBuilding(tr, 0.03, 'paint');
         rig.add(tr); rig.add(shell); rig.add(cab);
       } else {
         rig.add(box(1.4,0.6,0.95,'#'+bodyHex[i].toString(16).padStart(6,'0'),0,0.75,0));
@@ -1098,6 +1128,7 @@ const World3D=(function(){
         g.add(sph(0.35, col, 0, 0.45, 0));
       }
       g.position.set(-5.5+(i%3)*1.6, 0.05, 5.5+((i/3)|0)*1.5);
+      if(g.children.length) dressBuilding(g, 0.025, 'fur');
       g.rotation.y=Math.random()*2;
       g.userData.animalIndex=state.animals.length?i:undefined;
       animalsGroup.add(g);
