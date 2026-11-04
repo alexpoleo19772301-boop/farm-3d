@@ -1,9 +1,9 @@
 {
-  "version": "4.0.3",
-  "versionCode": 40003,
+  "version": "4.0.4",
+  "versionCode": 40004,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "4.0.3",
+  "webVersion": "4.0.4",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v4.0.3: FIX BGM — смена трека больше не накладывается (singleton)\n• stop/pause/unload предыдущего + request token против гонок play()\n• Превью и visibility не плодят второй плеер"
+  "changelog": "• v4.0.4: FIX переливание — sfx_pour был почти неслышен (mean −68 dB / peak 0.008); пересобран + loudnorm\n• WebAudio buffers + пул HTMLAudio; unlock на жесте (Android WebView); SFX громче (default 55%)\n• Красивый фон мастерской/пейзажа за полем (cover, dim, particles; меняется по уровням)"
 }

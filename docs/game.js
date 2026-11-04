@@ -1,8 +1,8 @@
-/* Краски v4.0.3 — paint / water sort */
+/* Краски v4.0.4 — paint / water sort */
 (function () {
   'use strict';
-  const VERSION = '4.0.3';
-  const APP_VERSION = { version: '4.0.3', versionCode: 40003, webVersion: '4.0.3' };
+  const VERSION = '4.0.4';
+  const APP_VERSION = { version: '4.0.4', versionCode: 40004, webVersion: '4.0.4' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -34,9 +34,13 @@
   let save = loadSave();
   let musicOn = save.musicOn !== false;
   let musicVol = Math.max(0, Math.min(1, +save.musicVol || 0.40));
-  let sfxVol = Math.max(0, Math.min(1, save.sfxVol != null ? +save.sfxVol : 0.38));
+  let sfxVol = Math.max(0, Math.min(1, save.sfxVol != null ? +save.sfxVol : 0.55));
   if (!save.sfxSoftened && (+save.sfxVol || 0) >= 0.55) { sfxVol = 0.38; save.sfxVol = 0.38; save.sfxSoftened = 1; }
   else if (!save.sfxSoftened) { save.sfxSoftened = 1; }
+  // v4.0.4: earlier soft SFX were near-silent; bump default once if still at quiet 0.38
+  if (!save.sfxBoost404 && Math.abs((+save.sfxVol || 0) - 0.38) < 0.001) {
+    sfxVol = 0.55; save.sfxVol = 0.55; save.sfxBoost404 = 1;
+  } else if (!save.sfxBoost404) { save.sfxBoost404 = 1; }
   let vibrateOn = save.vibrateOn !== false;
   let trackId = Math.max(1, Math.min(5, (save.trackId | 0) || 1));
   let settingsReturn = 'home';
@@ -73,7 +77,7 @@
   function loadSave() {
     const defaults = {
       unlocked: 1, coins: 120, stars: {},
-      musicOn: true, musicVol: 0.40, sfxVol: 0.38, vibrateOn: true, trackId: 1,
+      musicOn: true, musicVol: 0.40, sfxVol: 0.55, vibrateOn: true, trackId: 1,
       boosters: { undo: 5, flask: 2, hint: 3 },
       daily: { lastClaim: null, streak: 0, lastQuestDay: null, quests: [] },
       seenTut: {}, starChests: {}, questBadge: false
@@ -116,35 +120,111 @@
     try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {}
   }
   const sfxLog = [];
+  const SFX_POOL = 6;
+  let actx = null;
+  const sfxBuf = {};       // name -> AudioBuffer
+  const sfxPool = {};      // name -> HTMLAudioElement[]
+  const sfxSrc = {};       // name -> url
+  let audioUnlocked = false;
+
+  function getActx() {
+    if (actx) return actx;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      actx = new AC();
+    } catch (e) { return null; }
+    return actx;
+  }
+
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+    const ctx = getActx();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    // Prime one silent HTMLAudio play for Android WebView autoplay policy
+    try {
+      const a = new Audio();
+      a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+      a.volume = 0.01;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) {}
+  }
+
   function playSfx(name, vol) {
     if (sfxVol <= 0.001) return;
-    const a = audio[name];
-    if (!a) {
+    unlockAudio();
+    const gain = Math.max(0, Math.min(1, (vol == null ? 1 : vol) * sfxVol));
+    const srcUrl = sfxSrc[name] || (audio[name] && (audio[name].currentSrc || audio[name].src)) || '';
+    sfxLog.push({ t: Date.now(), name, src: srcUrl, vol: gain });
+    if (sfxLog.length > 60) sfxLog.shift();
+    console.log('[sfx]', name, (srcUrl || '').split('/').slice(-2).join('/'), 'vol=' + gain.toFixed(2));
+
+    // Prefer WebAudio decoded buffers (reliable overlapping plays on Android)
+    const ctx = getActx();
+    const buf = sfxBuf[name];
+    if (ctx && buf) {
+      try {
+        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const g = ctx.createGain();
+        g.gain.value = gain;
+        src.connect(g); g.connect(ctx.destination);
+        src.start(0);
+        return;
+      } catch (e) {
+        console.warn('[sfx] webaudio fail', name, e && e.message);
+      }
+    }
+
+    // Fallback: pooled HTMLAudio elements (reuse, never clone)
+    const pool = sfxPool[name];
+    if (!pool || !pool.length) {
       sfxLog.push({ t: Date.now(), name, err: 'missing', src: null });
       console.warn('[sfx] missing', name);
       return;
     }
     try {
-      const c = a.cloneNode(true);
-      c.volume = Math.max(0, Math.min(1, (vol || 1) * sfxVol));
-      const src = a.currentSrc || a.src || '';
-      sfxLog.push({ t: Date.now(), name, src, vol: c.volume });
-      if (sfxLog.length > 40) sfxLog.shift();
-      console.log('[sfx]', name, src.split('/').slice(-2).join('/'), 'vol=' + c.volume.toFixed(2));
-      const p = c.play();
+      let el = null;
+      for (let i = 0; i < pool.length; i++) {
+        if (pool[i].paused || pool[i].ended || pool[i].currentTime === 0) { el = pool[i]; break; }
+      }
+      if (!el) el = pool[0]; // steal oldest if all busy
+      try { el.pause(); el.currentTime = 0; } catch (e) {}
+      el.volume = gain;
+      const p = el.play();
       if (p && p.catch) p.catch((e) => console.warn('[sfx] play fail', name, e && e.message));
     } catch (e) {
       sfxLog.push({ t: Date.now(), name, err: String(e) });
     }
   }
+
   function loadAudio(name, src) {
-    const a = new Audio(src);
-    a.preload = 'auto';
-    a.setAttribute('data-sfx', name);
-    a.addEventListener('error', () => console.warn('[sfx] load error', name, src));
-    a.addEventListener('canplaythrough', () => { a._ready = true; }, { once: true });
-    try { a.load(); } catch (e) {}
-    audio[name] = a;
+    sfxSrc[name] = src;
+    const pool = [];
+    for (let i = 0; i < SFX_POOL; i++) {
+      const a = new Audio(src);
+      a.preload = 'auto';
+      a.setAttribute('data-sfx', name);
+      a.setAttribute('playsinline', 'true');
+      a.addEventListener('error', () => console.warn('[sfx] load error', name, src));
+      try { a.load(); } catch (e) {}
+      pool.push(a);
+    }
+    sfxPool[name] = pool;
+    audio[name] = pool[0]; // back-compat for debug / old references
+    // Decode into WebAudio buffer asynchronously
+    fetch(src).then(r => r.arrayBuffer()).then(ab => {
+      const ctx = getActx();
+      if (!ctx) return;
+      return ctx.decodeAudioData(ab.slice(0));
+    }).then(buf => {
+      if (buf) sfxBuf[name] = buf;
+    }).catch(e => console.warn('[sfx] decode', name, e && e.message));
   }
   /* ---------- BGM singleton (exactly one playing source) ---------- */
   let bgmReq = 0;           // request token — stale play() ignored
@@ -490,7 +570,7 @@
       phase: 'tilt' // tilt -> stream -> settle
     };
     selected = -1;
-    playSfx('pour', 0.42);
+    playSfx('pour', 0.78);
     buzz(10);
     return true;
   }
@@ -560,21 +640,75 @@
     c.closePath();
   }
 
+  const BG_SET = [
+    { file: 'assets/bg/bg_workshop.webp', from: 0, to: 14 },
+    { file: 'assets/bg/bg_landscape.webp', from: 15, to: 34 },
+    { file: 'assets/bg/bg_hills.webp', from: 35, to: 9999 }
+  ];
+  let bgParticles = [];
+  function ensureBgParticles() {
+    if (bgParticles.length) return;
+    for (let i = 0; i < 28; i++) {
+      bgParticles.push({
+        x: Math.random(), y: Math.random(),
+        r: 0.6 + Math.random() * 1.8,
+        sp: 0.015 + Math.random() * 0.04,
+        ph: Math.random() * Math.PI * 2,
+        a: 0.15 + Math.random() * 0.35
+      });
+    }
+  }
+  function pickBgFile() {
+    const idx = Math.max(0, levelIdx | 0);
+    for (const b of BG_SET) if (idx >= b.from && idx <= b.to) return b.file;
+    return BG_SET[0].file;
+  }
+  function drawCoverImage(img) {
+    if (!img || !img.complete || !img.naturalWidth) return false;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const scale = Math.max(W / iw, H / ih);
+    const dw = iw * scale, dh = ih * scale;
+    const dx = (W - dw) / 2, dy = (H - dh) / 2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+    return true;
+  }
   function drawStudioBg() {
-    const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#3a2048');
-    g.addColorStop(0.45, '#2a1838');
-    g.addColorStop(1, '#140a1c');
-    ctx.fillStyle = g;
+    ensureBgParticles();
+    const key = pickBgFile();
+    let img = imgs[key];
+    if (!img) {
+      img = new Image();
+      img.src = key;
+      imgs[key] = img;
+    }
+    const painted = drawCoverImage(img);
+    if (!painted) {
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#3a2048');
+      g.addColorStop(0.45, '#2a1838');
+      g.addColorStop(1, '#140a1c');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+    }
+    // Dim + slight blur feel via translucent overlays (keeps flask contrast high)
+    ctx.fillStyle = 'rgba(18, 8, 28, 0.42)';
     ctx.fillRect(0, 0, W, H);
-    // shelf
-    ctx.fillStyle = 'rgba(80,50,40,0.55)';
-    roundRect(ctx, 10, H - 95, W - 20, 18, 6); ctx.fill();
-    // soft vignette blobs
-    for (let i = 0; i < 8; i++) {
+    const vig = ctx.createRadialGradient(W * 0.5, H * 0.42, Math.min(W, H) * 0.2, W * 0.5, H * 0.5, Math.max(W, H) * 0.75);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(8,2,14,0.55)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, W, H);
+    // soft shelf under flasks for readability
+    ctx.fillStyle = 'rgba(40,22,30,0.55)';
+    roundRect(ctx, 8, H - 98, W - 16, 22, 8); ctx.fill();
+    // subtle floating sparkles
+    for (const p of bgParticles) {
+      p.ph += p.sp;
+      const x = (p.x * W + Math.sin(p.ph) * 12 + W) % W;
+      const y = (p.y * H + Math.cos(p.ph * 0.7) * 10 + H) % H;
       ctx.beginPath();
-      ctx.arc((i * 97 + 40) % W, (i * 151 + 80) % (H - 100), 18 + (i % 3) * 8, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,220,180,0.03)';
+      ctx.arc(x, y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,230,180,' + (p.a * (0.55 + 0.45 * Math.sin(p.ph))).toFixed(3) + ')';
       ctx.fill();
     }
   }
@@ -702,8 +836,8 @@
     ctx.lineTo(-w * 0.48, bodyTop + 24);
     ctx.quadraticCurveTo(-w * 0.48, bodyTop + 8, -neckW, bodyTop);
     ctx.closePath();
-    ctx.strokeStyle = 'rgba(220,240,255,0.65)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(245,250,255,0.92)';
+    ctx.lineWidth = 2.6;
     ctx.stroke();
     // refraction streak
     ctx.strokeStyle = 'rgba(255,255,255,0.35)';
@@ -1420,6 +1554,10 @@
     }
   }
 
+  ['pointerdown','touchstart','mousedown','keydown'].forEach(ev => {
+    document.addEventListener(ev, unlockAudio, { once: false, passive: true });
+  });
+
   function wireUi() {
     $('btn-play').onclick = () => startLevel(Math.min((save.unlocked | 1) - 1, levels.length - 1));
     $('btn-home-map').onclick = () => { showScreen('map'); buildMap(); };
@@ -1484,6 +1622,11 @@
     loadAudio('coin', SFX + 'sfx_coin.ogg');
     loadAudio('star', SFX + 'sfx_star.ogg');
     loadAudio('undo', SFX + 'sfx_undo.ogg');
+    for (const b of BG_SET) {
+      const im = new Image();
+      im.src = b.file;
+      imgs[b.file] = im;
+    }
     try {
       const r = await fetch('assets/paint_levels.json?v=' + VERSION, { cache: 'no-store' });
       levelPack = await r.json();
@@ -1505,7 +1648,7 @@
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },
       tick: (sec) => { const steps = Math.ceil(sec / 0.016); for (let i = 0; i < steps; i++) { if (pourAnim) { pourAnim.t += 0.016; if (pourAnim.t >= pourAnim.duration) finishPour(); } animT += 0.016; } },
-      solveHint, openDaily, openSettings, checkOta, sfxLog, audio, playSfx,
+      solveHint, openDaily, openSettings, checkOta, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx,
       ensureBgm, stopBgm, setBgmTrack, countPlayingBgm, stopPreview, BGM_TRACKS,
       autoSolve: (maxSteps) => {
         let steps = 0;

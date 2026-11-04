@@ -1,0 +1,328 @@
+{
+  "pourPlays": [
+    {
+      "size": "390x844",
+      "hasBuf": true,
+      "plays": [
+        {
+          "i": 0,
+          "j": 1,
+          "after": [
+            {
+              "t": 1793816972675,
+              "name": "pour",
+              "src": "assets/audio/sfx/sfx_pour.ogg",
+              "vol": 0.42900000000000005
+            }
+          ],
+          "hasBuf": true
+        },
+        {
+          "i": 0,
+          "j": 3,
+          "after": [
+            {
+              "t": 1793816972730,
+              "name": "pour",
+              "src": "assets/audio/sfx/sfx_pour.ogg",
+              "vol": 0.42900000000000005
+            }
+          ],
+          "hasBuf": true
+        },
+        {
+          "i": 1,
+          "j": 0,
+          "after": [
+            {
+              "t": 1793816972781,
+              "name": "pour",
+              "src": "assets/audio/sfx/sfx_pour.ogg",
+              "vol": 0.42900000000000005
+            }
+          ],
+          "hasBuf": true
+        },
+        {
+          "i": 0,
+          "j": 3,
+          "after": [
+            {
+              "t": 1793816972831,
+              "name": "pour",
+              "src": "assets/audio/sfx/sfx_pour.ogg",
+              "vol": 0.42900000000000005
+            }
+          ],
+          "hasBuf": true
+        }
+      ],
+      "log": [
+        {
+          "t": 1793816972675,
+          "name": "pour",
+          "src": "assets/audio/sfx/sfx_pour.ogg",
+          "vol": 0.42900000000000005
+        },
+        {
+          "t": 1793816972730,
+          "name": "pour",
+          "src": "assets/audio/sfx/sfx_pour.ogg",
+          "vol": 0.42900000000000005
+        },
+        {
+          "t": 1793816972781,
+          "name": "pour",
+          "src": "assets/audio/sfx/sfx_pour.ogg",
+          "vol": 0.42900000000000005
+        },
+        {
+          "t": 1793816972831,
+          "name": "pour",
+          "src": "assets/audio/sfx/sfx_pour.ogg",
+          "vol": 0.42900000000000005
+        }
+      ],
+      "poolLen": 6,
+      "version": "4.0.4"
+    },
+    {
+      "size": "360x800",
+      "hasBuf": true,
+      "plays": [
+        {
+          "i": 0,
+          "j": 1,
+          "after": [
+            {
+              "t": 1793816976880,
+              "name": "pour",
+              "src": "assets/audio/sfx/sfx_pour.ogg",
+              "vol": 0.42900000000000005
+            }
+          ],
+          "hasBuf": true
+        },
+        {
+          "i": 0,
+          "j": 3,
+          "after": [
+            {
+              "t": 1793816976931,
+              "name": "pour",
+              "src": "assets/audio/sfx/sfx_pour.ogg",
+              "vol": 0.42900000000000005
+            }
+          ],
+          "hasBuf": true
+        },
+        {
+          "i": 1,
+          "j": 0,
+          "after": [
+            {
+              "t": 1793816976983,
+              "name": "pour",
+              "src": "assets/audio/sfx/sfx_pour.ogg",
+              "vol": 0.42900000000000005
+            }
+          ],
+          "hasBuf": true
+        },
+        {
+          "i": 0,
+          "j": 3,
+          "after": [
+            {
+              "t": 1793816977034,
+              "name": "pour",
+              "src": "assets/audio/sfx/sfx_pour.ogg",
+              "vol": 0.42900000000000005
+            }
+          ],
+          "hasBuf": true
+        }
+      ],
+      "log": [
+        {
+          "t": 1793816976880,
+          "name": "pour",
+          "src": "assets/audio/sfx/sfx_pour.ogg",
+          "vol": 0.42900000000000005
+        },
+        {
+          "t": 1793816976931,
+          "name": "pour",
+          "src": "assets/audio/sfx/sfx_pour.ogg",
+          "vol": 0.42900000000000005
+        },
+        {
+          "t": 1793816976983,
+          "name": "pour",
+          "src": "assets/audio/sfx/sfx_pour.ogg",
+          "vol": 0.42900000000000005
+        },
+        {
+          "t": 1793816977034,
+          "name": "pour",
+          "src": "assets/audio/sfx/sfx_pour.ogg",
+          "vol": 0.42900000000000005
+        }
+      ],
+      "poolLen": 6,
+      "version": "4.0.4"
+    },
+    {
+      "size": "412x915",
+      "hasBuf": true,
+      "plays": [
+        {
+          "i": 0,
+          "j": 1,
+          "after": [
+            {
+              "t": 1793816981095,
+              "name": "pour",
+              "src": "assets/audio/sfx/sfx_pour.ogg",
+              "vol": 0.42900000000000005
+            }
+          ],
+          "hasBuf": true
+        },
+        {
+          "i": 0,
+          "j": 3,
+          "after": [
+            {
+              "t": 1793816981147,
+              "name": "pour",
+              "src": "assets/audio/sfx/sfx_pour.ogg",
+              "vol": 0.42900000000000005
+            }
+          ],
+          "hasBuf": true
+        },
+        {
+          "i": 1,
+          "j": 0,
+          "after": [
+            {
+              "t": 1793816981198,
+              "name": "pour",
+              "src": "assets/audio/sfx/sfx_pour.ogg",
+              "vol": 0.42900000000000005
+            }
+          ],
+          "hasBuf": true
+        },
+        {
+          "i": 0,
+          "j": 3,
+          "after": [
+            {
+              "t": 1793816981248,
+              "name": "pour",
+              "src": "assets/audio/sfx/sfx_pour.ogg",
+              "vol": 0.42900000000000005
+            }
+          ],
+          "hasBuf": true
+        }
+      ],
+      "log": [
+        {
+          "t": 1793816981095,
+          "name": "pour",
+          "src": "assets/audio/sfx/sfx_pour.ogg",
+          "vol": 0.42900000000000005
+        },
+        {
+          "t": 1793816981147,
+          "name": "pour",
+          "src": "assets/audio/sfx/sfx_pour.ogg",
+          "vol": 0.42900000000000005
+        },
+        {
+          "t": 1793816981198,
+          "name": "pour",
+          "src": "assets/audio/sfx/sfx_pour.ogg",
+          "vol": 0.42900000000000005
+        },
+        {
+          "t": 1793816981248,
+          "name": "pour",
+          "src": "assets/audio/sfx/sfx_pour.ogg",
+          "vol": 0.42900000000000005
+        }
+      ],
+      "poolLen": 6,
+      "version": "4.0.4"
+    }
+  ],
+  "sizes": [
+    {
+      "w": 390,
+      "h": 844,
+      "name": "390x844",
+      "idle": "/workspace/farm-3d/shots/v404/390x844-l1.png"
+    },
+    {
+      "w": 360,
+      "h": 800,
+      "name": "360x800",
+      "idle": "/workspace/farm-3d/shots/v404/360x800-l1.png"
+    },
+    {
+      "w": 412,
+      "h": 915,
+      "name": "412x915",
+      "idle": "/workspace/farm-3d/shots/v404/412x915-l1.png"
+    }
+  ],
+  "version": "4.0.4",
+  "sfxBufPour": true,
+  "rootCauseCheck": {},
+  "summary": {
+    "version": "4.0.4",
+    "sfxBufPour": true,
+    "perSizeOk": [
+      {
+        "size": "390x844",
+        "hasBuf": true,
+        "pourLogCount": 4,
+        "playAttempts": 4,
+        "vols": [
+          0.42900000000000005,
+          0.42900000000000005,
+          0.42900000000000005,
+          0.42900000000000005
+        ]
+      },
+      {
+        "size": "360x800",
+        "hasBuf": true,
+        "pourLogCount": 4,
+        "playAttempts": 4,
+        "vols": [
+          0.42900000000000005,
+          0.42900000000000005,
+          0.42900000000000005,
+          0.42900000000000005
+        ]
+      },
+      {
+        "size": "412x915",
+        "hasBuf": true,
+        "pourLogCount": 4,
+        "playAttempts": 4,
+        "vols": [
+          0.42900000000000005,
+          0.42900000000000005,
+          0.42900000000000005,
+          0.42900000000000005
+        ]
+      }
+    ],
+    "pourTriggeredEveryAttempt": true
+  }
+}

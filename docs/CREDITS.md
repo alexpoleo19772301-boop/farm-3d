@@ -45,3 +45,8 @@ Kenney UI Audio также зеркалирован на OpenGameArt: [51 UI sou
 ## OTA (v4.0.2)
 
 Исправлен OTA: приложение снова качает `version.json` + `www.zip` с GitHub Releases через Capacitor `AppUpdate` (в v4.0.0–4.0.1 остался только локальный reload). Старые резкие `assets/audio/sfx_*.wav|ogg` удалены; только `assets/audio/sfx/`.
+
+## v4.0.4 — pour SFX + фон
+- `sfx_pour.ogg` был почти неслышен (mean ≈ −68 dB, peak ≈ 0.008). Пересобран + loudnorm ≈ −16 LUFS; остальные SFX нормализованы.
+- WebAudio buffer + пул HTMLAudio; unlock на первом жесте (Android WebView).
+- Фоны: `assets/bg/bg_workshop.webp`, `bg_landscape.webp`, `bg_hills.webp` (cover, dim, particles).
