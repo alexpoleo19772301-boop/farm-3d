@@ -8,7 +8,7 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none}
 html,body{width:100%;height:100%;overflow:hidden;background:#2a1a0c;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#fff}
-#wrap{position:relative;width:100%;height:100%;max-width:480px;margin:0 auto;background:radial-gradient(ellipse at 50% 30%,#5a3a1e,#2a1a0c 70%)}@media (orientation:landscape){#wrap{max-width:min(960px,100vw)}}
+#wrap{position:relative;width:100%;height:100%;max-width:100%;margin:0 auto;background:radial-gradient(ellipse at 50% 30%,#5a3a1e,#2a1a0c 70%)}
 canvas#game{display:block;width:100%;height:100%;touch-action:none}
 .screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px;z-index:5;background:rgba(20,10,5,.72);backdrop-filter:blur(4px)}
 .screen.on{display:flex}
@@ -91,7 +91,7 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     </div>
   </div>
   <div id="toast"></div>
-  <div id="ver">v3.2.1</div>
+  <div id="ver">v3.3.0</div>
 </div>
 <script src="vendor/matter.min.js"></script>
 <script src="game.js"></script>

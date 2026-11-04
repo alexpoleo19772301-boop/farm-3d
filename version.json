@@ -1,9 +1,9 @@
 {
-  "version": "3.2.1",
-  "versionCode": 32001,
+  "version": "3.3.0",
+  "versionCode": 33000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.2.1",
+  "webVersion": "3.3.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.2.1: доски строго внутри внутренней области доски (rim art)\n• layout tray + board из одного rect (TRAY_UV)\n• проверка на 390/360/412/1280 — без oob и overlap"
+  "changelog": "• v3.3.0: анимация падения доски (~1с, поворот+fade+clack)\n• Поле на весь экран (9-slice tray), крупные винты\n• Винты на доске не пересекаются; слоты/коробки с дугой полёта"
 }

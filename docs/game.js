@@ -1,7 +1,7 @@
-/* Винтики v3.2.1 — tray-art-aligned inner board (no planks past rim) */
+/* Винтики v3.3.0 — full-bleed tray + juicy plank fall */
 (function () {
   'use strict';
-  const VERSION = '3.2.1';
+  const VERSION = '3.3.0';
   const COLORS = {
     red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
     purple: '#9b4de0', orange: '#f08a2a'
@@ -22,8 +22,11 @@
   let animT = 0, particles = [], flyers = [], confetti = [];
   let tutStep = 0, tutMsg = '', hintScrewId = null, hammerMode = false;
   let outcomeGen = 0, shakeScrewId = null, shakeT = 0;
-  // Measured UV of recessed floor inside board_tray.webp (conservative vs lip)
+  // Source UV for 9-slice; destination rim is RIM_PX
   const TRAY_UV = { l: 0.108, t: 0.105, r: 0.108, b: 0.128 };
+  const RIM_PX = 22;
+  const MIN_SCREW_DIST = 48;
+  let screwR = 20;
   let tray = { x: 0, y: 0, w: 360, h: 360 }; // outer art draw rect
   let board = { x: 24, y: 200, w: 280, h: 280 }; // INNER playable = art floor
   let playOrigin = { x: 0, y: 0, s: 1 };
@@ -95,24 +98,18 @@
   }
 
   function layoutTray() {
-    // Outer tray art fits between top UI (boxes) and bottom UI (wait+boosters)
-    const topUI = Math.max(155, Math.min(175, H * 0.22));
-    const botUI = Math.max(130, Math.min(170, H * 0.22));
-    const availH = Math.max(160, H - topUI - botUI);
-    const availW = Math.max(160, W - 20);
-    let outer = Math.min(availW, availH);
-    if (W > H) outer = Math.min(outer, H * 0.78, 460);
-    else outer = Math.min(outer, 400);
-    tray.w = tray.h = outer;
-    tray.x = (W - outer) / 2;
-    tray.y = topUI + Math.max(0, (availH - outer) * 0.2);
-    if (tray.y + outer > H - botUI) tray.y = H - botUI - outer;
-    if (tray.y < topUI - 12) tray.y = topUI - 12;
-    // Inner = same UV used when drawing the tray sprite
-    board.x = tray.x + tray.w * TRAY_UV.l;
-    board.y = tray.y + tray.h * TRAY_UV.t;
-    board.w = tray.w * (1 - TRAY_UV.l - TRAY_UV.r);
-    board.h = tray.h * (1 - TRAY_UV.t - TRAY_UV.b);
+    const topUI = 155;
+    const botUI = 140;
+    tray.x = 4;
+    tray.w = Math.max(160, W - 8);
+    tray.y = topUI;
+    tray.h = Math.max(180, H - topUI - botUI);
+    const rim = Math.min(RIM_PX, tray.w * 0.07, tray.h * 0.07);
+    board.x = tray.x + rim;
+    board.y = tray.y + rim;
+    board.w = tray.w - rim * 2;
+    board.h = tray.h - rim * 2;
+    screwR = Math.max(19, Math.min(26, Math.min(board.w, board.h) / 16));
   }
 
   function resize() {
@@ -128,7 +125,7 @@
   function clearWorld() {
     if (engine) { World.clear(engine.world, false); Engine.clear(engine); }
     engine = Engine.create({ enableSleeping: true });
-    world = engine.world; world.gravity.y = 1.0;
+    world = engine.world; world.gravity.y = 2.2;
     World.add(world, [
       Bodies.rectangle(W / 2, H + 40, W * 2, 80, { isStatic: true }),
       Bodies.rectangle(-40, H / 2, 80, H * 2, { isStatic: true }),
@@ -137,24 +134,50 @@
   }
 
   function scaleLevel(def) {
-    // levels authored in 320x320 local space → fit inside INNER board with margin
-    const margin = 8;
+    const margin = 10;
     const usableW = Math.max(40, board.w - margin * 2);
     const usableH = Math.max(40, board.h - margin * 2);
     const S = Math.min(usableW, usableH) / 320;
     const ox = (board.w - 320 * S) / 2;
     const oy = (board.h - 320 * S) / 2;
     playOrigin = { x: board.x + ox, y: board.y + oy, s: S };
-    return {
-      ...def,
-      planks: (def.planks || []).map(p => ({
-        ...p,
-        x: ox + p.x * S, y: oy + p.y * S, w: p.w * S, h: p.h * S
-      })),
-      screws: (def.screws || []).map(s => ({
-        ...s, x: ox + s.x * S, y: oy + s.y * S
-      }))
-    };
+    const planks = (def.planks || []).map(p => ({
+      ...p, x: ox + p.x * S, y: oy + p.y * S, w: p.w * S, h: p.h * S
+    }));
+    const screws = (def.screws || []).map(s => ({
+      ...s, x: ox + s.x * S, y: oy + s.y * S
+    }));
+    const minD = Math.max(screwR * 2.15, MIN_SCREW_DIST * S * 0.92);
+    const by = {};
+    for (const s of screws) (by[s.plankId] = by[s.plankId] || []).push(s);
+    for (const [pid, ss] of Object.entries(by)) {
+      const pl = planks.find(p => p.id === pid); if (!pl || ss.length < 2) continue;
+      const inset = Math.max(screwR * 0.9, 10 * S);
+      const box = {
+        l: pl.x - pl.w / 2 + inset, r: pl.x + pl.w / 2 - inset,
+        t: pl.y - pl.h / 2 + inset, b: pl.y + pl.h / 2 - inset
+      };
+      for (let iter = 0; iter < 40; iter++) {
+        let moved = false;
+        for (let i = 0; i < ss.length; i++) for (let j = i + 1; j < ss.length; j++) {
+          let dx = ss[j].x - ss[i].x, dy = ss[j].y - ss[i].y;
+          let d = Math.hypot(dx, dy) || 0.01;
+          if (d < minD) {
+            moved = true;
+            const push = (minD - d) / 2 + 0.5;
+            dx /= d; dy /= d;
+            ss[i].x -= dx * push; ss[i].y -= dy * push;
+            ss[j].x += dx * push; ss[j].y += dy * push;
+          }
+        }
+        for (const s of ss) {
+          s.x = Math.max(box.l, Math.min(box.r, s.x));
+          s.y = Math.max(box.t, Math.min(box.b, s.y));
+        }
+        if (!moved) break;
+      }
+    }
+    return { ...def, planks, screws };
   }
 
   function startLevel(idx) {
@@ -210,10 +233,10 @@
       const owner = planks.find(p => p.id === sd.plankId);
       let sx = board.x + sd.x, sy = board.y + sd.y;
       if (owner) {
-        // keep screw inside plank AABB
+        const inset = Math.max(screwR * 0.75, 8);
         const bx = owner.body.position.x, by = owner.body.position.y;
-        sx = Math.max(bx - owner.w / 2 + 14, Math.min(bx + owner.w / 2 - 14, sx));
-        sy = Math.max(by - owner.h / 2 + 14, Math.min(by + owner.h / 2 - 14, sy));
+        sx = Math.max(bx - owner.w / 2 + inset, Math.min(bx + owner.w / 2 - inset, sx));
+        sy = Math.max(by - owner.h / 2 + inset, Math.min(by + owner.h / 2 - inset, sy));
       }
       const sc = {
         id: sd.id, x: sx, y: sy, color: sd.color, plankId: sd.plankId,
@@ -224,6 +247,62 @@
       if (owner) owner.screwIds.push(sc.id);
       screws.push(sc);
     }
+    // final world-space screw separation (never overlap on a plank)
+    (function separateScrews() {
+      const minD = screwR * 2.2;
+      const by = {};
+      for (const sc of screws) (by[sc.plankId] = by[sc.plankId] || []).push(sc);
+      for (const [pid, ss] of Object.entries(by)) {
+        const owner = planks.find(p => p.id === pid); if (!owner || ss.length < 2) continue;
+        const inset = Math.max(screwR * 0.7, 6);
+        const bx = owner.body.position.x, byy = owner.body.position.y;
+        const box = {
+          l: bx - owner.w / 2 + inset, r: bx + owner.w / 2 - inset,
+          t: byy - owner.h / 2 + inset, b: byy + owner.h / 2 - inset
+        };
+        for (let iter = 0; iter < 50; iter++) {
+          let moved = false;
+          for (let i = 0; i < ss.length; i++) for (let j = i + 1; j < ss.length; j++) {
+            let dx = ss[j].x - ss[i].x, dy = ss[j].y - ss[i].y;
+            let d = Math.hypot(dx, dy) || 0.01;
+            if (d < minD) {
+              moved = true;
+              const push = (minD - d) / 2 + 0.5;
+              dx /= d; dy /= d;
+              ss[i].x -= dx * push; ss[i].y -= dy * push;
+              ss[j].x += dx * push; ss[j].y += dy * push;
+            }
+          }
+          for (const s of ss) {
+            s.x = Math.max(box.l, Math.min(box.r, s.x));
+            s.y = Math.max(box.t, Math.min(box.b, s.y));
+          }
+          if (!moved) break;
+        }
+        // if still cramped, enlarge plank slightly
+        let worst = 999;
+        for (let i = 0; i < ss.length; i++) for (let j = i + 1; j < ss.length; j++)
+          worst = Math.min(worst, Math.hypot(ss[j].x - ss[i].x, ss[j].y - ss[i].y));
+        if (worst < minD - 0.5) {
+          const grow = (minD - worst) + 8;
+          owner.w += grow; owner.h += grow;
+          // keep inside board
+          const halfW = owner.w / 2, halfH = owner.h / 2;
+          let cx = Math.max(board.x + halfW + 2, Math.min(board.x + board.w - halfW - 2, bx));
+          let cy = Math.max(board.y + halfH + 2, Math.min(board.y + board.h - halfH - 2, byy));
+          Body.setPosition(owner.body, { x: cx, y: cy });
+          // re-place on a ring/line
+          const n = ss.length;
+          const R = Math.min(owner.w, owner.h) * 0.28;
+          for (let i = 0; i < n; i++) {
+            const a = -Math.PI / 2 + i * Math.PI * 2 / n;
+            ss[i].x = cx + Math.cos(a) * Math.max(R, minD * 0.58);
+            ss[i].y = cy + Math.sin(a) * Math.max(R, minD * 0.58);
+          }
+        }
+      }
+    })();
+
     updateLocks();
     refreshHud();
     ensureBgm();
@@ -254,12 +333,69 @@
     return p.screwIds.filter(id => { const s = screws.find(x => x.id === id); return s && s.alive; });
   }
 
+  function startPlankFall(p) {
+    if (!p.alive || p.falling) return;
+    if (p.constraint) { try { World.remove(world, p.constraint); } catch (e) {} p.constraint = null; }
+    const ang = p.body.angle;
+    const spin = p.body.angularVelocity || 0;
+    try { Body.setStatic(p.body, true); } catch (e) {}
+    p.falling = true;
+    const px = Number(p.body.position.x) || board.x + board.w / 2;
+    const py = Number(p.body.position.y) || board.y + board.h / 2;
+    const safeAng = Number.isFinite(ang) ? ang : 0;
+    const safeSpin = Number.isFinite(spin) ? spin : 0;
+    p.fall = {
+      t: 0,
+      dur: 1.0 + Math.random() * 0.2,
+      x: px,
+      y: py,
+      angle: safeAng,
+      vx: (Math.random() - 0.5) * 120 + Math.sin(safeAng) * 50,
+      vy: 70 + Math.random() * 50,
+      omega: (Math.abs(safeSpin) > 0.01 ? Math.max(-4, Math.min(4, safeSpin * 40)) : ((Math.random() < 0.5 ? -1 : 1) * (2.0 + Math.random() * 2.2))),
+      alpha: 1,
+      clapped: false
+    };
+    playSfx('wood', 0.85);
+    spawnDust(p.body.position.x, p.body.position.y);
+    updateLocks();
+  }
+
+  function tickFalls(dt) {
+    for (const p of planks) {
+      if (!p.falling || !p.fall) continue;
+      const f = p.fall;
+      if (!Number.isFinite(f.x) || !Number.isFinite(f.y)) {
+        p.alive = false; p.falling = false; p.fall = null; continue;
+      }
+      f.t += dt;
+      f.vy += 1450 * dt;
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+      f.angle += f.omega * dt;
+      f.omega *= (1 - 0.35 * dt);
+      const u = f.t / f.dur;
+      f.alpha = u < 0.5 ? 1 : Math.max(0, 1 - (u - 0.5) / 0.5);
+      if (!f.clapped && u > 0.35) { f.clapped = true; playSfx('wood', 0.4); }
+      try {
+        Body.setPosition(p.body, { x: f.x, y: f.y });
+        Body.setAngle(p.body, f.angle);
+      } catch (e) {}
+      if (f.t >= f.dur || f.y > H + 100 || f.alpha <= 0.02) {
+        p.alive = false; p.falling = false; p.fall = null;
+        try { World.remove(world, p.body); } catch (e) {}
+        updateLocks();
+      }
+    }
+  }
+
   function refreshPlankPhysics(p) {
     if (!p.alive || p.falling) return;
     const live = livingScrewsOnPlank(p);
     if (live.length >= 2) {
       if (!p.body.isStatic) Body.setStatic(p.body, true);
       if (p.constraint) { World.remove(world, p.constraint); p.constraint = null; }
+      p.body.frictionAir = 0.12;
     } else if (live.length === 1) {
       const sc = screws.find(x => x.id === live[0]);
       Body.setStatic(p.body, false);
@@ -269,18 +405,15 @@
       p.constraint = Constraint.create({
         bodyA: p.body,
         pointA: { x: lx * Math.cos(a) - ly * Math.sin(a), y: lx * Math.sin(a) + ly * Math.cos(a) },
-        pointB: { x: sc.x, y: sc.y }, stiffness: 1, length: 0, damping: 0.2
+        pointB: { x: sc.x, y: sc.y }, stiffness: 0.95, length: 0, damping: 0.05
       });
       World.add(world, p.constraint);
-      p.body.frictionAir = 0.06;
+      p.body.frictionAir = 0.02;
+      Body.setAngularVelocity(p.body, (Math.random() < 0.5 ? -1 : 1) * (0.08 + Math.random() * 0.06));
+      Body.setVelocity(p.body, { x: (Math.random() - 0.5) * 1.5, y: 0.8 });
+      p.swinging = true;
     } else {
-      if (p.constraint) { World.remove(world, p.constraint); p.constraint = null; }
-      Body.setStatic(p.body, false);
-      p.falling = true;
-      Body.setAngularVelocity(p.body, (Math.random() - 0.5) * 0.06);
-      playSfx('wood', 0.7);
-      spawnDust(p.body.position.x, p.body.position.y);
-      updateLocks();
+      startPlankFall(p);
     }
   }
 
@@ -317,7 +450,7 @@
 
     const box = findBoxFor(sc.color);
     if (box) {
-      flyers.push({ kind: 'toBox', color: sc.color, x: sc.x, y: sc.y, tx: box.x + box.w / 2, ty: box.y + box.h / 2, t: 0, spin: 0, boxId: box.id });
+      flyers.push({ kind: 'toBox', color: sc.color, x: sc.x, y: sc.y, tx: box.x + box.w / 2, ty: box.y + box.h / 2, t: 0, spin: 0, boxId: box.id, arc: 70 + Math.random() * 50, speed: 1.55 });
     } else {
       const slot = waitSlots.findIndex(s => !s);
       if (slot < 0) {
@@ -327,7 +460,7 @@
       }
       waitSlots[slot] = { color: sc.color, id: sc.id };
       const sp = slotPos(slot);
-      flyers.push({ kind: 'toWait', color: sc.color, x: sc.x, y: sc.y, tx: sp.x, ty: sp.y, t: 0, spin: 0 });
+      flyers.push({ kind: 'toWait', color: sc.color, x: sc.x, y: sc.y, tx: sp.x, ty: sp.y, t: 0, spin: 0, arc: 55 + Math.random() * 40, speed: 1.7 });
     }
     if (tutStep === 1) {
       tutStep = 2;
@@ -354,7 +487,7 @@
         const w = waitSlots[i]; if (!w) continue;
         const box = findBoxFor(w.color); if (!box) continue;
         const sp = slotPos(i);
-        flyers.push({ kind: 'toBox', color: w.color, x: sp.x, y: sp.y, tx: box.x + box.w / 2, ty: box.y + box.h / 2, t: 0, spin: 0, boxId: box.id });
+        flyers.push({ kind: 'toBox', color: w.color, x: sp.x, y: sp.y, tx: box.x + box.w / 2, ty: box.y + box.h / 2, t: 0, spin: 0, boxId: box.id, arc: 60, speed: 1.8 });
         waitSlots[i] = null; moved = true;
       }
       const filled = waitSlots.filter(Boolean);
@@ -375,19 +508,11 @@
 
   function checkWin() {
     if (state !== 'play') return;
-    for (const p of planks) {
-      if (p.falling && p.body.position.y > tray.y + tray.h + 50) {
-        p.alive = false;
-        if (p.constraint) { try { World.remove(world, p.constraint); } catch (e) {} p.constraint = null; }
-        try { World.remove(world, p.body); } catch (e) {}
-        updateLocks();
-      }
-    }
     if (!planks.some(p => p.alive && !p.falling) && !screws.some(s => s.alive)) {
       const g = outcomeGen;
       if (checkWin._armed !== g) {
         checkWin._armed = g;
-        setTimeout(() => { if (g === outcomeGen && state === 'play') endWin(); }, 400);
+        setTimeout(() => { if (g === outcomeGen && state === 'play') endWin(); }, 550);
       }
     }
   }
@@ -408,7 +533,7 @@
   }
 
   function screwAt(x, y) {
-    let best = null, bd = 32 * 32;
+    let best = null, bd = (screwR + 18) * (screwR + 18);
     for (const sc of screws) {
       if (!sc.alive) continue;
       const d = (sc.x - x) ** 2 + (sc.y - y) ** 2;
@@ -480,38 +605,41 @@
 
   function drawPlank(p) {
     if (!p.alive && !p.falling) return;
-    if (p.body.position.y > H + 80) return;
+    if (p.body.position.y > H + 120) return;
+    const alpha = p.fall ? p.fall.alpha : 1;
     const poly = plankWorldPoly(p);
     ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.beginPath();
-    poly.forEach(([x, y], i) => i ? ctx.lineTo(x + 4, y + 6) : ctx.moveTo(x + 4, y + 6));
+    poly.forEach(([x, y], i) => i ? ctx.lineTo(x + 5, y + 8) : ctx.moveTo(x + 5, y + 8));
     ctx.closePath();
-    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fill();
-
+    ctx.fillStyle = 'rgba(0,0,0,0.32)'; ctx.fill();
     const x = p.body.position.x, y = p.body.position.y;
     ctx.translate(x, y); ctx.rotate(p.body.angle);
-    roundRect(ctx, -p.w / 2, -p.h / 2, p.w, p.h, 12);
+    const rr = Math.min(14, Math.min(p.w, p.h) * 0.18);
+    roundRect(ctx, -p.w / 2, -p.h / 2, p.w, p.h, rr);
     ctx.fillStyle = woodFill(p.woodTone); ctx.fill();
     ctx.strokeStyle = 'rgba(255,235,190,0.45)'; ctx.lineWidth = 3; ctx.stroke();
     ctx.strokeStyle = 'rgba(70,40,12,0.5)'; ctx.lineWidth = 2; ctx.stroke();
     ctx.save();
-    roundRect(ctx, -p.w / 2, -p.h / 2, p.w, p.h, 12); ctx.clip();
+    roundRect(ctx, -p.w / 2, -p.h / 2, p.w, p.h, rr); ctx.clip();
     ctx.strokeStyle = 'rgba(90,50,20,0.16)'; ctx.lineWidth = 1;
     for (let yy = -p.h / 2; yy < p.h / 2; yy += 5) {
       ctx.beginPath(); ctx.moveTo(-p.w / 2, yy); ctx.lineTo(p.w / 2, yy + 1); ctx.stroke();
     }
     ctx.restore();
     ctx.restore();
-    // holes
-    for (const id of p.screwIds) {
-      const sc = screws.find(s => s.id === id); if (!sc) continue;
-      ctx.beginPath(); ctx.arc(sc.x, sc.y, 13, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(25,12,5,0.5)'; ctx.fill();
+    if (!p.falling) {
+      for (const id of p.screwIds) {
+        const sc = screws.find(s => s.id === id); if (!sc || !sc.alive) continue;
+        ctx.beginPath(); ctx.arc(sc.x, sc.y, screwR * 0.72, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(25,12,5,0.45)'; ctx.fill();
+      }
     }
   }
 
   function drawScrewHead(x, y, color, spin, scale, blocked, shaking, isKey) {
-    const r = 17 * (scale || 1);
+    const r = screwR * (scale || 1);
     ctx.save();
     ctx.translate(x + (shaking ? Math.sin(animT * 55) * 3 : 0), y);
     ctx.rotate(spin || 0);
@@ -643,16 +771,43 @@
   }
   function drawFlyers(dt) {
     flyers = flyers.filter(f => {
-      f.t += dt * 2.2; f.spin += dt * 18;
-      const t = Math.min(1, f.t); const e = 1 - Math.pow(1 - t, 3);
-      if (f.kind === 'toBox' || f.kind === 'toWait') {
-        const x = f.x + (f.tx - f.x) * e, y = f.y + (f.ty - f.y) * e - Math.sin(e * Math.PI) * 40;
-        drawScrewHead(x, y, f.color, f.spin, 1.1, false, false, false);
-        if (t >= 1) { onFlyerArrived(f); return false; }
-        return true;
-      }
-      return t < 1;
+      f.t += dt * (f.speed || 2.2);
+      f.spin += dt * 10;
+      const u = Math.min(1, f.t);
+      const e = 1 - Math.pow(1 - u, 2);
+      const x = f.x + (f.tx - f.x) * e;
+      const y = f.y + (f.ty - f.y) * e - Math.sin(u * Math.PI) * (f.arc || 40);
+      drawScrewHead(x, y, f.color, f.spin, 0.95, false, false, false);
+      if (u >= 1) { onFlyerArrived(f); return false; }
+      return true;
     });
+  }
+
+function drawTrayNine() {
+    const img = imgs.board_tray;
+    if (!img) {
+      ctx.fillStyle = '#6b4423'; roundRect(ctx, tray.x, tray.y, tray.w, tray.h, 18); ctx.fill();
+      ctx.fillStyle = '#4a2f16'; roundRect(ctx, board.x, board.y, board.w, board.h, 12); ctx.fill();
+      return;
+    }
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    const sl = Math.round(iw * TRAY_UV.l), st = Math.round(ih * TRAY_UV.t);
+    const sr = Math.round(iw * TRAY_UV.r), sb = Math.round(ih * TRAY_UV.b);
+    const sw = iw - sl - sr, sh = ih - st - sb;
+    const rim = Math.min(RIM_PX, tray.w * 0.07, tray.h * 0.07);
+    const dl = rim, dt = rim, dr = rim, db = rim;
+    const dw = tray.w - dl - dr, dh = tray.h - dt - db;
+    const dx = tray.x, dy = tray.y;
+    // 9 patches
+    ctx.drawImage(img, 0, 0, sl, st, dx, dy, dl, dt);
+    ctx.drawImage(img, sl, 0, sw, st, dx + dl, dy, dw, dt);
+    ctx.drawImage(img, sl + sw, 0, sr, st, dx + dl + dw, dy, dr, dt);
+    ctx.drawImage(img, 0, st, sl, sh, dx, dy + dt, dl, dh);
+    ctx.drawImage(img, sl, st, sw, sh, dx + dl, dy + dt, dw, dh);
+    ctx.drawImage(img, sl + sw, st, sr, sh, dx + dl + dw, dy + dt, dr, dh);
+    ctx.drawImage(img, 0, st + sh, sl, sb, dx, dy + dt + dh, dl, db);
+    ctx.drawImage(img, sl, st + sh, sw, sb, dx + dl, dy + dt + dh, dw, db);
+    ctx.drawImage(img, sl + sw, st + sh, sr, sb, dx + dl + dw, dy + dt + dh, dr, db);
   }
 
   function frame(dt) {
@@ -679,24 +834,22 @@
       }
       tickBoxes(dt);
       drawBoxes();
-      if (imgs.board_tray) ctx.drawImage(imgs.board_tray, tray.x, tray.y, tray.w, tray.h);
-      else {
-        ctx.fillStyle = '#6b4423'; roundRect(ctx, tray.x, tray.y, tray.w, tray.h, 18); ctx.fill();
-        ctx.fillStyle = '#4a2f16'; roundRect(ctx, board.x, board.y, board.w, board.h, 14); ctx.fill();
-      }
-      for (const p of planks) if (p.alive || p.falling) drawPlank(p);
+      drawTrayNine();
+      for (const p of planks) if (p.alive && !p.falling) drawPlank(p);
       drawBandDivider();
       for (const sc of screws) {
         if (!sc.alive) continue;
         if (hintScrewId === sc.id) {
-          ctx.beginPath(); ctx.arc(sc.x, sc.y, 24 + Math.sin(animT * 8) * 3, 0, Math.PI * 2);
+          ctx.beginPath(); ctx.arc(sc.x, sc.y, screwR + 8 + Math.sin(animT * 8) * 3, 0, Math.PI * 2);
           ctx.strokeStyle = '#ffe566'; ctx.lineWidth = 3; ctx.stroke();
         }
         drawScrewHead(sc.x, sc.y, sc.color, 0, 1, sc.blocked, shakeScrewId === sc.id && shakeT > 0, sc.isKey);
       }
       drawWaitRow();
-      drawFlyers(dt);
       drawTutorial();
+      // Falling planks + flyers above wait/UI so the drop is obvious
+      for (const p of planks) if (p.falling) drawPlank(p);
+      drawFlyers(dt);
       drawParticles(dt);
       if (state === 'play') checkWin();
     }
@@ -818,8 +971,10 @@
     refreshHud(); requestAnimationFrame(loop);
 
     window.__V = {
-      VERSION, startLevel, assertNoOverlapRuntime, plankRects,
-      getLayout: () => ({ W, H, tray: { ...tray }, board: { ...board }, playOrigin: { ...playOrigin }, uv: { ...TRAY_UV } }),
+      VERSION, startLevel, assertNoOverlapRuntime, plankRects, startPlankFall,
+      getLayout: () => ({ W, H, tray: { ...tray }, board: { ...board }, playOrigin: { ...playOrigin }, uv: { ...TRAY_UV }, screwR }),
+      getScrews: () => screws.filter(s => s.alive).map(s => ({ id: s.id, x: s.x, y: s.y, plankId: s.plankId, color: s.color })),
+      getFalling: () => planks.filter(p => p.falling).map(p => ({ id: p.id, fall: p.fall && { ...p.fall } })),
       getState: () => ({
         state, levelIdx,
         screws: screws.filter(s => s.alive).length,
@@ -844,12 +999,23 @@
         if (sc) { removeScrew(sc); return sc.id; }
         return null;
       },
-      forceLose: () => { waitSlots = waitSlots.map(() => ({ color: 'red', id: 'x' })); endLose(); },
+forceLose: () => { waitSlots = waitSlots.map(() => ({ color: 'red', id: 'x' })); endLose(); },
+      forceFallPlank: () => {
+        const p = planks.find(x => x.alive && !x.falling);
+        if (!p) return null;
+        for (const id of [...p.screwIds]) {
+          const sc = screws.find(s => s.id === id && s.alive);
+          if (sc) { sc.alive = false; removedKeys.add(sc.id); }
+        }
+        p.screwIds = [];
+        startPlankFall(p);
+        return p.id;
+      },
       idle: (sec) => {
         const steps = Math.ceil(sec / 0.016);
         for (let i = 0; i < steps; i++) {
           if (engine) Engine.update(engine, 16);
-          tickBoxes(0.016); animT += 0.016;
+          tickFalls(0.016); tickBoxes(0.016); animT += 0.016;
           for (const f of flyers) f.t += 0.05;
           flyers = flyers.filter(f => { if (f.t >= 1) { onFlyerArrived(f); return false; } return true; });
           for (const b of boxes) if (b.flying) b.flyT += 0.05;
