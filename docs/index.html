@@ -57,18 +57,17 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     <button class="pill btnish" id="btn-mute">🔊</button>
   </div>
   <div class="bottombar" id="boosts" style="display:none">
-    <button class="boost" id="b-undo"><span class="ico">↩️</span>Отмена<span class="cnt" id="c-undo">3</span></button>
-    <button class="boost" id="b-hint"><span class="ico">💡</span>Ход<span class="cnt" id="c-hint">3</span></button>
+    <button class="boost" id="b-hint"><span class="ico">💡</span>Подсказка<span class="cnt" id="c-hint">3</span></button>
     <button class="boost" id="b-shuffle"><span class="ico">🔀</span>Микс<span class="cnt" id="c-shuffle">3</span></button>
   </div>
   <div class="toast" id="toast"></div>
-  <div class="ver" id="ver-label">v2.1.0</div>
+  <div class="ver" id="ver-label">v2.2.0</div>
 
   <div class="overlay" id="screen-intro">
     <img class="princess-hero" id="intro-princess" alt="Принцесса" src="assets/sprites/princess.webp"/>
     <h1>Спасти принцессу</h1>
-    <p>Камни давят сверху! Собирай плитки по три в лоток — открой путь, чтобы галька сыпалась вниз, а не завалила принцессу.</p>
-    <p style="opacity:.7;font-size:12px">v2.1.0 · без рекламы · свои символы</p>
+    <p>Камни давят в трубе! Собери <b>пары</b> одинаковых плиток — открой канал, чтобы галька стекла вниз. Если камни завалят принцессу — поражение.</p>
+    <p style="opacity:.7;font-size:12px">v2.2.0 · пары · физика · без рекламы</p>
     <button class="btn gold" id="btn-play">Играть</button>
     <button class="btn ghost small" id="btn-update">⬇ Обновить</button>
   </div>
@@ -78,29 +77,28 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <button class="btn small ghost" id="map-back">← Меню</button>
       <div class="pill">🪙 <span id="map-coins">0</span></div>
       <div class="pill">⭐ <span id="map-stars">0</span></div>
-      <button class="btn small" id="map-update">⬇ Обновить</button>
-      <button class="btn small ghost" id="map-mute">🔊</button>
+      <button class="btn small ghost" id="map-update">⬇ Обновить</button>
     </div>
     <div class="map-title">Карта уровней</div>
-    <div class="map-sub">Открой сток на каждом этаже башни</div>
+    <div class="map-sub">36 уровней · спаси принцессу</div>
     <div class="map-grid" id="map-grid"></div>
   </div>
 
   <div class="overlay hidden" id="screen-win">
-    <img class="princess-hero" src="assets/sprites/princess_win.webp" alt="Победа"/>
-    <h1>Принцесса спасена!</h1>
+    <img class="princess-hero" src="assets/sprites/princess_win.webp" alt=""/>
+    <h1>Спасена!</h1>
     <div class="modal-stars" id="win-stars">⭐⭐⭐</div>
-    <p id="win-msg">Камни ушли в пропасть</p>
+    <p id="win-msg">Камни стекли мимо!</p>
     <button class="btn gold" id="btn-next">Дальше</button>
-    <button class="btn ghost" id="btn-win-map">Карта</button>
+    <button class="btn ghost small" id="btn-win-map">Карта</button>
   </div>
 
   <div class="overlay hidden" id="screen-lose">
-    <img class="princess-hero" id="lose-princess" src="assets/sprites/princess_scared.webp" alt="Проигрыш"/>
-    <h1>Завалило камнями!</h1>
-    <p id="lose-msg">Открывай путь быстрее — галька не ждёт.</p>
+    <img class="princess-hero" src="assets/sprites/princess_scared.webp" alt=""/>
+    <h1>Завалило!</h1>
+    <p>Камни засыпали принцессу. Открой канал раньше.</p>
     <button class="btn gold" id="btn-retry">Ещё раз</button>
-    <button class="btn ghost" id="btn-lose-map">Карта</button>
+    <button class="btn ghost small" id="btn-lose-map">Карта</button>
   </div>
 </div>
 <script src="game.js"></script>

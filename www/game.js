@@ -1,894 +1,939 @@
-/* Спасти принцессу: Маджонг v2.1.0 — tiles plug a shaft; pebbles pour when path opens */
-'use strict';
+/* Спасти принцессу: Маджонг v2.2.0 — L-pipe, circle pebbles, pair match */
+(function () {
+  'use strict';
+  const VERSION = '2.2.0';
+  const SAVE_KEY = 'princess_mahjong_v22';
+  const TILE_TYPES = ['zhong', 'fa', 'frame'];
+  const N_LEVELS = 36;
+  const DT = 1 / 60;
+  const GRAV = 980;
+  const DAMP = 0.988;
+  const REST = 0.18;
+  const FRICTION = 0.92;
 
-const APP_VERSION = { version: '2.1.0', versionCode: 21000, webVersion: '2.1.0' };
-const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
-  ((location.hostname||'').endsWith('github.io')
-    ? (location.origin + location.pathname.replace(/\/[^/]*$/, '/') + 'version.json')
-    : 'https://alexpoleo19772301-boop.github.io/farm-3d/version.json');
-const SAVE_KEY = 'princess_mahjong_v21';
-const TRAY_SIZE = 7;
-const TILE_IDS = ['flower','star','heart','moon','gem','leaf','sun','butterfly','fish','bird','crown','shell'];
-const TILE_LABELS = {flower:'🌸',star:'⭐',heart:'❤️',moon:'🌙',gem:'💎',leaf:'🍃',sun:'☀️',butterfly:'🦋',fish:'🐟',bird:'🐦',crown:'👑',shell:'🐚'};
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const $ = (id) => document.getElementById(id);
 
-const CELL = { EMPTY:0, STONE:1, WALL:2, TILE:3 };
+  let W = 390, H = 780, DPR = 1;
+  let state = 'intro'; // intro|map|play|win|lose
+  let levelIdx = 0;
+  let save = loadSave();
+  let imgs = {};
+  let audioMuted = !!save.muted;
+  let toastT = 0;
 
-const defaultSave = () => ({
-  coins:100, muted:false, maxUnlocked:1, stars:{},
-  boosters:{undo:5, hint:5, shuffle:5}, totalStars:0
-});
-let saveData = Object.assign(defaultSave(), JSON.parse(localStorage.getItem(SAVE_KEY)||'{}'));
-function persist(){ localStorage.setItem(SAVE_KEY, JSON.stringify(saveData)); }
+  // Level runtime
+  let tiles = []; // {c,r,type,alive}
+  let cols = 9, rows = 9;
+  let tw = 34, th = 42, wallX = 16, wallY = 420;
+  let pipe = { topY: 70, topH: 110, rightX: 250, rightW: 120 };
+  let solids = []; // AABB walls of pipe frame
+  let pebbles = []; // {x,y,ox,oy,r,spr,sleep,vx-ish via verlet}
+  let selected = null; // tile index
+  let hintPair = null;
+  let drained = 0, startCount = 0;
+  let buryFill = 0;
+  let winPending = false, losePending = false;
+  let princessMood = 'scared';
+  let animT = 0;
+  let boosts = { hint: 3, shuffle: 3 };
+  let lastPairSnap = null;
+  let spat = { cell: 24, map: new Map() };
+  let pausedPhysics = false;
 
-/* ---------- Audio ---------- */
-const AudioFX = (() => {
-  const cache = {};
-  let unlocked=false, muted=false, music=null, musicVol=0.42, sfxVol=0.7, pebbleCD=0;
-  function unlock(){
-    if(unlocked) return; unlocked=true;
-    ['sfx_tap','sfx_pick','sfx_match','sfx_win','sfx_lose','sfx_shuffle','sfx_hint','sfx_undo','sfx_btn','sfx_drop','sfx_star','sfx_pebbles','sfx_pressure','music_theme']
-      .forEach(n=>{ const a=new Audio('assets/audio/'+n+'.ogg'); a.preload='auto'; cache[n]=a; });
+  function loadSave() {
+    try {
+      return Object.assign({
+        unlocked: 1, coins: 0, stars: {}, muted: false, best: {}
+      }, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'));
+    } catch (e) { return { unlocked: 1, coins: 0, stars: {}, muted: false, best: {} }; }
   }
-  function play(name, volScale){
-    if(muted||!unlocked) return;
-    const a=cache[name]; if(!a) return;
-    try{ const c=a.cloneNode(); c.volume=Math.min(1,(name.startsWith('music')?musicVol:sfxVol)*(volScale||1)); c.play().catch(()=>{}); }catch(e){}
+  function persist() {
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
   }
-  function pebbles(intensity){
-    if(muted||!unlocked) return;
-    const now=performance.now();
-    if(now<pebbleCD) return;
-    pebbleCD=now + (intensity>0.4?180:320);
-    play('sfx_pebbles', 0.25+0.5*Math.min(1,intensity||0.4));
-  }
-  function startMusic(){
-    if(!unlocked) return;
-    if(!music){ music=new Audio('assets/audio/music_theme.ogg'); music.loop=true; }
-    music.volume=muted?0:musicVol; music.play().catch(()=>{});
-  }
-  function setMuted(m){ muted=m; if(music) music.volume=m?0:musicVol; }
-  return { unlock, play, pebbles, startMusic, setMuted, get muted(){return muted;} };
-})();
 
-/* ---------- Level config ---------- */
-function levelConfig(n){
-  const types=Math.min(12, 4+Math.floor((n-1)/3));
-  const cols=n<4?4:(n<12?5:6);
-  const rows=Math.min(8, 3+Math.floor(n/2));
-  let count=cols*rows;
-  const holeChance=n<5?0.06:(n<15?0.12:0.16);
-  count=Math.floor(count*(1-holeChance));
-  count-=count%3;
-  if(count<types*3) count=types*3;
-  const stoneBudget=Math.min(720, 220 + n*12);
-  const spawnRate=0.12 + n*0.022; // slower early pressure
-  const fillMax=Math.min(0.93, 0.78 + n*0.004); // chamber full ratio → lose
-  const drainGoal=Math.floor(stoneBudget*(n<4?0.48:0.42));
-  return {level:n, types, cols, rows, count, stoneBudget, spawnRate, fillMax, buryLimit:Math.floor(fillMax*100), drainGoal, name:'Этаж '+n};
-}
-function mulberry32(a){ return function(){ let t=a+=0x6D2B79F5; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296; }; }
+  function levelDef(i) {
+    // i 0..35 — wall sizes & pipe shapes vary; always 3 classic faces
+    const colsL = 8 + (i % 3);           // 8-10
+    const rowsL = 8 + ((i + 1) % 3);     // 8-10
+    const types = 3;
+    const pebblesN = 560 + Math.min(320, i * 8);
+    const pipeW = 0.30 + (i % 5) * 0.012;
+    const topH = 0.145 + (i % 3) * 0.012;
+    return { cols: colsL, rows: rowsL, types, pebblesN, pipeW, topH, seed: 1000 + i * 97 };
+  }
 
-/* ---------- Sand grid ---------- */
-const Sand = {
-  cols:0, rows:0, cell:8,
-  ox:0, oy:0, // pixel origin
-  grid:null,
-  colors:null,
-  drained:0,
-  moved:0,
-  init(cols, rows, cell, ox, oy){
-    this.cols=cols; this.rows=rows; this.cell=cell; this.ox=ox; this.oy=oy;
-    this.grid=new Uint8Array(cols*rows);
-    this.colors=new Uint8Array(cols*rows);
-    this.drained=0; this.moved=0;
-  },
-  idx(c,r){ return r*this.cols+c; },
-  get(c,r){ if(c<0||r<0||c>=this.cols||r>=this.rows) return CELL.WALL; return this.grid[this.idx(c,r)]; },
-  set(c,r,v){ if(c<0||r<0||c>=this.cols||r>=this.rows) return; this.grid[this.idx(c,r)]=v; },
-  fillRect(c0,r0,w,h,v, color){
-    for(let r=r0;r<r0+h;r++) for(let c=c0;c<c0+w;c++){
-      if(c>=0&&r>=0&&c<this.cols&&r<this.rows){
-        const i=this.idx(c,r); this.grid[i]=v;
-        if(v===CELL.STONE) this.colors[i]=color!=null?color:(Math.random()*8)|0;
+  function mulberry32(a) {
+    return function () {
+      let t = a += 0x6D2B79F5;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function resize() {
+    const app = $('app');
+    const r = app.getBoundingClientRect();
+    W = Math.max(320, Math.floor(r.width));
+    H = Math.max(520, Math.floor(r.height));
+    DPR = Math.min(2.5, window.devicePixelRatio || 1);
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  function loadImg(src) {
+    return new Promise((res) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = () => res(null);
+      im.src = src;
+    });
+  }
+
+  async function loadAll() {
+    const list = {
+      bg: 'assets/sprites/tower_bg.webp',
+      princess: 'assets/sprites/princess_scared.webp',
+      princessWin: 'assets/sprites/princess_win.webp',
+      princessScared: 'assets/sprites/princess_scared.webp',
+    };
+    TILE_TYPES.forEach(t => { list['t_' + t] = 'assets/sprites/tiles/' + t + '.webp'; });
+    for (let i = 0; i < 6; i++) list['p' + i] = 'assets/sprites/pebbles/p' + i + '.webp';
+    for (let i = 0; i < 8; i++) list['g' + i] = 'assets/sprites/pebbles/g' + i + '.webp';
+    const entries = Object.entries(list);
+    const loaded = await Promise.all(entries.map(([, s]) => loadImg(s)));
+    entries.forEach(([k], i) => { imgs[k] = loaded[i]; });
+  }
+
+  function toast(msg) {
+    const el = $('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastT);
+    toastT = setTimeout(() => el.classList.remove('show'), 1800);
+  }
+
+  function showScreen(name) {
+    state = name;
+    $('screen-intro').classList.toggle('hidden', name !== 'intro');
+    $('screen-map').classList.toggle('show', name === 'map');
+    $('screen-win').classList.toggle('hidden', name !== 'win');
+    $('screen-lose').classList.toggle('hidden', name !== 'lose');
+    const play = name === 'play';
+    $('hud').style.display = play ? 'flex' : 'none';
+    $('boosts').style.display = play ? 'flex' : 'none';
+  }
+
+  function totalStars() {
+    return Object.values(save.stars).reduce((a, b) => a + (b | 0), 0);
+  }
+
+  function renderMap() {
+    const grid = $('map-grid');
+    grid.innerHTML = '';
+    $('map-coins').textContent = save.coins | 0;
+    $('map-stars').textContent = totalStars();
+    for (let i = 0; i < N_LEVELS; i++) {
+      const el = document.createElement('div');
+      const locked = i + 1 > save.unlocked;
+      el.className = 'lvl' + (locked ? ' lock' : '') + (save.stars[i] ? ' done' : '');
+      const st = save.stars[i] | 0;
+      el.innerHTML = (i + 1) + '<div class="stars">' + '★'.repeat(st) + '☆'.repeat(3 - st) + '</div>';
+      if (!locked) el.onclick = () => startLevel(i);
+      grid.appendChild(el);
+    }
+  }
+
+  function layoutFromLevel(def) {
+    cols = def.cols; rows = def.rows;
+    const marginL = W * 0.035;
+    const marginR = W * 0.025;
+    const hudPad = 56;
+    const boostPad = 78;
+    pipe.rightW = Math.floor(W * def.pipeW);
+    pipe.topH = Math.floor(H * def.topH);
+    pipe.topY = hudPad + 4;
+    pipe.rightX = W - marginR - pipe.rightW;
+
+    // Tile wall abuts right channel from the left (dam)
+    const chamberRight = pipe.rightX; // flush against pipe
+    const wallBottom = H - boostPad;
+    const princessH = Math.floor(H * 0.24);
+    const wallTopMin = pipe.topY + pipe.topH + Math.floor(princessH * 0.72);
+    tw = Math.floor((chamberRight - marginL) / cols);
+    th = Math.floor(tw * 1.20);
+    let needH = th * rows;
+    const maxH = wallBottom - wallTopMin;
+    if (needH > maxH) {
+      th = Math.floor(maxH / rows);
+      tw = Math.floor(th / 1.20);
+    }
+    wallX = chamberRight - tw * cols; // flush right edge to pipe.rightX
+    wallY = wallBottom - th * rows;
+
+    // solids: pipe frame. Tile AABBs are the dam — no solid over tile band.
+    const rim = Math.max(10, Math.floor(W * 0.028));
+    solids = [];
+    // ceiling of top pipe
+    solids.push({ x: wallX + tw * Math.floor(cols * 0.3), y: pipe.topY - rim, w: W, h: rim });
+    // left stopper of top arm (prevent dump into chamber from top)
+    const topArmLeft = wallX + tw * Math.floor(cols * 0.35);
+    solids.push({ x: topArmLeft - rim, y: pipe.topY, w: rim, h: pipe.topH });
+    // floor of top arm ONLY left of right shaft (so stones roll into shaft)
+    solids.push({ x: 0, y: pipe.topY + pipe.topH, w: pipe.rightX + 2, h: rim });
+    // left wall of right shaft ABOVE the tile wall only (tiles are dam below)
+    const aboveWallH = Math.max(0, wallY - (pipe.topY + pipe.topH + rim));
+    if (aboveWallH > 0) {
+      solids.push({ x: pipe.rightX - 6, y: pipe.topY + pipe.topH + rim - 2, w: 10, h: aboveWallH + 4 });
+    }
+    // cap on TOP of tile wall (right half) so stones can't climb over dam into chamber
+    solids.push({
+      x: wallX + tw * Math.floor(cols * 0.55),
+      y: wallY - 8,
+      w: tw * Math.ceil(cols * 0.45) + 8,
+      h: 10
+    });
+    // right outer wall
+    solids.push({ x: W - marginR, y: pipe.topY - rim, w: rim + 10, h: H });
+    // princess chamber floor (left of dam) so overflow piles / buries
+    solids.push({ x: 0, y: H - 12, w: Math.max(8, wallX + tw * cols - 10), h: 30 });
+    // right-shaft floor is DYNAMIC (see stepPhysics): sealed until rightmost tiles dug
+  }
+
+  function buildTiles(def) {
+    const rnd = mulberry32(def.seed);
+    const nTypes = def.types;
+    const types = TILE_TYPES.slice(0, nTypes);
+    const cells = cols * rows;
+    // even pairs
+    let pool = [];
+    while (pool.length < cells) {
+      for (const t of types) { pool.push(t); pool.push(t); }
+    }
+    pool = pool.slice(0, cells);
+    // if odd, force last pairable
+    if (pool.length % 2) pool[pool.length - 1] = pool[0];
+    // shuffle
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = (rnd() * (i + 1)) | 0;
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    tiles = [];
+    let k = 0;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        tiles.push({ c, r, type: pool[k++], alive: true });
       }
     }
-  },
-  countInRect(c0,r0,w,h,v){
-    let n=0;
-    for(let r=r0;r<r0+h;r++) for(let c=c0;c<c0+w;c++){
-      if(this.get(c,r)===v) n++;
-    }
-    return n;
-  },
-  countAll(v){
-    let n=0; for(let i=0;i<this.grid.length;i++) if(this.grid[i]===v) n++; return n;
-  },
-  clearTileCells(tileCells){
-    for(const {c,r} of tileCells){
-      if(this.get(c,r)===CELL.TILE || this.get(c,r)===CELL.WALL) this.set(c,r, CELL.EMPTY);
-      // open tiny seams around cleared tile so flow starts
-      for(const [dc,dr] of [[0,1],[0,-1],[1,0],[-1,0]]){
-        const v=this.get(c+dc,r+dr);
-        if(v===CELL.WALL) this.set(c+dc,r+dr, CELL.EMPTY);
-      }
-    }
-  },
-  markTileCells(tileCells){
-    for(const {c,r} of tileCells){
-      if(this.get(c,r)!==CELL.STONE) this.set(c,r, CELL.TILE);
-    }
-  },
-  spawnTop(n){
-    let added=0;
-    for(let i=0;i<n;i++){
-      const c=(Math.random()*this.cols)|0;
-      // find first empty from top in column
-      for(let r=0;r<Math.min(8,this.rows);r++){
-        if(this.get(c,r)===CELL.EMPTY){
-          this.set(c,r,CELL.STONE);
-          this.colors[this.idx(c,r)]=(Math.random()*8)|0;
-          added++; break;
+  }
+
+  function spawnPebbles(def) {
+    pebbles = [];
+    drained = 0;
+    const rnd = mulberry32(def.seed + 7);
+    // ~15-25px on ~390-438 wide → radius ~8-12
+    const rBase = Math.max(8.5, W * 0.022);
+    const rJitter = Math.max(2.2, W * 0.006);
+    const topArmLeft = wallX + tw * Math.floor(cols * 0.35) + 6;
+    const regions = [
+      { x0: topArmLeft, y0: pipe.topY + 8, x1: W - 16, y1: pipe.topY + pipe.topH - 6 },
+      { x0: pipe.rightX + 6, y0: pipe.topY + 8, x1: W - 16, y1: H - 40 }
+    ];
+    function packRegion(reg, spacingScale) {
+      const rAvg = rBase + rJitter * 0.4;
+      const dx = rAvg * 2.02 * spacingScale;
+      const dy = rAvg * 1.78 * spacingScale;
+      let row = 0;
+      for (let y = reg.y0 + rAvg; y <= reg.y1 - rAvg; y += dy, row++) {
+        const xOff = (row % 2) * dx * 0.5;
+        for (let x = reg.x0 + rAvg + xOff; x <= reg.x1 - rAvg; x += dx) {
+          const r = rBase + rnd() * rJitter;
+          const jx = (rnd() - 0.5) * r * 0.25;
+          const jy = (rnd() - 0.5) * r * 0.25;
+          const spr = rnd() < 0.5 ? ('p' + ((rnd() * 6) | 0)) : ('g' + ((rnd() * 8) | 0));
+          pebbles.push({ x: x + jx, y: y + jy, ox: x + jx, oy: y + jy, r, spr, sleep: 0 });
         }
       }
     }
-    return added;
-  },
-  step(){
-    // Falling sand bottom-up; track moves for SFX
-    this.moved=0;
-    const cols=this.cols, rows=this.rows, g=this.grid, colr=this.colors;
-    for(let r=rows-2;r>=0;r--){
-      // alternate scan direction to reduce bias
-      const leftFirst = ((r + (performance.now()/16|0)) & 1)===0;
-      for(let k=0;k<cols;k++){
-        const c = leftFirst ? k : (cols-1-k);
-        const i=r*cols+c;
-        if(g[i]!==CELL.STONE) continue;
-        // down
-        const below=i+cols;
-        if(g[below]===CELL.EMPTY){
-          g[below]=CELL.STONE; colr[below]=colr[i];
-          g[i]=CELL.EMPTY; this.moved++; continue;
+    packRegion(regions[0], 0.84);
+    packRegion(regions[1], 0.82);
+    // extra random fill if under target
+    let attempts = 0;
+    const target = def.pebblesN;
+    while (pebbles.length < target && attempts < target * 25) {
+      attempts++;
+      const reg = regions[attempts & 1];
+      const r = rBase + rnd() * rJitter;
+      const x = reg.x0 + r + rnd() * Math.max(1, reg.x1 - reg.x0 - 2 * r);
+      const y = reg.y0 + r + rnd() * Math.max(1, reg.y1 - reg.y0 - 2 * r);
+      let ok = true;
+      for (let i = 0; i < pebbles.length; i++) {
+        const p = pebbles[i];
+        const dx = p.x - x, dy = p.y - y;
+        if (dx * dx + dy * dy < (p.r + r) * (p.r + r) * 0.72) { ok = false; break; }
+      }
+      if (!ok) continue;
+      const spr = rnd() < 0.5 ? ('p' + ((rnd() * 6) | 0)) : ('g' + ((rnd() * 8) | 0));
+      pebbles.push({ x, y, ox: x, oy: y, r, spr, sleep: 0 });
+    }
+    startCount = pebbles.length;
+    spat.cell = (rBase + rJitter) * 2.3;
+  }
+
+  function tileAABB(t) {
+    return {
+      x: wallX + t.c * tw,
+      y: wallY + t.r * th,
+      w: tw,
+      h: th
+    };
+  }
+
+  function isFree(ti) {
+    const t = tiles[ti];
+    if (!t || !t.alive) return false;
+    const left = tiles.find(o => o.alive && o.r === t.r && o.c === t.c - 1);
+    const right = tiles.find(o => o.alive && o.r === t.r && o.c === t.c + 1);
+    // classic: free if left OR right open (also always free on rightmost abutting stones)
+    if (!left || !right) return true;
+    // also free if top of column (helps early game)
+    const above = tiles.find(o => o.alive && o.c === t.c && o.r === t.r - 1);
+    if (!above && t.r === 0) return true;
+    return false;
+  }
+
+  function findPair() {
+    const free = [];
+    for (let i = 0; i < tiles.length; i++) if (isFree(i)) free.push(i);
+    for (let i = 0; i < free.length; i++) {
+      for (let j = i + 1; j < free.length; j++) {
+        if (tiles[free[i]].type === tiles[free[j]].type) return [free[i], free[j]];
+      }
+    }
+    return null;
+  }
+
+  function removePair(a, b) {
+    lastPairSnap = {
+      a: { i: a, ...tiles[a] },
+      b: { i: b, ...tiles[b] }
+    };
+    tiles[a].alive = false;
+    tiles[b].alive = false;
+    selected = null;
+    hintPair = null;
+    // wake nearby pebbles and nudge into the opened cells
+    const boxes = [tileAABB(tiles[a]), tileAABB(tiles[b])];
+    for (const p of pebbles) {
+      for (const box of boxes) {
+        if (p.x + p.r > box.x - 20 && p.x - p.r < box.x + box.w + 24 &&
+            p.y + p.r > box.y - 20 && p.y - p.r < box.y + box.h + 24) {
+          p.sleep = 0;
+          p.ox = p.x + 1.2; // verlet: move left into hole
+          p.oy = p.y - 1.5;
         }
-        // diagonal
-        const dir = Math.random()<0.5?-1:1;
-        let fell=false;
-        for(const d of [dir,-dir]){
-          const nc=c+d;
-          if(nc<0||nc>=cols) continue;
-          const di=below+d;
-          if(g[di]===CELL.EMPTY){
-            // also require side empty-ish for squeeze
-            g[di]=CELL.STONE; colr[di]=colr[i];
-            g[i]=CELL.EMPTY; this.moved++; fell=true; break;
+      }
+    }
+    playSfx('match');
+  }
+
+  // ---- Physics ----
+  function rebuildSpat() {
+    spat.map.clear();
+    const c = spat.cell;
+    for (let i = 0; i < pebbles.length; i++) {
+      const p = pebbles[i];
+      const kx = (p.x / c) | 0, ky = (p.y / c) | 0;
+      const key = kx + ',' + ky;
+      let arr = spat.map.get(key);
+      if (!arr) { arr = []; spat.map.set(key, arr); }
+      arr.push(i);
+    }
+  }
+
+  function collideCircleAABB(p, box) {
+    const cx = Math.max(box.x, Math.min(p.x, box.x + box.w));
+    const cy = Math.max(box.y, Math.min(p.y, box.y + box.h));
+    let dx = p.x - cx, dy = p.y - cy;
+    let d2 = dx * dx + dy * dy;
+    if (d2 >= p.r * p.r) return;
+    // inside or penetrating
+    if (d2 < 1e-6) {
+      // push out via nearest face
+      const dl = p.x - box.x, dr = box.x + box.w - p.x;
+      const dt = p.y - box.y, db = box.y + box.h - p.y;
+      const m = Math.min(dl, dr, dt, db);
+      if (m === dl) { p.x = box.x - p.r; p.ox = p.x + (p.ox - p.x) * REST; }
+      else if (m === dr) { p.x = box.x + box.w + p.r; p.ox = p.x + (p.ox - p.x) * REST; }
+      else if (m === dt) { p.y = box.y - p.r; p.oy = p.y + (p.oy - p.y) * REST; }
+      else { p.y = box.y + box.h + p.r; p.oy = p.y + (p.oy - p.y) * REST; }
+      p.sleep = 0;
+      return;
+    }
+    const d = Math.sqrt(d2);
+    const nx = dx / d, ny = dy / d;
+    const pen = p.r - d;
+    p.x += nx * pen;
+    p.y += ny * pen;
+    // bounce along normal lightly
+    const vx = p.x - p.ox, vy = p.y - p.oy;
+    const vn = vx * nx + vy * ny;
+    if (vn < 0) {
+      p.ox = p.x - (vx - (1 + REST) * vn * nx) * FRICTION;
+      p.oy = p.y - (vy - (1 + REST) * vn * ny);
+    }
+    p.sleep = 0;
+  }
+
+  function stepPhysics() {
+    if (pausedPhysics || state !== 'play') return;
+    const g = GRAV * DT * DT;
+    rebuildSpat();
+    const csz = spat.cell;
+
+    // integrate
+    for (let i = 0; i < pebbles.length; i++) {
+      const p = pebbles[i];
+      if (p.sleep > 25) continue;
+      let vx = (p.x - p.ox) * DAMP;
+      let vy = (p.y - p.oy) * DAMP;
+      p.ox = p.x; p.oy = p.y;
+      p.x += vx;
+      p.y += vy + g;
+    }
+
+    // circle-circle (2 iterations)
+    for (let iter = 0; iter < 3; iter++) {
+      rebuildSpat();
+      for (let i = 0; i < pebbles.length; i++) {
+        const a = pebbles[i];
+        if (a.sleep > 25) continue;
+        const kx = (a.x / csz) | 0, ky = (a.y / csz) | 0;
+        for (let ox = -1; ox <= 1; ox++) {
+          for (let oy = -1; oy <= 1; oy++) {
+            const arr = spat.map.get((kx + ox) + ',' + (ky + oy));
+            if (!arr) continue;
+            for (const j of arr) {
+              if (j <= i) continue;
+              const b = pebbles[j];
+              let dx = b.x - a.x, dy = b.y - a.y;
+              let d2 = dx * dx + dy * dy;
+              const minD = a.r + b.r;
+              if (d2 >= minD * minD || d2 < 1e-8) continue;
+              const d = Math.sqrt(d2);
+              const nx = dx / d, ny = dy / d;
+              const pen = (minD - d) * 0.5;
+              const as = a.sleep > 25, bs = b.sleep > 25;
+              if (!as && !bs) {
+                a.x -= nx * pen; a.y -= ny * pen;
+                b.x += nx * pen; b.y += ny * pen;
+              } else if (as) {
+                b.x += nx * pen * 2; b.y += ny * pen * 2; b.sleep = 0;
+              } else {
+                a.x -= nx * pen * 2; a.y -= ny * pen * 2; a.sleep = 0;
+              }
+            }
           }
         }
-        if(fell) continue;
       }
     }
-    // Drain: stones in last 2 rows disappear into pit
-    for(let r=rows-2;r<rows;r++){
-      for(let c=0;c<cols;c++){
-        const i=r*cols+c;
-        if(g[i]===CELL.STONE){
-          g[i]=CELL.EMPTY; this.drained++; this.moved++;
+
+    // solids + tiles + per-column bottom seals (open when column dug through)
+    for (let i = 0; i < pebbles.length; i++) {
+      const p = pebbles[i];
+      if (p.sleep > 25) continue;
+      for (const s of solids) collideCircleAABB(p, s);
+      for (let ti = 0; ti < tiles.length; ti++) {
+        if (!tiles[ti].alive) continue;
+        collideCircleAABB(p, tileAABB(tiles[ti]));
+      }
+      // seal under column while bottom tile remains
+      for (let c = 0; c < cols; c++) {
+        let bottomAlive = false;
+        for (let ti = 0; ti < tiles.length; ti++) {
+          if (tiles[ti].alive && tiles[ti].c === c && tiles[ti].r === rows - 1) {
+            bottomAlive = true; break;
+          }
+        }
+        if (bottomAlive) {
+          collideCircleAABB(p, {
+            x: wallX + c * tw,
+            y: wallY + rows * th - 2,
+            w: tw,
+            h: H - (wallY + rows * th) + 8
+          });
+        }
+      }
+      // Right-shaft floor plugs per tile-row: removing rightmost tile opens that band's drain
+      // so gravel pours down the channel (ad look). Full seal if all rightmost still present.
+      {
+        const bandH = th;
+        for (let r = 0; r < rows; r++) {
+          let rightAlive = false;
+          for (let ti = 0; ti < tiles.length; ti++) {
+            if (tiles[ti].alive && tiles[ti].c === cols - 1 && tiles[ti].r === r) {
+              rightAlive = true; break;
+            }
+          }
+          if (rightAlive) {
+            // plug at bottom of shaft corresponding to this band — actually hold ALL
+            // stones with a continuous floor while ANY lower rightmost remains
+          }
+        }
+        let lowestRightAlive = -1;
+        for (let ti = 0; ti < tiles.length; ti++) {
+          if (tiles[ti].alive && tiles[ti].c === cols - 1) {
+            if (tiles[ti].r > lowestRightAlive) lowestRightAlive = tiles[ti].r;
+          }
+        }
+        // floor under shaft stays while at least one rightmost tile exists;
+        // once a gap opens in rightmost column, open floor under that gap's Y so stones fall
+        if (lowestRightAlive >= 0) {
+          // still have some rightmost tiles — floor at bottom, but open windows beside missing ones
+          collideCircleAABB(p, {
+            x: pipe.rightX - 2,
+            y: H - 16,
+            w: pipe.rightW + 20,
+            h: 28
+          });
+        }
+        // For each missing rightmost tile, don't collide in a vertical chute strip —
+        // instead actively pull stones down when beside an open rightmost cell
+        for (let r = 0; r < rows; r++) {
+          let alive = false;
+          for (let ti = 0; ti < tiles.length; ti++) {
+            if (tiles[ti].alive && tiles[ti].c === cols - 1 && tiles[ti].r === r) {
+              alive = true; break;
+            }
+          }
+          if (!alive) {
+            const by = wallY + r * th;
+            if (p.x > pipe.rightX - p.r && p.y > by - 4 && p.y < by + th + 8) {
+              p.sleep = 0;
+              p.oy = p.y - 2.2; // accelerate downward through opened band
+              // also allow leftward into the hole
+              if (p.x < pipe.rightX + p.r * 2) p.ox = p.x + 1.5;
+            }
+          }
+        }
+        // If entire rightmost column gone, remove shaft floor entirely (full pour)
+        if (lowestRightAlive < 0) {
+          // no bottom floor collide — stones free-fall out of shaft
+          if (p.x > pipe.rightX && p.y > H - 40) {
+            p.sleep = 0;
+            p.oy = p.y - 3;
+          }
+        }
+      }
+      if (p.x - p.r < 4) { p.x = 4 + p.r; p.ox = p.x; }
+      if (p.x + p.r > W - 4) { p.x = W - 4 - p.r; p.ox = p.x; }
+    }
+
+    // drain + sleep + bury measure
+    let chamberMass = 0;
+    const chamberLimitX = wallX + tw * cols + 2;
+    const princessFeetY = wallY - 4;
+    const alive = [];
+    for (let i = 0; i < pebbles.length; i++) {
+      const p = pebbles[i];
+      // drain below screen in right channel OR through open tile holes past bottom
+      if (p.y - p.r > H + 4) {
+        drained++;
+        continue;
+      }
+      // sleep
+      const spd = Math.abs(p.x - p.ox) + Math.abs(p.y - p.oy);
+      if (spd < 0.035) p.sleep++; else p.sleep = 0;
+
+      // bury: pile on princess platform (left of dam, above wall top)
+      if (p.x + p.r < wallX + tw * cols * 0.72 && p.y + p.r < wallY + 6 && p.y > pipe.topY + pipe.topH) {
+        chamberMass += p.r * p.r;
+      }
+      alive.push(p);
+    }
+    pebbles = alive;
+
+    const chamberArea = Math.max(1, (wallX + tw * cols * 0.72) * Math.max(40, wallY - (pipe.topY + pipe.topH) - 20) * 0.35);
+    buryFill = Math.min(100, (chamberMass / chamberArea) * 100);
+
+    // win: drained enough OR few left in pipe
+    const remainRatio = pebbles.length / Math.max(1, startCount);
+    const drainRatio = drained / Math.max(1, startCount);
+    if (!winPending && !losePending) {
+      if (buryFill >= 70) {
+        losePending = true;
+        setTimeout(() => endLose(), 600);
+      } else {
+        const tilesLeft = tiles.filter(t => t.alive).length;
+        if (drainRatio >= 0.38 || (tilesLeft <= 4 && drainRatio >= 0.18) ||
+            (tilesLeft === 0 && drained >= 8)) {
+          winPending = true;
+          princessMood = 'happy';
+          setTimeout(() => endWin(), 700);
         }
       }
     }
-  }
-};
 
-/* ---------- Build level ---------- */
-function buildLevel(n){
-  const cfg=levelConfig(n);
-  const rnd=mulberry32(n*9973+42);
-  const typePool=TILE_IDS.slice(0,cfg.types);
-  const bag=[];
-  for(let g=0;g<cfg.count/3;g++){ const t=typePool[g%typePool.length]; bag.push(t,t,t); }
-  for(let i=bag.length-1;i>0;i--){ const j=(rnd()*(i+1))|0; const tmp=bag[i]; bag[i]=bag[j]; bag[j]=tmp; }
-
-  // channel layout slots for tiles — plug in lower-mid shaft
-  const slots=[];
-  for(let r=0;r<cfg.rows;r++) for(let c=0;c<cfg.cols;c++){
-    // varied shapes: leave side gaps / checker on higher
-    if(cfg.level>=6 && (c+r*3)%11===0) continue;
-    if(cfg.level>=14 && c===0 && r%2===0) continue;
-    if(cfg.level>=20 && r===cfg.rows-1 && c%2===1) continue;
-    slots.push({c,r});
-  }
-  for(let i=slots.length-1;i>0;i--){ const j=(rnd()*(i+1))|0; const tmp=slots[i]; slots[i]=slots[j]; slots[j]=tmp; }
-  const used=slots.slice(0, Math.min(cfg.count, slots.length));
-  while(used.length<cfg.count){
-    used.push({c:used.length%cfg.cols, r:((used.length/cfg.cols)|0)%cfg.rows});
-  }
-  used.length=cfg.count;
-
-  const tiles=used.map((s,i)=>({
-    id:i, type:bag[i], c:s.c, r:s.r, alive:true,
-    x:0,y:0, scale:1, alpha:1, shake:0, highlight:0,
-    cells:[] // sand cells occupied
-  }));
-  return {cfg, tiles};
-}
-
-/* ---------- Game ---------- */
-const canvas=document.getElementById('game');
-const ctx=canvas.getContext('2d',{alpha:false});
-let W=0,H=0,dpr=1;
-let screen='intro';
-let levelNum=1, level=null, tray=[], history=[];
-let anims=[], hintIds=[], particles=[];
-let lastTs=0, spawnAcc=0, ended=false;
-let princessMood='ok'; // ok | scared | happy
-let layout={ tileW:56, tileH:62, ox:0, oy:0, gap:3 };
-let princessZone={c0:0,r0:0,w:0,h:0};
-let bgImg=null, princessImg=null, princessWinImg=null, princessScaredImg=null;
-const tileImgs={}, pebbleImgs=[];
-let assetsReady=false;
-
-function toast(msg){
-  const el=document.getElementById('toast');
-  el.textContent=msg; el.classList.add('show');
-  clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('show'),2200);
-}
-
-function loadAssets(){
-  const jobs=[];
-  const load=(src,assign)=>{
-    jobs.push(new Promise(res=>{ const im=new Image(); im.onload=()=>{assign(im);res();}; im.onerror=()=>res(); im.src=src; }));
-  };
-  load('assets/sprites/tower_bg.webp', im=>bgImg=im);
-  load('assets/sprites/princess.webp', im=>princessImg=im);
-  load('assets/sprites/princess_win.webp', im=>princessWinImg=im);
-  load('assets/sprites/princess_scared.webp', im=>princessScaredImg=im);
-  TILE_IDS.forEach(id=>load('assets/sprites/tiles/'+id+'.webp', im=>tileImgs[id]=im));
-  for(let i=0;i<8;i++) load('assets/sprites/pebbles/g'+i+'.webp', im=>pebbleImgs[i]=im);
-  for(let i=0;i<16;i++) load('assets/sprites/pebbles/p'+i+'.webp', im=>{ if(im) pebbleImgs.push(im); });
-  return Promise.all(jobs).then(()=>{ assetsReady=true; });
-}
-
-function resize(){
-  const rect=document.getElementById('app').getBoundingClientRect();
-  dpr=Math.min(2.25, window.devicePixelRatio||1);
-  W=rect.width; H=rect.height;
-  canvas.width=Math.floor(W*dpr); canvas.height=Math.floor(H*dpr);
-  canvas.style.width=W+'px'; canvas.style.height=H+'px';
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  if(level) setupWorldGeometry();
-}
-window.addEventListener('resize', resize);
-
-function setupWorldGeometry(){
-  if(!level) return;
-  const {cols, rows}=level.cfg;
-  const topPad=64, bottomPad=200, sidePad=16;
-  const availW=W-sidePad*2;
-  const availH=H-topPad-bottomPad;
-
-  const sandCols=Math.max(cols*4, 28);
-  const sandRows=Math.max(56, Math.min(80, (availH/7)|0));
-  const cell=Math.max(5, Math.min(10, Math.floor(Math.min(availW/sandCols, availH/sandRows))));
-  const chanW=sandCols*cell;
-  const chanH=sandRows*cell;
-  const ox=(W-chanW)/2;
-  const oy=topPad + Math.max(4, (availH-chanH)/2);
-
-  Sand.init(sandCols, sandRows, cell, ox, oy);
-  Sand.grid.fill(CELL.EMPTY);
-
-  // Tile plug in MID shaft — princess stands ON TOP of it; stones press from above
-  const plugRows = Math.min(rows, Math.max(3, Math.floor(sandRows*0.34)));
-  const thCells = Math.max(3, Math.floor((sandRows*0.36)/Math.max(1,rows)));
-  const twCells = Math.max(3, Math.floor(sandCols/cols) - 1);
-  // Seal plug tightly so stones only drain through CLEARED tiles
-  const gapC = Math.max(0, Math.floor((sandCols - cols*twCells)/2)); // side margins only
-  const gapR = 0;
-  const plugTop = Math.floor(sandRows*0.38); // tiles start here
-  const plugH = rows*(thCells+gapR);
-
-  layout.tileW = twCells*cell - 2;
-  layout.tileH = thCells*cell - 2;
-  layout.gap = gapC*cell;
-  layout.ox = ox; layout.oy = oy;
-
-  level.tiles.forEach(t=>{
-    const sc = gapC + t.c*twCells;
-    const sr = plugTop + t.r*thCells;
-    t.cells=[];
-    for(let rr=0;rr<thCells;rr++) for(let cc=0;cc<twCells;cc++){
-      const cc2=sc+cc, rr2=sr+rr;
-      if(cc2>=0&&rr2>=0&&cc2<sandCols&&rr2<sandRows) t.cells.push({c:cc2,r:rr2});
-    }
-    t.x = ox + sc*cell;
-    t.y = oy + sr*cell;
-    t.tw = twCells*cell;
-    t.th = thCells*cell;
-  });
-  rematerializeTiles();
-
-  // Seal FULL plug band (including side bypasses) so stones only pass via cleared tiles
-  {
-    const plugBottom = plugTop + rows*thCells;
-    for(let r=plugTop;r<Math.min(plugBottom,sandRows);r++){
-      for(let c=0;c<sandCols;c++){
-        if(Sand.get(c,r)===CELL.EMPTY) Sand.set(c,r, CELL.WALL);
-      }
-    }
-  }
-  rematerializeTiles();
-
-  // Headroom / princess zone: rows just ABOVE the plug (stones pile here)
-  const headH = Math.max(5, Math.floor(sandRows*0.10));
-  const pzR0 = Math.max(0, plugTop - headH);
-  princessZone={c0:0, r0:pzR0, w:sandCols, h:headH};
-
-  // Pre-fill stones ABOVE the plug only (not through tiles)
-  const fillBottom = pzR0 + headH; // top of tiles
-  let stones=0;
-  for(let r=0;r<fillBottom;r++){
-    for(let c=0;c<sandCols;c++){
-      // leave a small air pocket near center for princess silhouette early on
-      const cx=sandCols/2, dist=Math.abs(c-cx)/sandCols;
-      const dens = r < fillBottom*0.55 ? 0.72 : (0.42 + dist*0.22);
-      if(Math.random() < dens){
-        if(level.cfg.level<=5 && r>=pzR0 && dist<0.18) continue;
-        Sand.set(c,r,CELL.STONE);
-        Sand.colors[Sand.idx(c,r)]=(Math.random()*8)|0;
-        stones++;
-      }
-    }
-  }
-  while(stones>level.cfg.stoneBudget){
-    const c=(Math.random()*sandCols)|0, r=(Math.random()*fillBottom)|0;
-    if(Sand.get(c,r)===CELL.STONE){ Sand.set(c,r,CELL.EMPTY); stones--; }
-  }
-  // ensure tiles solid again after fill
-  rematerializeTiles();
-}
-
-function rematerializeTiles(){
-  // Clear old TILE cells that are not stone
-  for(let i=0;i<Sand.grid.length;i++){
-    if(Sand.grid[i]===CELL.TILE) Sand.grid[i]=CELL.EMPTY;
-  }
-  for(const t of level.tiles){
-    if(!t.alive) continue;
-    for(const {c,r} of t.cells){
-      if(Sand.get(c,r)===CELL.STONE){
-        // stone trapped inside tile footprint — push stone up if possible else delete into pressure
-        Sand.set(c,r,CELL.TILE);
-      } else {
-        Sand.set(c,r,CELL.TILE);
-      }
-    }
-  }
-}
-
-function isFree(tile){
-  if(!tile.alive) return false;
-  // free if no other alive tile "covers" — for flat plug, all alive are free (casual)
-  // optional: blocked if completely surrounded — keep simple: all alive tappable
-  return true;
-}
-
-/* ---------- Screens ---------- */
-function showOverlay(id,on){
-  const el=document.getElementById(id); if(!el) return;
-  if(on) el.classList.remove('hidden'); else el.classList.add('hidden');
-}
-function setScreen(name){
-  screen=name;
-  document.getElementById('screen-intro').style.display=name==='intro'?'flex':'none';
-  document.getElementById('screen-map').classList.toggle('show', name==='map');
-  showOverlay('screen-win', name==='win');
-  showOverlay('screen-lose', name==='lose');
-  const playing=name==='play';
-  document.getElementById('hud').style.display=playing?'flex':'none';
-  document.getElementById('boosts').style.display=playing?'flex':'none';
-  document.getElementById('ver-label').style.display=playing?'none':'block';
-  if(name==='map') renderMap();
-  updateHUD();
-}
-function renderMap(){
-  const grid=document.getElementById('map-grid'); grid.innerHTML='';
-  let sum=0;
-  for(let i=1;i<=36;i++){
-    const st=saveData.stars[i]||0; sum+=st;
-    const unlocked=i<=saveData.maxUnlocked;
-    const div=document.createElement('div');
-    div.className='lvl'+(unlocked?'':' lock')+(st?' done':'');
-    div.innerHTML=(unlocked?i:'🔒')+'<div class="stars">'+(st?('⭐'.repeat(st)):'')+'</div>';
-    if(unlocked) div.onclick=()=>startLevel(i);
-    grid.appendChild(div);
-  }
-  saveData.totalStars=sum;
-  document.getElementById('map-coins').textContent=saveData.coins;
-  document.getElementById('map-stars').textContent=sum;
-  document.getElementById('map-mute').textContent=saveData.muted?'🔇':'🔊';
-  persist();
-}
-function chamberFill(){
-  if(!level||!Sand.cols) return 0;
-  const z=princessZone; // rows above plug
-  const top=z.r0+z.h; // plug top row
-  let stones=0, cap=0;
-  for(let r=0;r<top;r++){
-    for(let c=0;c<Sand.cols;c++){
-      const v=Sand.get(c,r);
-      if(v===CELL.TILE||v===CELL.WALL) continue;
-      cap++;
-      if(v===CELL.STONE) stones++;
-    }
-  }
-  return cap? stones/cap : 0;
-}
-function updateHUD(){
-  document.getElementById('hud-level').textContent=levelNum;
-  document.getElementById('hud-coins').textContent=saveData.coins;
-  document.getElementById('btn-mute').textContent=saveData.muted?'🔇':'🔊';
-  document.getElementById('c-undo').textContent=saveData.boosters.undo;
-  document.getElementById('c-hint').textContent=saveData.boosters.hint;
-  document.getElementById('c-shuffle').textContent=saveData.boosters.shuffle;
-  document.getElementById('ver-label').textContent='v'+APP_VERSION.version;
-  if(level){
-    const pct=Math.min(100, Math.round(100*chamberFill()));
-    document.getElementById('hud-stones').textContent=pct;
-    const danger=document.getElementById('hud-danger');
-    if(pct>=Math.round(level.cfg.fillMax*100)-8) danger.classList.add('warn'); else danger.classList.remove('warn');
-  }
-}
-
-function startLevel(n){
-  AudioFX.unlock(); AudioFX.startMusic();
-  levelNum=n; level=buildLevel(n);
-  tray=[]; history=[]; hintIds=[]; particles=[]; anims=[];
-  ended=false; spawnAcc=0; princessMood='ok'; window.__buryPeak=0;
-  setupWorldGeometry();
-  level.tiles.forEach((t,i)=>{
-    t.alpha=0; t.scale=0.6;
-    anims.push({type:'spawn', id:t.id, t:0, dur:240+i*6, fromA:0, toA:1, fromS:0.6, toS:1});
-  });
-  setScreen('play');
-  AudioFX.play('sfx_btn');
-}
-
-/* ---------- Gameplay ---------- */
-function snapshot(){
-  return {
-    tiles: level.tiles.map(t=>({id:t.id,type:t.type,c:t.c,r:t.r,alive:t.alive})),
-    tray: tray.map(t=>t.id),
-    // sand snapshot compressed: only copy grid (ok ~ few KB)
-    grid: Sand.grid.slice(0),
-    colors: Sand.colors.slice(0),
-    drained: Sand.drained
-  };
-}
-function restore(snap){
-  const by={}; level.tiles.forEach(t=>by[t.id]=t);
-  snap.tiles.forEach(s=>{ const t=by[s.id]; if(t) Object.assign(t,{type:s.type,c:s.c,r:s.r,alive:s.alive,alpha:s.alive?1:0,scale:1}); });
-  tray=snap.tray.map(id=>by[id]).filter(Boolean);
-  Sand.grid.set(snap.grid); Sand.colors.set(snap.colors); Sand.drained=snap.drained;
-  rematerializeTiles();
-  // refresh tile pixel pos
-  setupWorldGeometryPositionsOnly();
-}
-function setupWorldGeometryPositionsOnly(){
-  // lightweight: recompute tile x,y from cells without resetting sand
-  if(!level) return;
-  for(const t of level.tiles){
-    if(!t.cells.length) continue;
-    const c0=t.cells[0].c, r0=t.cells[0].r;
-    t.x=Sand.ox + c0*Sand.cell;
-    t.y=Sand.oy + r0*Sand.cell;
-  }
-}
-
-function pickTile(tile){
-  if(screen!=='play'||ended||!tile||!tile.alive) return;
-  if(!isFree(tile)){ tile.shake=1; AudioFX.play('sfx_tap',0.5); return; }
-  if(tray.length>=TRAY_SIZE){ AudioFX.play('sfx_tap'); return; }
-
-  history.push(snapshot());
-  if(history.length>20) history.shift();
-
-  tile.alive=false;
-  // open path: clear tile cells in sand
-  Sand.clearTileCells(tile.cells);
-
-  let insertAt=tray.length;
-  for(let i=tray.length-1;i>=0;i--){ if(tray[i].type===tile.type){ insertAt=i+1; break; } }
-  tray.splice(insertAt,0,tile);
-  AudioFX.play('sfx_pick');
-  hintIds=[];
-
-  // match-3
-  const counts={}; tray.forEach(t=>{ counts[t.type]=(counts[t.type]||0)+1; });
-  const matchType=Object.keys(counts).find(k=>counts[k]>=3);
-  if(matchType){
-    let removed=0; const gone=[];
-    tray=tray.filter(t=>{
-      if(t.type===matchType && removed<3){ gone.push(t); removed++; return false; }
-      return true;
-    });
-    gone.forEach(t=>{
-      particles.push({x:t.tx||W/2,y:H-160,life:1,color:'#ffd54f'});
-    });
-    AudioFX.play('sfx_match');
-    AudioFX.play('sfx_drop',0.5);
+    $('hud-stones').textContent = Math.round(buryFill);
+    $('hud-danger').classList.toggle('warn', buryFill > 55);
   }
 
-  if(tray.length>=TRAY_SIZE){
-    const c2={}; tray.forEach(t=>c2[t.type]=(c2[t.type]||0)+1);
-    if(!Object.values(c2).some(v=>v>=3)){
-      // tray full — not instant lose; stones still threaten. Soft: force lose only if also buried soon.
-      toast('Лоток полон! Отмена или микс');
-    }
-  }
-}
-
-function winLevel(){
-  if(ended) return; ended=true; princessMood='happy';
-  AudioFX.play('sfx_win');
-  let stars=3;
-  const buryPeak = window.__buryPeak||0;
-  if(buryPeak > level.cfg.fillMax*0.85) stars=2;
-  if(buryPeak > level.cfg.fillMax*0.93) stars=1;
-  stars=Math.max(1,stars);
-  const prev=saveData.stars[levelNum]||0;
-  if(stars>prev){ saveData.coins+=(stars-prev)*20+30; saveData.stars[levelNum]=stars; }
-  else saveData.coins+=15;
-  if(levelNum>=saveData.maxUnlocked) saveData.maxUnlocked=Math.min(36, levelNum+1);
-  if(stars===3){ saveData.boosters.hint++; saveData.boosters.shuffle++; }
-  persist();
-  document.getElementById('win-stars').textContent='⭐'.repeat(stars)+'☆'.repeat(3-stars);
-  document.getElementById('win-msg').textContent=stars===3?'Идеально! Камни ухнули вниз!':(stars===2?'Путь открыт, можно чище.':'Спасена! В следующий раз быстрее.');
-  setTimeout(()=>setScreen('win'), 450);
-  AudioFX.play('sfx_star');
-}
-function loseLevel(reason){
-  if(ended) return; ended=true; princessMood='scared';
-  AudioFX.play('sfx_lose');
-  document.getElementById('lose-msg').textContent=reason||'Камни завалили принцессу. Открывай сток быстрее!';
-  document.getElementById('lose-princess').src='assets/sprites/princess_scared.webp';
-  setTimeout(()=>setScreen('lose'), 500);
-}
-
-function boosterUndo(){
-  if(saveData.boosters.undo<=0){ toast('Нет отмен'); return; }
-  if(!history.length){ toast('Нечего отменять'); return; }
-  saveData.boosters.undo--; restore(history.pop()); persist(); updateHUD(); AudioFX.play('sfx_undo');
-}
-function boosterHint(){
-  if(saveData.boosters.hint<=0){ toast('Нет подсказок'); return; }
-  const free=level.tiles.filter(t=>t.alive);
-  if(!free.length){ toast('Плиток не осталось'); return; }
-  const trayTypes=new Set(tray.map(t=>t.type));
-  let best=free.find(t=>trayTypes.has(t.type))||free[0];
-  const by={}; free.forEach(t=>{(by[t.type]=by[t.type]||[]).push(t);});
-  const pair=Object.values(by).find(a=>a.length>=2);
-  if(pair) best=pair[0];
-  saveData.boosters.hint--; persist(); updateHUD();
-  hintIds=[best.id]; best.highlight=1; AudioFX.play('sfx_hint'); toast('Подсказка подсвечена');
-}
-function boosterShuffle(){
-  if(saveData.boosters.shuffle<=0){ toast('Нет перемешиваний'); return; }
-  history.push(snapshot());
-  const alive=level.tiles.filter(t=>t.alive);
-  const types=alive.map(t=>t.type);
-  for(let i=types.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const tmp=types[i]; types[i]=types[j]; types[j]=tmp; }
-  alive.forEach((t,i)=>t.type=types[i]);
-  saveData.boosters.shuffle--; persist(); updateHUD(); hintIds=[]; AudioFX.play('sfx_shuffle');
-}
-
-/* ---------- Input ---------- */
-function tileAt(x,y){
-  if(!level) return null;
-  for(let i=level.tiles.length-1;i>=0;i--){
-    const t=level.tiles[i];
-    if(!t.alive) continue;
-    if(x>=t.x && x<=t.x+(t.tw||layout.tileW) && y>=t.y && y<=t.y+(t.th||layout.tileH)) return t;
-  }
-  return null;
-}
-canvas.addEventListener('pointerdown', e=>{
-  if(screen!=='play'||ended) return;
-  const rect=canvas.getBoundingClientRect();
-  const x=e.clientX-rect.left, y=e.clientY-rect.top;
-  const t=tileAt(x,y);
-  if(t) pickTile(t);
-});
-
-/* ---------- Draw ---------- */
-function roundRect(x,y,w,h,r){
-  const rr=Math.min(r,w/2,h/2);
-  ctx.beginPath();
-  ctx.moveTo(x+rr,y);
-  ctx.arcTo(x+w,y,x+w,y+h,rr);
-  ctx.arcTo(x+w,y+h,x,y+h,rr);
-  ctx.arcTo(x,y+h,x,y,rr);
-  ctx.arcTo(x,y,x+w,y,rr);
-  ctx.closePath();
-}
-function drawBg(){
-  if(bgImg){
-    const scale=Math.max(W/bgImg.width, H/bgImg.height);
-    const bw=bgImg.width*scale, bh=bgImg.height*scale;
-    ctx.drawImage(bgImg,(W-bw)/2,(H-bh)/2,bw,bh);
-    // vignette for depth
-    const g=ctx.createRadialGradient(W*0.5,H*0.35,W*0.1,W*0.5,H*0.5,W*0.85);
-    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(10,0,20,0.45)');
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-  } else {
-    ctx.fillStyle='#1a0f2e'; ctx.fillRect(0,0,W,H);
-  }
-  // channel shade
-  if(Sand.cols){
-    ctx.fillStyle='rgba(0,0,0,0.28)';
-    roundRect(Sand.ox-6, Sand.oy-6, Sand.cols*Sand.cell+12, Sand.rows*Sand.cell+12, 14);
-    ctx.fill();
-  }
-}
-function drawSand(){
-  const cell=Sand.cell, ox=Sand.ox, oy=Sand.oy;
-  const g=Sand.grid, cols=Sand.cols, rows=Sand.rows;
-  // draw stones only
-  for(let r=0;r<rows;r++){
-    for(let c=0;c<cols;c++){
-      const i=r*cols+c;
-      if(g[i]!==CELL.STONE) continue;
-      const x=ox+c*cell, y=oy+r*cell;
-      const img=pebbleImgs[Sand.colors[i]%pebbleImgs.length];
-      const s=cell*1.15;
-      if(img){
-        ctx.drawImage(img, x+cell/2-s/2, y+cell/2-s/2, s, s);
-      } else {
-        ctx.fillStyle=['#7a5cff','#5a7dff','#a050e0','#6a90ff'][Sand.colors[i]%4];
-        ctx.beginPath(); ctx.arc(x+cell/2,y+cell/2,cell*0.42,0,Math.PI*2); ctx.fill();
-      }
-    }
-  }
-}
-function drawTile(t){
-  const w=t.tw||layout.tileW, h=t.th||layout.tileH;
-  ctx.save();
-  ctx.globalAlpha=t.alpha??1;
-  const cx=t.x+w/2, cy=t.y+h/2;
-  ctx.translate(cx,cy); ctx.scale(t.scale||1,t.scale||1);
-  if(t.shake>0) ctx.translate((Math.random()-0.5)*5*t.shake,0);
-  ctx.translate(-w/2,-h/2);
-  // soft shadow
-  ctx.fillStyle='rgba(0,0,0,0.25)';
-  roundRect(2,3,w,h,8); ctx.fill();
-  // thin border porcelain
-  const grad=ctx.createLinearGradient(0,0,0,h);
-  grad.addColorStop(0,'#fffef8'); grad.addColorStop(1,'#efe6d4');
-  ctx.fillStyle=grad;
-  roundRect(0,0,w,h,8); ctx.fill();
-  ctx.strokeStyle='#d4a84b';
-  ctx.lineWidth=1.4;
-  roundRect(0.5,0.5,w-1,h-1,8); ctx.stroke();
-  const img=tileImgs[t.type];
-  const pad=w*0.06;
-  if(img){ ctx.drawImage(img, pad, pad, w-pad*2, h-pad*2); }
-  else {
-    ctx.font=(w*0.4|0)+'px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(TILE_LABELS[t.type]||'?', w/2, h/2);
-  }
-  if(t.highlight>0 || hintIds.includes(t.id)){
-    ctx.globalAlpha=0.5+0.5*Math.sin(performance.now()/120);
-    ctx.strokeStyle='#ff4081'; ctx.lineWidth=3;
-    roundRect(1,1,w-2,h-2,8); ctx.stroke();
-  }
-  ctx.restore();
-}
-function drawPrincess(){
-  const z=princessZone;
-  const img = princessMood==='scared' ? (princessScaredImg||princessImg)
-            : princessMood==='happy' ? (princessWinImg||princessImg)
-            : princessImg;
-  if(!img || !Sand.cols) return;
-  // stand on highest alive tile (top of plug); fallback to zone bottom
-  let topY = Sand.oy + (z.r0 + z.h)*Sand.cell;
-  let topX = Sand.ox + Sand.cols*Sand.cell/2;
-  const alive=level.tiles.filter(t=>t.alive);
-  if(alive.length){
-    const top=alive.reduce((a,b)=>a.y<b.y?a:b);
-    topY=top.y+4; topX=top.x+(top.tw||layout.tileW)/2;
-  }
-  const threat=chamberFill() / Math.max(0.01, level.cfg.fillMax);
-  if(threat>0.82 && princessMood==='ok') princessMood='scared';
-  if(threat<0.7 && princessMood==='scared' && !ended) princessMood='ok';
-  const ph=Math.min(68, layout.tileH*1.25);
-  const pw=ph*(img.width/img.height);
-  const bob=Math.sin(performance.now()/280)*2;
-  ctx.save();
-  if(threat>0.65) ctx.translate((Math.random()-0.5)*3, 0);
-  ctx.drawImage(img, topX-pw/2, topY-ph+6+bob, pw, ph);
-  ctx.restore();
-}
-function drawTray(){
-  const slotW=Math.min(50,(W-40)/TRAY_SIZE-4);
-  const slotH=slotW*1.12;
-  const totalW=TRAY_SIZE*(slotW+4)-4;
-  const x0=(W-totalW)/2;
-  const y0=H-168;
-  ctx.fillStyle='rgba(20,8,40,0.85)';
-  roundRect(x0-10,y0-12,totalW+20,slotH+24,16); ctx.fill();
-  ctx.strokeStyle='#ce93d8'; ctx.lineWidth=2;
-  roundRect(x0-10,y0-12,totalW+20,slotH+24,16); ctx.stroke();
-  for(let i=0;i<TRAY_SIZE;i++){
-    const x=x0+i*(slotW+4);
-    ctx.fillStyle='rgba(255,255,255,0.08)';
-    roundRect(x,y0,slotW,slotH,8); ctx.fill();
-  }
-  tray.forEach((t,i)=>{
-    const x=x0+i*(slotW+4);
-    t.tx=x+slotW/2; t.ty=y0+slotH/2;
-    const fake={type:t.type,alpha:1,scale:1,shake:0,highlight:0,x,y:y0,tw:slotW,th:slotH};
-    drawTile(fake);
-  });
-}
-function drawParticles(dt){
-  for(let i=particles.length-1;i>=0;i--){
-    const p=particles[i]; p.life-=dt/550; p.y-=50*dt/1000;
-    if(p.life<=0){ particles.splice(i,1); continue; }
-    ctx.globalAlpha=p.life; ctx.fillStyle=p.color||'#fff';
-    ctx.beginPath(); ctx.arc(p.x,p.y,4+4*(1-p.life),0,Math.PI*2); ctx.fill();
-    ctx.globalAlpha=1;
-  }
-}
-function tickAnims(dt){
-  for(let i=anims.length-1;i>=0;i--){
-    const a=anims[i]; a.t+=dt; const u=Math.min(1,a.t/a.dur); const ease=1-Math.pow(1-u,3);
-    if(a.type==='spawn'){
-      const t=level.tiles.find(x=>x.id===a.id);
-      if(t){ t.alpha=a.fromA+(a.toA-a.fromA)*ease; t.scale=a.fromS+(a.toS-a.fromS)*ease; }
-    }
-    if(u>=1) anims.splice(i,1);
-  }
-  if(level) for(const t of level.tiles){
-    if(t.shake>0) t.shake=Math.max(0,t.shake-dt/250);
-    if(t.highlight>0) t.highlight=Math.max(0,t.highlight-dt/1500);
-  }
-}
-
-function sim(dt){
-  if(!level||ended||screen!=='play') return;
-  // 2 sand steps per frame for snappier flow
-  Sand.step(); Sand.step();
-  if(Sand.moved>12) AudioFX.pebbles(Math.min(1, Sand.moved/80));
-
-  // continuous pressure spawn
-  spawnAcc += level.cfg.spawnRate * (dt/1000);
-  if(spawnAcc>=1){
-    const n=Math.min(6, spawnAcc|0);
-    spawnAcc-=n;
-    Sand.spawnTop(n);
-    if(n>=3) AudioFX.play('sfx_pressure', 0.25);
+  function endWin() {
+    if (state !== 'play') return;
+    const stars = buryFill < 25 ? 3 : buryFill < 55 ? 2 : 1;
+    const prev = save.stars[levelIdx] | 0;
+    if (stars > prev) save.stars[levelIdx] = stars;
+    save.coins = (save.coins | 0) + 10 * stars;
+    if (save.unlocked < levelIdx + 2) save.unlocked = Math.min(N_LEVELS, levelIdx + 2);
+    persist();
+    $('win-stars').textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+    $('win-msg').textContent = 'Слито камней: ' + Math.round(drained / Math.max(1, startCount) * 100) + '%';
+    $('hud-coins').textContent = save.coins;
+    showScreen('win');
+    playSfx('win');
   }
 
-  const fill=chamberFill();
-  window.__buryPeak=Math.max(window.__buryPeak||0, fill);
-  updateHUD();
-
-  if(fill>=level.cfg.fillMax){
-    loseLevel('Галька засыпала принцессу!');
-    return;
+  function endLose() {
+    if (state !== 'play') return;
+    showScreen('lose');
+    playSfx('lose');
   }
-  if(tray.length>=TRAY_SIZE){
-    const c2={}; tray.forEach(t=>c2[t.type]=(c2[t.type]||0)+1);
-    if(!Object.values(c2).some(v=>v>=3) && fill>level.cfg.fillMax*0.85){
-      if(!pickTile._fullSince) pickTile._fullSince=performance.now();
-      else if(performance.now()-pickTile._fullSince>4000){
-        loseLevel('Лоток забит — путь не открыть вовремя!');
-        return;
-      }
-    }
-  } else pickTile._fullSince=0;
 
-  const stonesLeft=Sand.countAll(CELL.STONE);
-  const tilesLeft=level.tiles.filter(t=>t.alive).length;
-  if(Sand.drained>=level.cfg.drainGoal && fill < level.cfg.fillMax*0.85){
-    winLevel(); return;
+  function startLevel(i) {
+    levelIdx = i;
+    const def = levelDef(i);
+    resize();
+    layoutFromLevel(def);
+    buildTiles(def);
+    spawnPebbles(def);
+    selected = null;
+    hintPair = null;
+    buryFill = 0;
+    winPending = losePending = false;
+    princessMood = 'scared';
+    boosts = { hint: 3, shuffle: 3 };
+    $('c-hint').textContent = boosts.hint;
+    $('c-shuffle').textContent = boosts.shuffle;
+    $('hud-level').textContent = i + 1;
+    $('hud-coins').textContent = save.coins | 0;
+    $('hud-stones').textContent = '0';
+    showScreen('play');
+    // short settle so hex pack nests without emptying the top arm
+    for (let s = 0; s < 18; s++) stepPhysics();
   }
-  if(tilesLeft===0 && fill < level.cfg.fillMax*0.9 && stonesLeft < level.cfg.stoneBudget*0.3){
-    winLevel(); return;
-  }
-  if(Sand.drained>=level.cfg.stoneBudget*0.7){ winLevel(); return; }
-}
 
-function frame(ts){
-  const dt=Math.min(40, ts-(lastTs||ts)); lastTs=ts;
-  if(screen==='play' && level){
-    sim(dt);
-    drawBg();
-    drawSand();
-    // tiles
-    for(const t of level.tiles){
-      if(t.alive || (t.alpha||0)>0.05) drawTile(t);
-    }
-    drawPrincess();
-    drawTray();
-    tickAnims(dt);
-    drawParticles(dt);
-    // status
+  // ---- Draw ----
+  function drawPipeFrame() {
     ctx.save();
-    ctx.font='bold 12px Trebuchet MS,sans-serif';
-    ctx.fillStyle='rgba(255,255,255,0.75)';
-    ctx.textAlign='center';
-    const left=level.tiles.filter(t=>t.alive).length;
-    ctx.fillText(level.cfg.name+' · плиток '+left+' · сток '+Sand.drained+'/'+level.cfg.drainGoal, W/2, H-198);
+    const rim = Math.max(10, W * 0.028);
+    const topArmLeft = wallX + tw * Math.floor(cols * 0.35);
+    ctx.fillStyle = '#e8dcc8';
+    // top L arm outer
+    roundRect(ctx, topArmLeft - rim, pipe.topY - rim, W - topArmLeft + rim + 4, pipe.topH + rim * 2, 10);
+    ctx.fill();
+    // right column outer
+    roundRect(ctx, pipe.rightX - rim, pipe.topY, pipe.rightW + rim * 2 + 4, H - pipe.topY - 2, 10);
+    ctx.fill();
+    // block mortar lines
+    ctx.strokeStyle = 'rgba(130,110,80,.4)';
+    ctx.lineWidth = 1.5;
+    for (let y = pipe.topY; y < H; y += 20) {
+      ctx.beginPath();
+      ctx.moveTo(pipe.rightX - rim + 2, y);
+      ctx.lineTo(W - 4, y);
+      ctx.stroke();
+    }
+    for (let x = topArmLeft; x < W; x += 28) {
+      ctx.beginPath();
+      ctx.moveTo(x, pipe.topY - rim + 2);
+      ctx.lineTo(x, pipe.topY + pipe.topH + rim - 2);
+      ctx.stroke();
+    }
+    // inner dark channel
+    ctx.fillStyle = '#3d322a';
+    roundRect(ctx, topArmLeft + 2, pipe.topY + 2, W - topArmLeft - 14, pipe.topH - 6, 6);
+    ctx.fill();
+    roundRect(ctx, pipe.rightX + 2, pipe.topY + 4, pipe.rightW - 8, H - pipe.topY - 20, 6);
+    ctx.fill();
     ctx.restore();
-  } else if(screen==='intro'||screen==='win'||screen==='lose'){
-    drawBg();
   }
-  requestAnimationFrame(frame);
-}
 
-/* ---------- OTA ---------- */
-function cmpSemver(a,b){
-  const pa=String(a||'0').split('.').map(n=>parseInt(n,10)||0);
-  const pb=String(b||'0').split('.').map(n=>parseInt(n,10)||0);
-  for(let i=0;i<3;i++){ const d=(pa[i]||0)-(pb[i]||0); if(d) return d; } return 0;
-}
-function getAppUpdatePlugin(){
-  try{ const C=window.Capacitor; if(!C) return null;
-    if(C.Plugins&&C.Plugins.AppUpdate) return C.Plugins.AppUpdate;
-    if(typeof C.registerPlugin==='function') return C.registerPlugin('AppUpdate');
-  }catch(e){} return null;
-}
-async function checkForUpdates(opts){
-  opts=opts||{};
-  const url=opts.manifestUrl||DEFAULT_MANIFEST_URL;
-  if(!url||url.indexOf('PLACEHOLDER')>=0) return {skipped:true};
-  let manifest;
-  try{
-    const res=await fetch(url+(url.indexOf('?')>=0?'&':'?')+'t='+Date.now(),{cache:'no-store',mode:'cors'});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    manifest=await res.json();
-  }catch(e){ if(!opts.silent) toast('Нет обновлений или нет сети'); return {skipped:true}; }
-  const plugin=getAppUpdatePlugin();
-  let localCode=APP_VERSION.versionCode, localName=APP_VERSION.version, localWeb=APP_VERSION.webVersion;
-  if(plugin&&plugin.getInfo){ try{ const info=await plugin.getInfo(); localCode=info.versionCode||localCode; localName=info.versionName||localName; localWeb=info.webVersion||localWeb; }catch(e){} }
-  if(manifest.webBundleUrl && cmpSemver(manifest.webVersion||manifest.version, localWeb)>0){
-    if(!opts.silent && confirm((manifest.changelog||'Обновление')+'\n\nОбновить контент игры?')){
-      if(plugin&&plugin.downloadAndApplyWebBundle){ await plugin.downloadAndApplyWebBundle({url:manifest.webBundleUrl, webVersion:manifest.webVersion||manifest.version}); location.reload(); }
-      else window.open(manifest.webBundleUrl,'_blank');
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawTiles() {
+    for (let i = 0; i < tiles.length; i++) {
+      const t = tiles[i];
+      if (!t.alive) continue;
+      const box = tileAABB(t);
+      const im = imgs['t_' + t.type];
+      // 3D edge
+      ctx.fillStyle = '#c4a882';
+      roundRect(ctx, box.x + 1, box.y + 4, box.w - 2, box.h - 2, 5);
+      ctx.fill();
+      if (im) {
+        ctx.drawImage(im, box.x, box.y - 1, box.w, box.h - 4);
+      } else {
+        ctx.fillStyle = '#fffaf0';
+        roundRect(ctx, box.x, box.y - 1, box.w, box.h - 6, 5);
+        ctx.fill();
+      }
+      if (selected === i || (hintPair && (hintPair[0] === i || hintPair[1] === i))) {
+        ctx.strokeStyle = selected === i ? '#ffeb3b' : '#80d8ff';
+        ctx.lineWidth = 3;
+        roundRect(ctx, box.x - 1, box.y - 2, box.w + 2, box.h - 2, 6);
+        ctx.stroke();
+      }
     }
-    return {update:'web'};
   }
-  const remoteCode=parseInt(manifest.versionCode,10)||0;
-  const need=(remoteCode>localCode)||(cmpSemver(manifest.version,localName)>0);
-  if(need&&manifest.apkUrl){
-    if(!opts.silent && confirm((manifest.changelog||'Новая версия APK')+'\n\nСкачать и установить?')){
-      if(plugin&&plugin.downloadAndInstallApk) await plugin.downloadAndInstallApk({url:manifest.apkUrl});
-      else window.open(manifest.apkUrl,'_blank');
+
+  function drawPebbles() {
+    for (let i = 0; i < pebbles.length; i++) {
+      const p = pebbles[i];
+      const im = imgs[p.spr];
+      const s = p.r * 2.15;
+      if (im) {
+        ctx.drawImage(im, p.x - s / 2, p.y - s / 2, s, s);
+      } else {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#6ec6ff';
+        ctx.fill();
+      }
     }
-    return {update:'apk'};
   }
-  if(!opts.silent) toast('У вас актуальная версия v'+localName);
-  return {upToDate:true};
-}
 
-/* ---------- UI wire ---------- */
-document.getElementById('btn-play').onclick=()=>{ AudioFX.unlock(); AudioFX.setMuted(saveData.muted); AudioFX.startMusic(); setScreen('map'); AudioFX.play('sfx_btn'); };
-document.getElementById('map-back').onclick=()=>{ setScreen('intro'); AudioFX.play('sfx_btn'); };
-document.getElementById('btn-back').onclick=()=>{ setScreen('map'); AudioFX.play('sfx_btn'); };
-document.getElementById('btn-next').onclick=()=>{ const next=Math.min(36,levelNum+1); if(next<=saveData.maxUnlocked) startLevel(next); else setScreen('map'); };
-document.getElementById('btn-win-map').onclick=()=>setScreen('map');
-document.getElementById('btn-retry').onclick=()=>startLevel(levelNum);
-document.getElementById('btn-lose-map').onclick=()=>setScreen('map');
-document.getElementById('b-undo').onclick=()=>boosterUndo();
-document.getElementById('b-hint').onclick=()=>boosterHint();
-document.getElementById('b-shuffle').onclick=()=>boosterShuffle();
-function toggleMute(){ AudioFX.unlock(); saveData.muted=!saveData.muted; AudioFX.setMuted(saveData.muted); persist(); updateHUD(); document.getElementById('map-mute').textContent=saveData.muted?'🔇':'🔊'; AudioFX.play('sfx_btn'); }
-document.getElementById('btn-mute').onclick=toggleMute;
-document.getElementById('map-mute').onclick=toggleMute;
-document.getElementById('btn-update').onclick=()=>{ AudioFX.unlock(); checkForUpdates({silent:false}); };
-document.getElementById('map-update').onclick=()=>{ AudioFX.unlock(); checkForUpdates({silent:false}); };
+  function drawPrincess() {
+    const im = princessMood === 'happy' ? (imgs.princessWin || imgs.princess) : (imgs.princessScared || imgs.princess);
+    // ~1/4 screen height, FEET on top of tile wall
+    const ph = Math.floor(H * 0.26);
+    const pw = ph * 0.52;
+    const px = wallX + Math.max(4, (tw * cols - pw) * 0.35);
+    const py = wallY - ph + 14; // stand on tiles
+    const bob = Math.sin(animT * 3) * 1.5;
+    if (im) ctx.drawImage(im, px, py + bob, pw, ph);
+    else {
+      ctx.fillStyle = '#ff80ab';
+      ctx.fillRect(px, py, pw, ph);
+    }
+  }
 
-document.getElementById('ver-label').textContent='v'+APP_VERSION.version;
-loadAssets().then(()=>{ resize(); requestAnimationFrame(frame); });
-window.addEventListener('load',()=>{ resize(); setTimeout(()=>checkForUpdates({silent:true}).catch(()=>{}),1200); });
+  function drawChamber() {
+    // dark left room hint if no bg
+    ctx.fillStyle = 'rgba(20,24,36,.35)';
+    ctx.fillRect(0, pipe.topY + pipe.topH + 8, pipe.rightX - 6, H);
+  }
 
-window.__PRINCESS__={ APP_VERSION, startLevel, saveData, levelConfig, Sand, get level(){return level;} };
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    if (imgs.bg) {
+      // cover
+      const bw = imgs.bg.width, bh = imgs.bg.height;
+      const s = Math.max(W / bw, H / bh);
+      const dw = bw * s, dh = bh * s;
+      ctx.drawImage(imgs.bg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      // darken left for readability
+      ctx.fillStyle = 'rgba(10,12,20,.25)';
+      ctx.fillRect(0, 0, pipe.rightX, H);
+    } else {
+      ctx.fillStyle = '#2a2438';
+      ctx.fillRect(0, 0, W, H);
+      drawChamber();
+    }
+    drawPipeFrame();
+    drawTiles();
+    drawPebbles();
+    drawPrincess();
+
+    // pressure arrow / danger vignette
+    if (state === 'play' && buryFill > 40) {
+      ctx.fillStyle = 'rgba(180,20,40,' + (0.08 + buryFill * 0.002) + ')';
+      ctx.fillRect(0, 0, wallX + tw * cols, wallY);
+    }
+  }
+
+  // ---- Input ----
+  function canvasPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return {
+      x: (t.clientX - r.left) * (W / r.width),
+      y: (t.clientY - r.top) * (H / r.height)
+    };
+  }
+
+  function hitTile(x, y) {
+    for (let i = tiles.length - 1; i >= 0; i--) {
+      if (!tiles[i].alive) continue;
+      const b = tileAABB(tiles[i]);
+      if (x >= b.x && x <= b.x + b.w && y >= b.y - 2 && y <= b.y + b.h) return i;
+    }
+    return -1;
+  }
+
+  function onTap(e) {
+    if (state !== 'play') return;
+    e.preventDefault();
+    const p = canvasPos(e);
+    const ti = hitTile(p.x, p.y);
+    if (ti < 0) { selected = null; return; }
+    if (!isFree(ti)) {
+      toast('Плитка закрыта с боков');
+      playSfx('bad');
+      return;
+    }
+    if (selected == null) {
+      selected = ti;
+      playSfx('tap');
+      return;
+    }
+    if (selected === ti) { selected = null; return; }
+    if (tiles[selected].type === tiles[ti].type) {
+      removePair(selected, ti);
+    } else {
+      toast('Нужна пара одинаковых');
+      selected = ti;
+      playSfx('bad');
+    }
+  }
+
+  canvas.addEventListener('pointerdown', onTap, { passive: false });
+
+  // ---- Audio (simple beeps) ----
+  let ac = null;
+  function ensureAC() {
+    if (!ac) {
+      try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    }
+    return ac;
+  }
+  function playSfx(kind) {
+    if (audioMuted) return;
+    const a = ensureAC();
+    if (!a) return;
+    const o = a.createOscillator();
+    const g = a.createGain();
+    o.connect(g); g.connect(a.destination);
+    const now = a.currentTime;
+    g.gain.value = 0.04;
+    if (kind === 'match') { o.frequency.value = 520; o.type = 'triangle'; g.gain.exponentialRampToValueAtTime(0.001, now + 0.15); }
+    else if (kind === 'tap') { o.frequency.value = 380; o.type = 'sine'; g.gain.exponentialRampToValueAtTime(0.001, now + 0.08); }
+    else if (kind === 'win') { o.frequency.value = 660; o.type = 'triangle'; g.gain.exponentialRampToValueAtTime(0.001, now + 0.4); }
+    else if (kind === 'lose') { o.frequency.value = 160; o.type = 'sawtooth'; g.gain.exponentialRampToValueAtTime(0.001, now + 0.35); }
+    else { o.frequency.value = 220; o.type = 'square'; g.gain.exponentialRampToValueAtTime(0.001, now + 0.1); }
+    o.start(now); o.stop(now + 0.4);
+  }
+
+  // ---- Boosters ----
+  $('b-hint').onclick = () => {
+    if (state !== 'play' || boosts.hint <= 0) return;
+    const pair = findPair();
+    if (!pair) { toast('Нет свободной пары — смешай'); return; }
+    boosts.hint--;
+    $('c-hint').textContent = boosts.hint;
+    hintPair = pair;
+    selected = null;
+    toast('Подсказка подсвечена');
+  };
+  $('b-shuffle').onclick = () => {
+    if (state !== 'play' || boosts.shuffle <= 0) return;
+    boosts.shuffle--;
+    $('c-shuffle').textContent = boosts.shuffle;
+    const alive = tiles.filter(t => t.alive);
+    const types = alive.map(t => t.type);
+    for (let i = types.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [types[i], types[j]] = [types[j], types[i]];
+    }
+    alive.forEach((t, i) => { t.type = types[i]; });
+    selected = null; hintPair = null;
+    toast('Плитки перемешаны');
+  };
+
+  // ---- Nav ----
+  $('btn-play').onclick = () => { renderMap(); showScreen('map'); };
+  $('map-back').onclick = () => showScreen('intro');
+  $('btn-back').onclick = () => { showScreen('map'); renderMap(); };
+  $('btn-next').onclick = () => {
+    if (levelIdx + 1 < N_LEVELS && levelIdx + 1 < save.unlocked) startLevel(levelIdx + 1);
+    else { renderMap(); showScreen('map'); }
+  };
+  $('btn-win-map').onclick = () => { renderMap(); showScreen('map'); };
+  $('btn-retry').onclick = () => startLevel(levelIdx);
+  $('btn-lose-map').onclick = () => { renderMap(); showScreen('map'); };
+  $('btn-mute').onclick = () => {
+    audioMuted = !audioMuted;
+    save.muted = audioMuted;
+    persist();
+    $('btn-mute').textContent = audioMuted ? '🔇' : '🔊';
+  };
+
+  async function checkUpdate() {
+    try {
+      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+      const j = await r.json();
+      if (j.webVersion && j.webVersion !== VERSION) {
+        toast('Доступна ' + j.webVersion + ' — обновляю…');
+        setTimeout(() => location.reload(true), 600);
+      } else toast('У вас последняя версия ' + VERSION);
+    } catch (e) { toast('Нет сети для проверки'); }
+  }
+  $('btn-update').onclick = checkUpdate;
+  $('map-update').onclick = checkUpdate;
+
+  // ---- Loop ----
+  let acc = 0, last = performance.now();
+  function frame(now) {
+    const raw = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    acc += raw;
+    animT += raw;
+    let steps = 0;
+    while (acc >= DT && steps < 4) {
+      stepPhysics();
+      acc -= DT;
+      steps++;
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---- Boot ----
+  $('ver-label').textContent = 'v' + VERSION;
+  window.addEventListener('resize', () => {
+    const prev = { cols, rows };
+    resize();
+    if (state === 'play') {
+      layoutFromLevel(levelDef(levelIdx));
+      // keep tiles; rescale pebbles softly into pipe
+    }
+  });
+  resize();
+  loadAll().then(() => {
+    showScreen('intro');
+    requestAnimationFrame(frame);
+  });
+
+  // expose for screenshots / debug
+  window.__PM = {
+    startLevel, stepPhysics, getState: () => ({
+      state, levelIdx, pebbles: pebbles.length, drained, buryFill, tiles: tiles.filter(t => t.alive).length,
+      W, H, cols, rows, tw, th, wallX, wallY, pipe, startCount
+    }),
+    removePairAt: (a, b) => removePair(a, b),
+    findPair, tiles: () => tiles, pebbles: () => pebbles,
+    VERSION
+  };
+})();
