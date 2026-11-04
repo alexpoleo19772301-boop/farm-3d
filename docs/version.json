@@ -1,9 +1,9 @@
 {
-  "version": "4.0.7",
-  "versionCode": 40007,
+  "version": "4.1.0",
+  "versionCode": 41000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "4.0.7",
+  "webVersion": "4.1.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v4.0.7: палитра красок пересобрана — зелёный и синий различаются радикально\n• green #2ECC40 (трава) vs blue #1F4FE0 (royal); teal → яркая бирюза #00C4D8 (не путать с зелёным)\n• yellow #FFD400 vs orange #FF5A00; CIEDE2000 min≈15.7 (56/66 пар ≥25); green↔blue ≈67\n• Режим для дальтоников: узоры на каждом цвете (выкл. по умолчанию)"
+  "changelog": "• Лимит ходов: бюджет = оптимум solver + slack (ранние уровни щедрые, поздние тугие); HUD «ходы X/Y»; ★ от оставшихся ходов; fail: +5 ходов за монеты / заново; отмена НЕ возвращает ходы\n• Цветные замки: padlock цвета; ключ = собрать колбу этого цвета; анимация открытия\n• Таймер на спец-уровнях (20/35/50/65/80/95): пауза в настройках; +30с за монеты\n• Колбы ёмкостью 3/4/5/6 с ур.25\n• Смешивание с ур.40: жёлтый+синий=зелёный, красный+жёлтый=оранжевый, красный+синий=фиолетовый; туториал\n• ~100 уровней; все validated exact BFS (0 approx); moveLimit ≥ solutionLen; боссы каждые 5\n• Tutorials ru/uk/en"
 }

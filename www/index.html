@@ -86,7 +86,8 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <span class="pill" id="lvl-pill">Ур. 1</span>
       <span class="pill" id="coin-pill">🪙 0</span>
       <span class="pill" id="star-pill">★ 0</span>
-      <span class="pill" id="moves-pill">ходы 0</span>
+      <span class="pill" id="moves-pill">ходы 0/0</span>
+      <span class="pill" id="timer-pill" style="display:none">⏱ 0:00</span>
       <span style="flex:1"></span>
       <button class="iconbtn" id="btn-settings" title="Звук">⚙️</button>
       <button class="iconbtn" id="btn-update" title="Обновить">↻</button>
@@ -132,8 +133,9 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
   </div>
   <div class="screen" id="sc-lose">
     <div class="card">
-      <h1 data-i18n="lose_title">Застряли?</h1>
-      <p data-i18n="lose_body">Попробуй отмену или добавь пустую колбу!</p>
+      <h1 id="lose-title" data-i18n="lose_moves_title">Ходы закончились</h1>
+      <p id="lose-body" data-i18n="lose_moves_body">Можно купить +5 ходов за монеты или начать заново. Отмена не возвращает ходы.</p>
+      <button class="btn green" id="btn-lose-extra" data-i18n="lose_plus_moves">+5 ходов · 40🪙</button>
       <button class="btn" id="btn-retry" data-i18n="retry">Заново</button>
       <button class="btn ghost" id="btn-lose-map" data-i18n="map">Карта</button>
     </div>
@@ -192,9 +194,9 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     </div>
   </div>
   <div id="toast"></div>
-  <div id="ver">v4.0.7</div>
+  <div id="ver">v4.1.0</div>
 </div>
-<script src="i18n.js?v=4.0.7"></script>
-<script src="game.js?v=4.0.7"></script>
+<script src="i18n.js?v=4.1.0"></script>
+<script src="game.js?v=4.1.0"></script>
 </body>
 </html>

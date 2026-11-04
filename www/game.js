@@ -1,11 +1,18 @@
-/* Краски v4.0.7 — high-contrast palette + colorblind patterns */
+/* Краски v4.1.0 — move limit, color locks, timer, varcap, mixing */
 (function () {
   'use strict';
-  const VERSION = '4.0.7';
-  const APP_VERSION = { version: '4.0.7', versionCode: 40007, webVersion: '4.0.7' };
+  const VERSION = '4.1.0';
+  const APP_VERSION = { version: '4.1.0', versionCode: 41000, webVersion: '4.1.0' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
+  const MIX = {
+    'yellow|blue': 'green', 'blue|yellow': 'green',
+    'red|yellow': 'orange', 'yellow|red': 'orange',
+    'red|blue': 'purple', 'blue|red': 'purple'
+  };
+  function flaskCap(f) { return (f && f.cap) ? f.cap : CAP; }
+  function mixResult(a, b) { return MIX[a + '|' + b] || null; }
   const SAVE_KEY = 'vintiki_save_v40';
   const LEGACY_KEY = 'vintiki_save_v32';
   const $ = (id) => document.getElementById(id);
@@ -56,7 +63,10 @@
   let animT = 0;
   let selected = -1;
   let flasks = []; // runtime flask objects
-  let moves = 0, runPar = 0, runUsedBooster = false, runUsedHint = false;
+  let moves = 0, runPar = 0, runMoveLimit = 0, runSolutionLen = 0;
+  let runUsedBooster = false, runUsedHint = false;
+  let runTimeLimit = 0, runTimeLeft = 0, timerPaused = false, loseReason = '';
+  let MOVE_BOOST_COST = 40, TIME_BOOST_COST = 50;
   let history = [];
   let pourAnim = null; // {from,to,color,amt,t,duration, streamY...}
   let particles = [];
@@ -520,7 +530,9 @@
   function flaskComplete(f) {
     if (f.corked) return true;
     if (!f.layers.length) return false;
-    if (f.layers.length !== CAP) return false;
+    if (f.mixer) return false; // mixer never corks — pour result out
+    const cap = flaskCap(f);
+    if (f.layers.length !== cap) return false;
     if (f.layers.some(l => l.hidden)) return false;
     const c = f.layers[0].color;
     return f.layers.every(l => l.color === c);
@@ -530,24 +542,35 @@
     if (src.frozen || src.locked || dst.frozen || dst.locked) return 0;
     if (src.corked || dst.corked) return 0;
     if (!src.layers.length) return 0;
-    if (dst.layers.length >= CAP) return 0;
-    // reveal check: top must not be hidden (hidden only below)
     const top = src.layers[src.layers.length - 1];
     if (top.hidden) return 0;
     const { color, n } = topRun(src.layers);
     if (!n) return 0;
-    if (!dst.layers.length) return Math.min(n, CAP - dst.layers.length);
+    const dcap = flaskCap(dst);
+
+    // Mixing flask destination
+    if (dst.mixer) {
+      if (!dst.layers.length) return Math.min(n, 1);
+      if (dst.layers.length >= 2) return 0;
+      const a = dst.layers[dst.layers.length - 1].color;
+      if (a === color) return 0;
+      return mixResult(a, color) ? 1 : 0;
+    }
+
+    if (dst.layers.length >= dcap) return 0;
+    if (!dst.layers.length) return Math.min(n, dcap - dst.layers.length);
     const dt = dst.layers[dst.layers.length - 1];
     if (dt.hidden) return 0;
     if (dt.color !== color) return 0;
-    return Math.min(n, CAP - dst.layers.length);
+    return Math.min(n, dcap - dst.layers.length);
   }
 
   function cloneFlasks() {
     return flasks.map(f => ({
       layers: f.layers.map(l => ({ color: l.color, hidden: !!l.hidden })),
       frozen: !!f.frozen, locked: !!f.locked, corked: !!f.corked,
-      lift: 0, wobble: 0
+      cap: flaskCap(f), lockColor: f.lockColor || null, mixer: !!f.mixer,
+      unlockAnim: 0, lift: 0, wobble: 0
     }));
   }
   function pushHistory() {
@@ -573,10 +596,15 @@
     playSfx('cork', 0.5); playSfx('star', 0.28); buzz(18);
     spawnSparkles(flaskLayout(idx).cx, flaskLayout(idx).cy - 40);
     questProgress('complete_flask', 1);
-    // unlock locked flasks when a colour is completed
+    const keyColor = f.layers[0] && f.layers[0].color;
+    let unlocked = 0;
     for (const o of flasks) {
-      if (o.locked) { o.locked = false; toast(t('toast_unlock')); playSfx('box', 0.4); }
+      if (o.locked && o.lockColor && o.lockColor === keyColor) {
+        o.locked = false; o.unlockAnim = 1;
+        unlocked++;
+      }
     }
+    if (unlocked) { toast(t('toast_unlock')); playSfx('box', 0.4); }
   }
 
   function checkWin() {
@@ -609,11 +637,20 @@
 
   function finishPour() {
     if (!pourAnim) return;
-    const { from, to, amt } = pourAnim;
+    const { from, to, amt, color } = pourAnim;
     const src = flasks[from], dst = flasks[to];
-    for (let i = 0; i < amt; i++) {
-      const layer = src.layers.pop();
-      if (layer) dst.layers.push({ color: layer.color, hidden: false });
+    if (dst.mixer && dst.layers.length === 1 && mixResult(dst.layers[0].color, color)) {
+      const existing = dst.layers.pop().color;
+      src.layers.pop();
+      const result = mixResult(existing, color);
+      dst.layers.push({ color: result, hidden: false });
+      toast(t('toast_mix', { color: t('color_' + result) || result }));
+      playSfx('reward', 0.4);
+    } else {
+      for (let i = 0; i < amt; i++) {
+        const layer = src.layers.pop();
+        if (layer) dst.layers.push({ color: layer.color, hidden: false });
+      }
     }
     revealExposed(src);
     src.wobble = 1; dst.wobble = 1;
@@ -621,7 +658,22 @@
     questProgress('pour', 1);
     tryCompleteFlask(dst, to);
     pourAnim = null;
-    $('moves-pill').textContent = t('moves', { n: moves });
+    refreshHud();
+    // win check first (last move that completes is OK)
+    const wasComplete = flasks.every(f => !f.layers.length || f.corked || flaskComplete(f));
+    if (wasComplete) {
+      flasks.forEach((f, i) => { if (!f.corked && flaskComplete(f)) tryCompleteFlask(f, i); });
+      if (flasks.every(f => !f.layers.length || f.corked)) {
+        const g = outcomeGen;
+        setTimeout(() => { if (g === outcomeGen && state === 'play') endWin(); }, 500);
+        return;
+      }
+    }
+    if (runMoveLimit > 0 && moves >= runMoveLimit) {
+      const g = outcomeGen;
+      setTimeout(() => { if (g === outcomeGen && state === 'play') endLose('moves'); }, 350);
+      return;
+    }
     checkWin();
   }
 
@@ -859,7 +911,7 @@
     // clip liquids inside body
     ctx.save();
     ctx.clip();
-    const layerH = (bodyBot - bodyTop - 6) / CAP;
+    const layerH = (bodyBot - bodyTop - 6) / flaskCap(f);
     const baseY = bodyBot - 4;
     // during pour, visually reduce src / raise dst
     let visCount = f.layers.length;
@@ -958,10 +1010,46 @@
       ctx.fillText('❄️', 0, 0);
     }
     if (f.locked) {
-      ctx.fillStyle = 'rgba(20,10,30,0.45)';
+      ctx.fillStyle = 'rgba(20,10,30,0.5)';
       roundRect(ctx, -w * 0.5, -h * 0.5, w, h, 10); ctx.fill();
-      ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('🔒', 0, 0);
+      const lc = f.lockColor && PAINT[f.lockColor];
+      if (lc) {
+        ctx.beginPath();
+        ctx.arc(0, -6, 16, 0, Math.PI * 2);
+        ctx.fillStyle = lc.fill; ctx.fill();
+        ctx.strokeStyle = '#fff6ff'; ctx.lineWidth = 2; ctx.stroke();
+      }
+      ctx.font = '20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('🔒', 0, -6);
+    }
+    if (f.unlockAnim && f.unlockAnim > 0) {
+      const a = f.unlockAnim;
+      ctx.globalAlpha = Math.min(1, a);
+      ctx.font = (18 + (1 - a) * 20) + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🔓', 0, -20 - (1 - a) * 30);
+      ctx.globalAlpha = 1;
+      f.unlockAnim = Math.max(0, a - dt * 1.4);
+    }
+    if (f.mixer) {
+      ctx.strokeStyle = '#ffd76a';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(0, 0, w * 0.68, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffd76a';
+      ctx.fillText('🧪', -w * 0.42, -h * 0.42);
+    }
+    // capacity badge for non-default sizes
+    if (flaskCap(f) !== CAP) {
+      ctx.fillStyle = 'rgba(30,14,40,0.85)';
+      ctx.beginPath(); ctx.arc(w * 0.42, -h * 0.42, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffe8ff'; ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(flaskCap(f)), w * 0.42, -h * 0.42);
     }
 
     // selection glow
@@ -1030,15 +1118,25 @@
 
   /* ---------- solver for hint ---------- */
   function solveHint() {
-    // BFS shallow for next move
-    const start = flasks.map(f => f.layers.filter(l => !l.hidden).map(l => l.color));
-    // include hidden as blockers by treating hidden tops as unpourable — already filtered
-    // rebuild with hidden: use actual colors but mark unpourable via separate flags
     const N = flasks.length;
-    const frozen = flasks.map(f => !!(f.frozen || f.locked || f.corked));
-    function norm(st) { return st.map(a => a.join(',')).join('|'); }
-    function won(st) {
-      return st.every(a => !a.length || (a.length === CAP && a.every(c => c === a[0])));
+    const caps = flasks.map(flaskCap);
+    const mixer = flasks.map(f => !!f.mixer);
+    const lockCol = flasks.map(f => f.lockColor || null);
+    let locked0 = flasks.map(f => !!f.locked);
+    const corked0 = flasks.map(f => !!f.corked);
+    const frozen0 = flasks.map(f => !!f.frozen);
+    const start = flasks.map(f => f.layers.map(l => l.color));
+    function norm(st, lk) { return st.map(a => a.join(',')).join('|') + '#' + lk.map(x => x ? 1 : 0).join(''); }
+    function won(st, lk) {
+      for (let i = 0; i < N; i++) {
+        if (lk[i]) return false;
+        if (corked0[i]) continue;
+        if (mixer[i]) { if (st[i].length) return false; continue; }
+        if (!st[i].length) continue;
+        if (st[i].length !== caps[i]) return false;
+        if (!st[i].every(c => c === st[i][0])) return false;
+      }
+      return true;
     }
     function topR(a) {
       if (!a.length) return [null, 0];
@@ -1046,42 +1144,60 @@
       for (let i = a.length - 1; i >= 0; i--) { if (a[i] !== c) break; n++; }
       return [c, n];
     }
-    function can(st, i, j) {
-      if (frozen[i] || frozen[j]) return 0;
-      if (!st[i].length || st[j].length >= CAP) return 0;
+    function can(st, lk, i, j) {
+      if (lk[i] || lk[j] || frozen0[i] || frozen0[j] || corked0[i] || corked0[j]) return 0;
+      if (!st[i].length) return 0;
       const [c, n] = topR(st[i]);
-      if (!st[j].length) return Math.min(n, CAP - st[j].length);
+      if (mixer[j]) {
+        if (!st[j].length) return Math.min(n, 1);
+        if (st[j].length >= 2) return 0;
+        if (st[j][st[j].length - 1] === c) return 0;
+        return mixResult(st[j][st[j].length - 1], c) ? 1 : 0;
+      }
+      if (st[j].length >= caps[j]) return 0;
+      if (!st[j].length) return Math.min(n, caps[j] - st[j].length);
       if (st[j][st[j].length - 1] !== c) return 0;
-      return Math.min(n, CAP - st[j].length);
+      return Math.min(n, caps[j] - st[j].length);
     }
-    function apply(st, i, j, amt) {
+    function apply(st, lk, i, j, amt) {
       const nf = st.map(a => a.slice());
-      const moved = [];
-      for (let k = 0; k < amt; k++) moved.push(nf[i].pop());
-      for (let k = moved.length - 1; k >= 0; k--) nf[j].push(moved[k]);
-      return nf;
+      const nl = lk.slice();
+      if (mixer[j] && nf[j].length === 1 && mixResult(nf[j][0], nf[i][nf[i].length - 1])) {
+        const poured = nf[i].pop();
+        const existing = nf[j].pop();
+        nf[j].push(mixResult(existing, poured));
+      } else {
+        for (let k = 0; k < amt; k++) nf[j].push(nf[i].pop());
+      }
+      for (let fi = 0; fi < N; fi++) {
+        if (mixer[fi]) continue;
+        if (nf[fi].length === caps[fi] && nf[fi].every(c => c === nf[fi][0])) {
+          const kc = nf[fi][0];
+          for (let k = 0; k < N; k++) if (nl[k] && lockCol[k] === kc) nl[k] = false;
+        }
+      }
+      return [nf, nl];
     }
-    const q = [[start, []]];
-    const seen = new Set([norm(start)]);
+    const q = [[start, locked0, []]];
+    const seen = new Set([norm(start, locked0)]);
     let guard = 0;
-    while (q.length && guard++ < 50000) {
-      const [st, path] = q.shift();
-      if (won(st)) return path[0] || null;
-      if (path.length > 25) continue;
+    while (q.length && guard++ < 80000) {
+      const [st, lk, path] = q.shift();
+      if (won(st, lk)) return path[0] || null;
+      if (path.length > 30) continue;
       for (let i = 0; i < N; i++) {
         for (let j = 0; j < N; j++) {
           if (i === j) continue;
-          const amt = can(st, i, j);
+          const amt = can(st, lk, i, j);
           if (!amt) continue;
-          const ns = apply(st, i, j, amt);
-          const key = norm(ns);
+          const [ns, nl] = apply(st, lk, i, j, amt);
+          const key = norm(ns, nl);
           if (seen.has(key)) continue;
           seen.add(key);
-          q.push([ns, path.concat([{ from: i, to: j }])]);
+          q.push([ns, nl, path.concat([{ from: i, to: j }])]);
         }
       }
     }
-    // fallback: any legal move
     for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
       if (canPour(flasks[i], flasks[j]) > 0) return { from: i, to: j };
     }
@@ -1095,50 +1211,109 @@
     boss = null; bossDrag = null; pourAnim = null; selected = -1;
     hintMove = null; history = []; particles = [];
     moves = 0; runUsedBooster = false; runUsedHint = false;
+    loseReason = '';
     const def = levels[idx] || levels[0];
     runPar = def.par || 15;
+    runSolutionLen = def.solutionLen || Math.max(1, runPar - 3);
+    runMoveLimit = def.moveLimit || (runSolutionLen + 8);
+    runTimeLimit = def.timeLimit || 0;
+    runTimeLeft = runTimeLimit;
+    timerPaused = false;
     flasks = def.flasks.map((arr, fi) => {
       const hidden = (def.hidden && def.hidden[fi]) || [];
+      const caps = def.caps || [];
       return {
         layers: arr.map((c, li) => ({ color: c, hidden: !!hidden[li] })),
         frozen: !!(def.frozen && def.frozen[fi]),
         locked: !!(def.locked && def.locked[fi]),
+        lockColor: (def.lockColor && def.lockColor[fi]) || null,
+        mixer: !!(def.mixer && def.mixer[fi]),
+        cap: caps[fi] || CAP,
+        unlockAnim: 0,
         corked: false, lift: 0, wobble: 0
       };
     });
-    // do not cork at start — levels are scrambled open
     state = 'play';
     showScreen('play');
     refreshHud();
     ensureBgm();
-    // tutorials
+    // tutorials (first-time each mechanic)
     if (idx === 0 && !save.seenTut.basic) {
       showTut(t('tut_basic_t'), t('tut_basic_b'));
       save.seenTut.basic = 1; persist();
+    } else if (!save.seenTut.moves && runMoveLimit > 0) {
+      showTut(t('tut_moves_t'), t('tut_moves_b'));
+      save.seenTut.moves = 1; persist();
     } else if (def.hidden && !save.seenTut.hidden) {
       showTut(t('tut_hidden_t'), t('tut_hidden_b'));
       save.seenTut.hidden = 1; persist();
+    } else if (def.locked && def.locked.some(Boolean) && !save.seenTut.locked) {
+      showTut(t('tut_locked_t'), t('tut_locked_b'));
+      save.seenTut.locked = 1; persist();
+    } else if (runTimeLimit > 0 && !save.seenTut.timer) {
+      showTut(t('tut_timer_t'), t('tut_timer_b'));
+      save.seenTut.timer = 1; persist();
+    } else if (def.caps && def.caps.some(c => c !== CAP) && !save.seenTut.varcap) {
+      showTut(t('tut_varcap_t'), t('tut_varcap_b'));
+      save.seenTut.varcap = 1; persist();
+    } else if (def.mixer && def.mixer.some(Boolean) && !save.seenTut.mixing) {
+      showTut(t('tut_mixing_t'), t('tut_mixing_b'));
+      save.seenTut.mixing = 1; persist();
     } else if (def.frozen && !save.seenTut.frozen) {
       showTut(t('tut_frozen_t'), t('tut_frozen_b'));
       save.seenTut.frozen = 1; persist();
-    } else if (def.locked && !save.seenTut.locked) {
-      showTut(t('tut_locked_t'), t('tut_locked_b'));
-      save.seenTut.locked = 1; persist();
     }
   }
 
   function showTut(title, body) {
+    timerPaused = true;
     $('tut-title').textContent = title;
     $('tut-body').textContent = body;
     showScreen('tut');
   }
 
+  function endLose(reason) {
+    if (state !== 'play') return;
+    state = 'lose'; loseReason = reason || 'moves';
+    playSfx('error', 0.45); buzz(30);
+    const title = $('lose-title') || $('sc-lose').querySelector('h1');
+    const body = $('lose-body');
+    if (title) title.textContent = loseReason === 'time' ? t('lose_time_title') : t('lose_moves_title');
+    if (body) body.textContent = loseReason === 'time' ? t('lose_time_body') : t('lose_moves_body');
+    const bExtra = $('btn-lose-extra');
+    if (bExtra) {
+      bExtra.style.display = 'inline-flex';
+      bExtra.textContent = loseReason === 'time'
+        ? t('lose_plus_time', { cost: TIME_BOOST_COST })
+        : t('lose_plus_moves', { cost: MOVE_BOOST_COST });
+    }
+    showScreen('lose');
+  }
+  function buyLoseBoost() {
+    const cost = loseReason === 'time' ? TIME_BOOST_COST : MOVE_BOOST_COST;
+    if ((save.coins | 0) < cost) { toast(t('toast_no_coins')); return; }
+    save.coins -= cost; persist();
+    if (loseReason === 'time') {
+      runTimeLeft = Math.max(runTimeLeft, 0) + 30;
+      runTimeLimit = Math.max(runTimeLimit, runTimeLeft);
+    } else {
+      runMoveLimit += 5;
+    }
+    state = 'play';
+    showScreen('play');
+    refreshHud();
+    playSfx('coin', 0.4);
+    toast(loseReason === 'time' ? t('toast_plus_time') : t('toast_plus_moves'));
+  }
   function endWin() {
     if (state !== 'play') return;
     state = 'win'; playSfx('win', 0.55); buzz([20, 40, 20]); burstConfetti();
+    const left = Math.max(0, runMoveLimit - moves);
+    const slack = Math.max(1, runMoveLimit - runSolutionLen);
     let earned = 1;
-    if (!runUsedBooster && !runUsedHint) earned = 2;
-    if (earned === 2 && moves <= runPar) earned = 3;
+    if (left > 0 && !runUsedBooster) earned = 2;
+    if (moves <= runSolutionLen + Math.max(1, Math.floor(slack / 3)) && !runUsedHint) earned = 3;
+    if (runUsedBooster && earned > 2) earned = 2;
     const prev = save.stars[levelIdx] | 0;
     const best = Math.max(prev, earned);
     const gained = Math.max(0, best - prev);
@@ -1177,7 +1352,24 @@
     $('lvl-pill').textContent = state === 'boss' ? t('boss_pill') : t('level', { n: levelIdx + 1 });
     $('coin-pill').textContent = '🪙 ' + (save.coins | 0);
     const sc = $('star-pill'); if (sc) sc.textContent = '★ ' + totalStars();
-    const mp = $('moves-pill'); if (mp) mp.textContent = t('moves', { n: moves });
+    const mp = $('moves-pill');
+    if (mp) {
+      if (runMoveLimit > 0) mp.textContent = t('moves_lim', { n: moves, max: runMoveLimit });
+      else mp.textContent = t('moves', { n: moves });
+    }
+    const tp = $('timer-pill');
+    if (tp) {
+      if (runTimeLimit > 0) {
+        tp.style.display = 'inline-flex';
+        const sec = Math.max(0, Math.ceil(runTimeLeft));
+        const mm = String(Math.floor(sec / 60)).padStart(1, '0');
+        const ss = String(sec % 60).padStart(2, '0');
+        tp.textContent = '⏱ ' + mm + ':' + ss;
+        tp.style.borderColor = sec <= 15 ? '#e23' : '#d89ae0';
+      } else {
+        tp.style.display = 'none';
+      }
+    }
     $('badge-undo').textContent = save.boosters.undo;
     $('badge-flask').textContent = save.boosters.flask;
     $('badge-hint').textContent = save.boosters.hint;
@@ -1249,15 +1441,16 @@
     if (!history.length) { toast(t('toast_nothing_undo')); return; }
     save.boosters.undo--; runUsedBooster = true; persist();
     const snap = history.pop();
-    flasks = snap.flasks; moves = snap.moves; selected = -1;
-    refreshHud(); playSfx('undo', 0.45); toast(t('toast_undo'));
+    // Undo restores flask state but does NOT refund moves (budget already spent).
+    flasks = snap.flasks; selected = -1;
+    refreshHud(); playSfx('undo', 0.45); toast(t('toast_undo_norefund'));
   }
   function useExtraFlask() {
     if (state !== 'play' || pourAnim) return;
     if (save.boosters.flask <= 0) { toast(t('toast_no_flask')); return; }
     if (flasks.length >= 16) { toast(t('toast_too_many')); return; }
     save.boosters.flask--; runUsedBooster = true; persist();
-    flasks.push({ layers: [], frozen: false, locked: false, corked: false, lift: 0, wobble: 0 });
+    flasks.push({ layers: [], frozen: false, locked: false, corked: false, cap: CAP, mixer: false, lockColor: null, unlockAnim: 0, lift: 0, wobble: 0 });
     refreshHud(); playSfx('box', 0.4); toast(t('toast_flask_plus'));
   }
   function useHint() {
@@ -1477,6 +1670,14 @@
         if (pourAnim.t >= pourAnim.duration) finishPour();
       }
       if (hintMove) { hintMove.t -= dt; if (hintMove.t <= 0) hintMove = null; }
+      if (state === 'play' && runTimeLimit > 0 && !timerPaused && !pourAnim) {
+        runTimeLeft -= dt;
+        if (Math.floor(runTimeLeft + dt) !== Math.floor(runTimeLeft)) refreshHud();
+        if (runTimeLeft <= 0) {
+          runTimeLeft = 0;
+          endLose('time');
+        }
+      }
       for (let i = 0; i < flasks.length; i++) drawFlask(flasks[i], i, dt);
       drawPourStream();
       // particles
@@ -1515,10 +1716,11 @@
   /* ---------- settings / OTA ---------- */
   function openSettings() {
     settingsReturn = (state === 'play') ? 'play' : (state === 'map' ? 'map' : 'home');
+    if (state === 'play') timerPaused = true;
     showScreen('settings'); renderSettings();
   }
   function closeSettings() {
-    if (settingsReturn === 'play') showScreen('play');
+    if (settingsReturn === 'play') { showScreen('play'); timerPaused = false; }
     else if (settingsReturn === 'map') { showScreen('map'); buildMap(); }
     else showScreen('home');
     applyBgmVol(); persist();
@@ -1738,6 +1940,7 @@
     $('btn-win-map').onclick = () => { showScreen('map'); buildMap(); };
     $('btn-retry').onclick = () => startLevel(levelIdx);
     $('btn-lose-map').onclick = () => { showScreen('map'); buildMap(); };
+    const ble = $('btn-lose-extra'); if (ble) ble.onclick = buyLoseBoost;
     $('btn-settings').onclick = openSettings;
     $('btn-home-settings').onclick = openSettings;
     $('btn-home-sound').onclick = openSettings;
@@ -1747,7 +1950,7 @@
     $('btn-home-daily').onclick = openDaily;
     $('btn-daily-back').onclick = () => showScreen('home');
     $('btn-daily-claim').onclick = claimDaily;
-    $('btn-tut-ok').onclick = () => showScreen('play');
+    $('btn-tut-ok').onclick = () => { timerPaused = false; showScreen('play'); };
     $('b-undo').onclick = useUndo;
     $('b-flask').onclick = useExtraFlask;
     $('b-hint').onclick = useHint;
@@ -1807,9 +2010,9 @@
     setTimeout(() => checkOta(true), 1200);
     // debug API
     window.__V = {
-      VERSION, startLevel, startBoss, getBoss: () => boss && ({ done: boss.done, total: boss.pieces.length, placed: boss.pieces.filter(p => p.placed).length }),
+      VERSION, startLevel, startBoss, endLose, buyLoseBoost, getBoss: () => boss && ({ done: boss.done, total: boss.pieces.length, placed: boss.pieces.filter(p => p.placed).length }),
       placeBossN: (n) => { if (!boss) return 0; let k = 0; for (const p of boss.pieces) { if (p.placed) continue; p.x = p.correctX; p.y = p.correctY; p.placed = true; p.inTray = false; k++; if (k >= n) break; } layoutBossTray(); if (boss.pieces.every(q => q.placed)) completeBoss(); return k; },
-      getState: () => ({ state, levelIdx, moves, selected, flasks: flasks.map(f => ({ n: f.layers.length, corked: f.corked, frozen: f.frozen, locked: f.locked, top: f.layers.length ? f.layers[f.layers.length-1].color : null })), pour: !!pourAnim }),
+      getState: () => ({ state, levelIdx, moves, moveLimit: runMoveLimit, timeLeft: runTimeLeft, selected, flasks: flasks.map(f => ({ n: f.layers.length, cap: flaskCap(f), corked: f.corked, frozen: f.frozen, locked: f.locked, lockColor: f.lockColor, mixer: !!f.mixer, top: f.layers.length ? f.layers[f.layers.length-1].color : null })), pour: !!pourAnim }),
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },
       tick: (sec) => { const steps = Math.ceil(sec / 0.016); for (let i = 0; i < steps; i++) { if (pourAnim) { pourAnim.t += 0.016; if (pourAnim.t >= pourAnim.duration) finishPour(); } animT += 0.016; } },
