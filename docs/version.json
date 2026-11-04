@@ -1,9 +1,9 @@
 {
-  "version": "1.3.0",
-  "versionCode": 13000,
+  "version": "1.4.0",
+  "versionCode": 14000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "1.3.0",
+  "webVersion": "1.4.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v1.3.0: нормальные текстуры с тенями\n• Трава / вспаханная земля / дерево / камень / тропинка / крыша (CC0 ambientCG + Poly Haven, 512²) + normal maps\n• PCF soft shadows, ACES exposure ~0.98, синее небо, цветные горы без пересвета, мягкий AO через hemisphere\n• Снижен CSS-пересвет canvas"
+  "changelog": "Мультяшный стиль: новые рисованные бесшовные текстуры (трава, земля, доски, черепица, камень, слои обрыва), toon-освещение с контурами, правильная развёртка UV без растяжений на острове, грядках и постройках (амбар, дома, силос, мельница)"
 }

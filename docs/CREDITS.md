@@ -21,20 +21,9 @@
 - Barn, Silo, Cow, Sheep, Chicken, Pig, Man / Character Base  
   https://poly.pizza (models by Quaternius)
 
-## Textures (CC0 — `www/assets/textures/`, 512² JPEG)
+## Textures
 
-### ambientCG (CC0 1.0) — https://ambientcg.com
-- **Grass001** — color, normal (OpenGL), roughness
-- **Ground037** — soil normal / roughness (color replaced with farm furrow composite)
-- **WoodFloor051** — wood color + normal
-- **Rock023** — rock color + normal
-- **PavingStones070** — path color + normal
-
-### Poly Haven (CC0 1.0) — https://polyhaven.com
-- **rocky_terrain** albedo — cliff sides
-- **brown_mud_03** albedo — base for furrowed soil composite
-
-Roof tile color/normal maps are original procedural textures for this project.
+All textures (grass, soil, wood planks, shingles, path, rock, cliff strata) are original procedural cartoon textures generated for this project (v1.4.0). Public domain / no attribution required.
 
 Island layout, stylized clouds, mountains, hay rolls, lighting/sky and day–night cycle are original code for this project.
 
