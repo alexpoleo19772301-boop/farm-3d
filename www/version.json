@@ -1,9 +1,9 @@
 {
-  "version": "3.4.0",
-  "versionCode": 34000,
+  "version": "3.4.1",
+  "versionCode": 34001,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.4.0",
+  "webVersion": "3.4.1",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.4.0: доски-пазлы (tabs/blanks, зерно, bevel+тень)\n• Разрушение вместо падения: трещины ~150мс → 6–12 осколков + опилки ~1с, shake, sfx\n• Качание на одном винте сохранено; rim pixel test OK"
+  "changelog": "• v3.4.1: классические jigsaw-кнобы (дуга+шея, solid wood fill)\n• Соседи flush — tab входит в blank; tabs не на обод\n• Rim/overlap/screws OK; L1/5/10/42 + break filmstrip"
 }

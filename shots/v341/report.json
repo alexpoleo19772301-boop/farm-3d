@@ -1,0 +1,50 @@
+[
+  {
+    "level": 1,
+    "ok": true,
+    "rimOk": true,
+    "rimHits": 0,
+    "inside": true,
+    "screws": true,
+    "geom": true,
+    "tabR": 28,
+    "minGap": 118.2,
+    "n": 2
+  },
+  {
+    "level": 5,
+    "ok": false,
+    "rimOk": true,
+    "rimHits": 0,
+    "inside": true,
+    "screws": true,
+    "geom": false,
+    "tabR": 20.032,
+    "minGap": 0,
+    "n": 5
+  },
+  {
+    "level": 10,
+    "ok": true,
+    "rimOk": true,
+    "rimHits": 0,
+    "inside": true,
+    "screws": true,
+    "geom": true,
+    "tabR": 18.880000000000003,
+    "minGap": 0,
+    "n": 5
+  },
+  {
+    "level": 42,
+    "ok": true,
+    "rimOk": true,
+    "rimHits": 0,
+    "inside": true,
+    "screws": true,
+    "geom": true,
+    "tabR": 13.596972972972976,
+    "minGap": 0,
+    "n": 7
+  }
+]

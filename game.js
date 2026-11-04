@@ -1,7 +1,7 @@
-/* Винтики v3.4.0 — jigsaw planks + shatter destruction */
+/* Винтики v3.4.1 — classic solid jigsaw knobs */
 (function () {
   'use strict';
-  const VERSION = '3.4.0';
+  const VERSION = '3.4.1';
   const COLORS = {
     red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
     purple: '#9b4de0', orange: '#f08a2a'
@@ -555,15 +555,28 @@
     }
   }
 
+  function knobRadiusFor(edgeLen, w, h) {
+    // head radius ~18–22% of edge, capped so it stays readable
+    return Math.max(9, Math.min(edgeLen * 0.20, Math.min(w, h) * 0.22, 28));
+  }
+
+  function tabReachFor(p) {
+    // tip sticks out ≈ d + R with d≈0.82R → ~1.82R
+    const R = p.tabR || 12;
+    return R * 1.85;
+  }
+
   function assignPuzzleEdges() {
-    const TAB = Math.max(11, Math.min(18, Math.min(board.w, board.h) / 22));
     for (const p of planks) {
       if (!p.alive) continue;
-      p.tabR = Math.min(TAB, Math.min(p.w, p.h) * 0.22);
+      const edge = Math.min(p.w, p.h);
+      p.tabR = knobRadiusFor(edge, p.w, p.h);
       p.edges = { t: 0, r: 0, b: 0, l: 0 }; // 0 flat, +1 tab out, -1 blank in
     }
     const alive = planks.filter(p => p.alive && !p.falling);
-    const tol = TAB * 1.8;
+    // Pair nearest facing sides as complementary tab/blank
+    const used = new Set();
+    const pairs = [];
     for (let i = 0; i < alive.length; i++) {
       for (let j = i + 1; j < alive.length; j++) {
         const a = alive[i], b = alive[j];
@@ -573,76 +586,186 @@
         const bL = bx - b.w / 2, bR = bx + b.w / 2, bT = by - b.h / 2, bB = by + b.h / 2;
         const overlapY = Math.min(aB, bB) - Math.max(aT, bT);
         const overlapX = Math.min(aR, bR) - Math.max(aL, bL);
-        // A left of B (A's right near B's left)
-        if (overlapY > Math.min(a.h, b.h) * 0.35) {
+        if (overlapY > Math.min(a.h, b.h) * 0.3) {
           const gap = bL - aR;
-          if (gap >= -2 && gap < tol) {
-            if (a.edges.r === 0 && b.edges.l === 0) {
-              const tab = Math.random() < 0.5 ? 1 : -1;
-              a.edges.r = tab; b.edges.l = -tab;
-            }
-          }
+          if (Math.abs(gap) < Math.max(a.w, b.w) * 0.55)
+            pairs.push({ a, b, dir: 'h', gap: Math.abs(gap), score: Math.abs(gap) - overlapY * 0.01 });
         }
-        // A above B
-        if (overlapX > Math.min(a.w, b.w) * 0.35) {
+        if (overlapX > Math.min(a.w, b.w) * 0.3) {
           const gap = bT - aB;
-          if (gap >= -2 && gap < tol) {
-            if (a.edges.b === 0 && b.edges.t === 0) {
-              const tab = Math.random() < 0.5 ? 1 : -1;
-              a.edges.b = tab; b.edges.t = -tab;
-            }
-          }
+          if (Math.abs(gap) < Math.max(a.h, b.h) * 0.55)
+            pairs.push({ a, b, dir: 'v', gap: Math.abs(gap), score: Math.abs(gap) - overlapX * 0.01 });
         }
       }
     }
-    // Decorative tabs/blanks on free edges so every piece looks like a puzzle
+    pairs.sort((p, q) => p.score - q.score);
+    for (const pr of pairs) {
+      const a = pr.a, b = pr.b;
+      if (pr.dir === 'h') {
+        // ensure A is left of B
+        const aLeft = a.body.position.x <= b.body.position.x ? a : b;
+        const aRight = aLeft === a ? b : a;
+        const k1 = aLeft.id + ':r', k2 = aRight.id + ':l';
+        if (used.has(k1) || used.has(k2)) continue;
+        const tab = Math.random() < 0.5 ? 1 : -1;
+        aLeft.edges.r = tab; aRight.edges.l = -tab;
+        used.add(k1); used.add(k2);
+        pr._left = aLeft; pr._right = aRight; pr._paired = true;
+      } else {
+        const aTop = a.body.position.y <= b.body.position.y ? a : b;
+        const aBot = aTop === a ? b : a;
+        const k1 = aTop.id + ':b', k2 = aBot.id + ':t';
+        if (used.has(k1) || used.has(k2)) continue;
+        const tab = Math.random() < 0.5 ? 1 : -1;
+        aTop.edges.b = tab; aBot.edges.t = -tab;
+        used.add(k1); used.add(k2);
+        pr._top = aTop; pr._bot = aBot; pr._paired = true;
+      }
+    }
+    // Decorative tabs/blanks on remaining free edges
     for (const p of alive) {
       for (const k of ['t', 'r', 'b', 'l']) {
-        if (p.edges[k] === 0) p.edges[k] = Math.random() < 0.5 ? 1 : -1;
+        if (p.edges[k] === 0) p.edges[k] = Math.random() < 0.55 ? 1 : -1;
       }
     }
-    // Outer edges facing rim: never tab outward (flat or blank only)
+    // Outer edges facing rim: never tab outward (blank/flat only)
     for (const p of alive) {
       const x = p.body.position.x, y = p.body.position.y;
-      const near = (p.tabR || 10) + 8;
-      if (x - p.w / 2 < board.x + near) p.edges.l = Math.min(0, p.edges.l || -1);
-      if (x + p.w / 2 > board.x + board.w - near) p.edges.r = Math.min(0, p.edges.r || -1);
-      if (y - p.h / 2 < board.y + near) p.edges.t = Math.min(0, p.edges.t || -1);
-      if (y + p.h / 2 > board.y + board.h - near) p.edges.b = Math.min(0, p.edges.b || -1);
+      const reach = tabReachFor(p) + 4;
+      const nearL = x - p.w / 2 < board.x + reach;
+      const nearR = x + p.w / 2 > board.x + board.w - reach;
+      const nearT = y - p.h / 2 < board.y + reach;
+      const nearB = y + p.h / 2 > board.y + board.h - reach;
+      if (nearL) p.edges.l = -1;
+      if (nearR) p.edges.r = -1;
+      if (nearT) p.edges.t = -1;
+      if (nearB) p.edges.b = -1;
+      // Guarantee a classic look: at least one outward knob if space allows
+      if (![p.edges.t, p.edges.r, p.edges.b, p.edges.l].some(v => v > 0)) {
+        const rooms = {
+          t: y - p.h / 2 - board.y,
+          b: board.y + board.h - (y + p.h / 2),
+          l: x - p.w / 2 - board.x,
+          r: board.x + board.w - (x + p.w / 2)
+        };
+        const best = Object.entries(rooms).sort((a, b) => b[1] - a[1])[0];
+        if (best[1] > tabReachFor(p) + 6) p.edges[best[0]] = 1;
+      }
+    }
+    nestPuzzlePieces(pairs);
+  }
+
+  /** Pull complementary neighbours flush so tabs seat into blanks; keep inside board. */
+  function nestPuzzlePieces(pairs) {
+    const alive = planks.filter(p => p.alive && !p.falling);
+    for (let iter = 0; iter < 12; iter++) {
+      for (const pr of pairs) {
+        if (!pr._paired) continue;
+        const seamGap = 0.75; // hairline between bodies; tab still fills blank
+        if (pr.dir === 'h' && pr._left && pr._right) {
+          const L = pr._left, R = pr._right;
+          const target = (L.body.position.x + L.w / 2 + R.body.position.x - R.w / 2) / 2;
+          Body.setPosition(L.body, { x: target - L.w / 2 - seamGap * 0.5, y: L.body.position.y });
+          Body.setPosition(R.body, { x: target + R.w / 2 + seamGap * 0.5, y: R.body.position.y });
+        } else if (pr.dir === 'v' && pr._top && pr._bot) {
+          const T = pr._top, B = pr._bot;
+          const target = (T.body.position.y + T.h / 2 + B.body.position.y - B.h / 2) / 2;
+          Body.setPosition(T.body, { x: T.body.position.x, y: target - T.h / 2 - seamGap * 0.5 });
+          Body.setPosition(B.body, { x: B.body.position.x, y: target + B.h / 2 + seamGap * 0.5 });
+        }
+      }
+      // resolve body overlaps (bodies may not overlap; tabs occupy blanks)
+      for (let i = 0; i < alive.length; i++) for (let j = i + 1; j < alive.length; j++) {
+        const a = alive[i], b = alive[j];
+        const ax = a.body.position.x, ay = a.body.position.y;
+        const bx = b.body.position.x, by = b.body.position.y;
+        const dx = (a.w + b.w) / 2 - Math.abs(bx - ax);
+        const dy = (a.h + b.h) / 2 - Math.abs(by - ay);
+        if (dx > 0.5 && dy > 0.5) {
+          if (dx < dy) {
+            const s = ax < bx ? -1 : 1;
+            Body.setPosition(a.body, { x: ax + s * dx * 0.5, y: ay });
+            Body.setPosition(b.body, { x: bx - s * dx * 0.5, y: by });
+          } else {
+            const s = ay < by ? -1 : 1;
+            Body.setPosition(a.body, { x: ax, y: ay + s * dy * 0.5 });
+            Body.setPosition(b.body, { x: bx, y: by - s * dy * 0.5 });
+          }
+        }
+      }
+    }
+    // Clamp so body + outward tabs stay inside board
+    for (const p of alive) {
+      const reach = tabReachFor(p);
+      const padL = (p.edges.l > 0 ? reach : 2);
+      const padR = (p.edges.r > 0 ? reach : 2);
+      const padT = (p.edges.t > 0 ? reach : 2);
+      const padB = (p.edges.b > 0 ? reach : 2);
+      let x = p.body.position.x, y = p.body.position.y;
+      const minX = board.x + p.w / 2 + padL;
+      const maxX = board.x + board.w - p.w / 2 - padR;
+      const minY = board.y + p.h / 2 + padT;
+      const maxY = board.y + board.h - p.h / 2 - padB;
+      x = Math.max(minX, Math.min(maxX, x));
+      y = Math.max(minY, Math.min(maxY, y));
+      Body.setPosition(p.body, { x, y });
+      // keep screws inside body
+      for (const id of p.screwIds) {
+        const sc = screws.find(s => s.id === id); if (!sc || !sc.alive) continue;
+        const inset = screwR + 10;
+        sc.x = Math.max(x - p.w / 2 + inset, Math.min(x + p.w / 2 - inset, sc.x));
+        sc.y = Math.max(y - p.h / 2 + inset, Math.min(y + p.h / 2 - inset, sc.y));
+      }
     }
   }
 
-  /** Jigsaw outline in local space, centered at 0,0. edges: t/r/b/l ∈ {-1,0,1} */
+  /**
+   * Classic jigsaw outline (one closed path). Knob = circle intersecting the edge:
+   * neck narrower than head, solid fill includes the tab.
+   * edges: t/r/b/l ∈ {-1,0,1}; outward normals given per side.
+   */
   function jigsawPath(ctx, w, h, edges, tabR) {
     const hw = w / 2, hh = h / 2;
-    const tr = Math.max(6, Math.min(tabR || 10, Math.min(w, h) * 0.18));
-    const neck = tr * 0.55;
-    function bump(x0, y0, x1, y1, kind, outwardX, outwardY) {
-      // draw from (x0,y0) to (x1,y1) with optional tab/blank at midpoint
+    function bump(x0, y0, x1, y1, kind, nx, ny) {
       const dx = x1 - x0, dy = y1 - y0;
       const len = Math.hypot(dx, dy) || 1;
       const ux = dx / len, uy = dy / len;
-      const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
       if (!kind) { ctx.lineTo(x1, y1); return; }
-      const s = kind > 0 ? 1 : -1; // tab out along outward, blank opposite
-      const ox = outwardX * s, oy = outwardY * s;
-      // approach mid
-      ctx.lineTo(mx - ux * neck, my - uy * neck);
-      // neck in
-      ctx.lineTo(mx - ux * neck * 0.35 + ox * tr * 0.15, my - uy * neck * 0.35 + oy * tr * 0.15);
-      // tab bulb (quadratic-ish via arc approximation)
-      const bx = mx + ox * tr, by = my + oy * tr;
-      ctx.quadraticCurveTo(mx - ux * tr * 0.85 + ox * tr * 1.05, my - uy * tr * 0.85 + oy * tr * 1.05, bx - uy * tr * 0.95, by + ux * tr * 0.95);
-      ctx.quadraticCurveTo(mx + ox * tr * 1.35, my + oy * tr * 1.35, bx + uy * tr * 0.95, by - ux * tr * 0.95);
-      ctx.quadraticCurveTo(mx + ux * tr * 0.85 + ox * tr * 1.05, my + uy * tr * 0.85 + oy * tr * 1.05, mx + ux * neck * 0.35 + ox * tr * 0.15, my + uy * neck * 0.35 + oy * tr * 0.15);
-      ctx.lineTo(mx + ux * neck, my + uy * neck);
+      const R = Math.max(8, Math.min(tabR || len * 0.2, len * 0.22));
+      // center offset: neck width 2*sqrt(R^2-d^2) ≈ 1.05 R (narrower than 2R head)
+      const d = R * 0.82;
+      const neckHalf = Math.sqrt(Math.max(R * R - d * d, 1));
+      const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+      const s = kind > 0 ? 1 : -1;
+      const cx = mx + nx * s * d;
+      const cy = my + ny * s * d;
+      const ax = mx - ux * neckHalf, ay = my - uy * neckHalf;
+      const bx = mx + ux * neckHalf, by = my + uy * neckHalf;
+      ctx.lineTo(ax, ay);
+      const a0 = Math.atan2(ay - cy, ax - cx);
+      const a1 = Math.atan2(by - cy, bx - cx);
+      // Pick sweep that passes through the tip (outward for tab, inward for blank)
+      const tipAng = Math.atan2(ny * s, nx * s);
+      const ccw = sweepIncludes(a0, a1, tipAng, true);
+      ctx.arc(cx, cy, R, a0, a1, !ccw);
       ctx.lineTo(x1, y1);
     }
+    function sweepIncludes(from, to, mid, ccw) {
+      const TAU = Math.PI * 2;
+      const norm = a => ((a % TAU) + TAU) % TAU;
+      const f = norm(from), t = norm(to), m = norm(mid);
+      if (ccw) {
+        if (f <= t) return m >= f && m <= t;
+        return m >= f || m <= t;
+      }
+      if (f >= t) return m <= f && m >= t;
+      return m <= f || m >= t;
+    }
     ctx.moveTo(-hw, -hh);
-    bump(-hw, -hh, hw, -hh, edges.t || 0, 0, -1);   // top, outward up
-    bump(hw, -hh, hw, hh, edges.r || 0, 1, 0);       // right
-    bump(hw, hh, -hw, hh, edges.b || 0, 0, 1);       // bottom
-    bump(-hw, hh, -hw, -hh, edges.l || 0, -1, 0);    // left
+    bump(-hw, -hh, hw, -hh, edges.t || 0, 0, -1);
+    bump(hw, -hh, hw, hh, edges.r || 0, 1, 0);
+    bump(hw, hh, -hw, hh, edges.b || 0, 0, 1);
+    bump(-hw, hh, -hw, -hh, edges.l || 0, -1, 0);
     ctx.closePath();
   }
 
@@ -878,28 +1001,33 @@
     // piece body
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang);
+    const reach = tabReachFor(p);
     ctx.beginPath(); jigsawPath(ctx, p.w, p.h, edges, tabR);
-    ctx.fillStyle = woodFill(p.woodTone); ctx.fill();
-    // bevel highlight + dark edge
+    ctx.fillStyle = woodFill(p.woodTone); ctx.fill('nonzero');
+    // bevel + grain clipped to FULL outline (tabs included)
     ctx.save();
-    ctx.clip();
+    ctx.beginPath(); jigsawPath(ctx, p.w, p.h, edges, tabR);
+    ctx.clip('nonzero');
     const g = ctx.createLinearGradient(-p.w / 2, -p.h / 2, p.w / 2, p.h / 2);
-    g.addColorStop(0, 'rgba(255,240,200,0.28)');
-    g.addColorStop(0.45, 'rgba(255,240,200,0)');
-    g.addColorStop(1, 'rgba(40,20,5,0.18)');
-    ctx.fillStyle = g; ctx.fillRect(-p.w / 2 - tabR, -p.h / 2 - tabR, p.w + tabR * 2, p.h + tabR * 2);
-    // wood grain
-    ctx.strokeStyle = 'rgba(90,50,20,0.18)'; ctx.lineWidth = 1;
-    for (let yy = -p.h / 2; yy < p.h / 2; yy += 5) {
+    g.addColorStop(0, 'rgba(255,240,200,0.32)');
+    g.addColorStop(0.4, 'rgba(255,240,200,0)');
+    g.addColorStop(1, 'rgba(40,20,5,0.2)');
+    ctx.fillStyle = g;
+    ctx.fillRect(-p.w / 2 - reach, -p.h / 2 - reach, p.w + reach * 2, p.h + reach * 2);
+    ctx.strokeStyle = 'rgba(90,50,20,0.2)'; ctx.lineWidth = 1.2;
+    for (let yy = -p.h / 2 - reach; yy < p.h / 2 + reach; yy += 5) {
       ctx.beginPath();
-      ctx.moveTo(-p.w / 2 - 4, yy);
-      ctx.bezierCurveTo(-p.w / 6, yy + 1.5, p.w / 6, yy - 1.2, p.w / 2 + 4, yy + 0.8);
+      ctx.moveTo(-p.w / 2 - reach, yy);
+      ctx.bezierCurveTo(-p.w / 6, yy + 1.5, p.w / 6, yy - 1.2, p.w / 2 + reach, yy + 0.8);
       ctx.stroke();
     }
+    // soft inner bevel along outline
+    ctx.beginPath(); jigsawPath(ctx, p.w, p.h, edges, tabR);
+    ctx.strokeStyle = 'rgba(255,235,190,0.35)'; ctx.lineWidth = 4; ctx.stroke();
     ctx.restore();
     ctx.beginPath(); jigsawPath(ctx, p.w, p.h, edges, tabR);
-    ctx.strokeStyle = 'rgba(255,235,190,0.5)'; ctx.lineWidth = 2.5; ctx.stroke();
-    ctx.strokeStyle = 'rgba(55,30,8,0.55)'; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,235,190,0.55)'; ctx.lineWidth = 2.2; ctx.stroke();
+    ctx.strokeStyle = 'rgba(55,30,8,0.6)'; ctx.lineWidth = 1.5; ctx.stroke();
     // crack lines during shatter
     if (p.shattering && p.shatter && p.shatter.phase === 'crack') {
       const u = Math.min(1, p.shatter.t / p.shatter.crackDur);
@@ -1214,7 +1342,8 @@ function drawTrayNine() {
     for (let i = 0; i < boxesA.length; i++) {
       for (let j = i + 1; j < boxesA.length; j++) {
         const a = boxesA[i], b = boxesA[j];
-        const hit = !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+        const eps = 1.0; // flush nest counts as non-overlap
+        const hit = !(a.x + a.w <= b.x + eps || b.x + b.w <= a.x + eps || a.y + a.h <= b.y + eps || b.y + b.h <= a.y + eps);
         if (hit) return { ok: false, reason: 'overlap', a: a.id, b: b.id };
       }
     }
