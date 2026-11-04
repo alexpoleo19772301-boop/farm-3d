@@ -1,9 +1,9 @@
 {
-  "version": "3.1.0",
-  "versionCode": 31000,
+  "version": "3.2.0",
+  "versionCode": 32000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.1.0",
+  "webVersion": "3.2.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.1.0: реальные перекрытия (винт под доской серый+замок+clunk)\n• Давление цветов: 2 коробки, много цветов, слоты\n• 42 уровня проверены солвером\n• Туториал L1–L3, цель «Урони все доски»\n• Арт ближе к мокапу: workshop BG, glossy screws"
+  "changelog": "• v3.2.0: доски не налезают и не выходят за поле\n• Блокировка: замки-ключи и ряды (не оверлап)\n• Арт ближе к мокапу, 6 цветов винтов\n• 42 уровня, солвер + проверка геометрии"
 }

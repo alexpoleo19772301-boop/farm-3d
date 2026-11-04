@@ -1,13 +1,13 @@
-/* Винтики v3.1.0 — occlusion puzzle, colour pressure, Matter.js */
+/* Винтики v3.2.0 — non-overlap grid, locks/bands, colour pressure */
 (function () {
   'use strict';
-  const VERSION = '3.1.0';
+  const VERSION = '3.2.0';
   const COLORS = {
     red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
-    purple: '#9b4de0', orange: '#f08a2a', cyan: '#2ec4b6'
+    purple: '#9b4de0', orange: '#f08a2a'
   };
   const BOX_CAP = 3;
-  const SAVE_KEY = 'vintiki_save_v31';
+  const SAVE_KEY = 'vintiki_save_v32';
   const $ = (id) => document.getElementById(id);
   const canvas = $('game');
   const ctx = canvas.getContext('2d');
@@ -22,12 +22,13 @@
   let animT = 0, particles = [], flyers = [], confetti = [];
   let tutStep = 0, tutMsg = '', hintScrewId = null, hammerMode = false;
   let outcomeGen = 0, shakeScrewId = null, shakeT = 0;
-  let board = { x: 24, y: 190, w: 342, h: 360 };
+  let board = { x: 24, y: 200, w: 342, h: 342 };
   let boxes = [], waitSlots = [], maxSlots = 5;
-  let planks = [], screws = [];
+  let planks = [], screws = [], removedKeys = new Set();
   let engine = null, world = null;
   let imgs = {}, audio = {}, bgmStarted = false;
   let goalText = 'Урони все доски';
+  let levelBands = 1;
 
   function loadSave() {
     try {
@@ -58,19 +59,6 @@
 
   function shapeVerts(type, w, h) {
     const hw = w / 2, hh = h / 2;
-    if (type === 'L') {
-      const t = Math.min(w, h) * 0.42;
-      return [[-hw, -hh], [hw, -hh], [hw, -hh + t], [-hw + t, -hh + t], [-hw + t, hh], [-hw, hh]];
-    }
-    if (type === 'T') {
-      const t = h * 0.38;
-      return [[-hw, -hh], [hw, -hh], [hw, -hh + t], [hw * 0.32, -hh + t], [hw * 0.32, hh], [-hw * 0.32, hh], [-hw * 0.32, -hh + t], [-hw, -hh + t]];
-    }
-    if (type === 'tri') return [[0, -hh], [hw, hh], [-hw, hh]];
-    if (type === 'Z') {
-      const t = h / 3;
-      return [[-hw, -hh], [hw * 0.15, -hh], [hw * 0.15, -t], [hw, -t], [hw, hh], [-hw * 0.15, hh], [-hw * 0.15, t], [-hw, t]];
-    }
     return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
   }
   function rotatePts(pts, ang) {
@@ -92,6 +80,15 @@
     const cy = p.body ? p.body.position.y : board.y + p.ly;
     return translatePts(rotatePts(shapeVerts(p.type, p.w, p.h), ang), cx, cy);
   }
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
 
   function resize() {
     const r = wrap.getBoundingClientRect();
@@ -100,21 +97,37 @@
     canvas.width = Math.floor(W * dpr); canvas.height = Math.floor(H * dpr);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    board.w = Math.min(350, W - 40);
-    board.x = (W - board.w) / 2;
-    board.h = Math.min(board.w * 1.02, H * 0.46);
-    board.y = Math.min(H * 0.255, 215);
+    // Square board fully on screen with room for boxes + wait + boosters
+    const side = Math.min(W - 36, H * 0.42, 360);
+    board.w = side; board.h = side;
+    board.x = (W - side) / 2;
+    board.y = Math.min(210, H * 0.26);
   }
 
   function clearWorld() {
     if (engine) { World.clear(engine.world, false); Engine.clear(engine); }
     engine = Engine.create({ enableSleeping: true });
-    world = engine.world; world.gravity.y = 0.95;
+    world = engine.world; world.gravity.y = 1.0;
     World.add(world, [
       Bodies.rectangle(W / 2, H + 40, W * 2, 80, { isStatic: true }),
       Bodies.rectangle(-40, H / 2, 80, H * 2, { isStatic: true }),
       Bodies.rectangle(W + 40, H / 2, 80, H * 2, { isStatic: true })
     ]);
+  }
+
+  function scaleLevel(def) {
+    // levels authored in 320x320 local space
+    const S = board.w / 320;
+    return {
+      ...def,
+      planks: (def.planks || []).map(p => ({
+        ...p,
+        x: p.x * S, y: p.y * S, w: p.w * S, h: p.h * S
+      })),
+      screws: (def.screws || []).map(s => ({
+        ...s, x: s.x * S, y: s.y * S
+      }))
+    };
   }
 
   function startLevel(idx) {
@@ -124,14 +137,16 @@
     showScreen('play');
     hammerMode = false; hintScrewId = null; shakeScrewId = null;
     particles = []; flyers = []; confetti = [];
+    removedKeys = new Set();
     const toastEl = $('toast'); if (toastEl) toastEl.style.display = 'none';
-    const def = levels[idx] || levels[0];
+    const raw = levels[idx] || levels[0];
+    const def = scaleLevel(raw);
     goalText = def.goal || 'Урони все доски';
+    levelBands = def.bands || 1;
     maxSlots = def.slots || 5;
     if (save.boosters._extraSlots) maxSlots += save.boosters._extraSlots;
     tutStep = 0; tutMsg = '';
     if (def.tut) { tutStep = 1; tutMsg = def.tut[1] || ''; }
-    else if (idx <= 2) { tutStep = 1; tutMsg = 'Урони все доски'; }
 
     clearWorld();
     planks = []; screws = [];
@@ -141,75 +156,69 @@
     }));
     layoutBoxes();
 
-    const sorted = (def.planks || []).map((p, i) => Object.assign({}, p, { _i: i }))
-      .sort((a, b) => a.layer - b.layer);
-    for (const pd of sorted) {
+    for (const pd of def.planks) {
       const cx = board.x + pd.x, cy = board.y + pd.y;
-      const verts = rotatePts(shapeVerts(pd.type || 'barH', pd.w, pd.h), pd.rot || 0);
-      let body;
-      try {
-        body = Bodies.fromVertices(cx, cy, [verts.map(([x, y]) => ({ x, y }))], {
-          isStatic: true, friction: 0.35, restitution: 0.05, density: 0.002, label: 'plank'
-        }, true);
-      } catch (e) { body = null; }
-      if (!body) body = Bodies.rectangle(cx, cy, pd.w, pd.h, { isStatic: true, angle: pd.rot || 0, label: 'plank' });
-      Body.setAngle(body, pd.rot || 0);
+      // clamp body fully inside board
+      const halfW = pd.w / 2, halfH = pd.h / 2;
+      const minX = board.x + halfW + 4, maxX = board.x + board.w - halfW - 4;
+      const minY = board.y + halfH + 4, maxY = board.y + board.h - halfH - 4;
+      const ccx = Math.max(minX, Math.min(maxX, cx));
+      const ccy = Math.max(minY, Math.min(maxY, cy));
+      const body = Bodies.rectangle(ccx, ccy, pd.w, pd.h, {
+        isStatic: true, chamfer: { radius: 10 }, friction: 0.35, restitution: 0.04, density: 0.002, label: 'plank'
+      });
       const plank = {
-        id: pd.id || ('p' + pd._i),
-        type: pd.type || 'barH', w: pd.w, h: pd.h, layer: pd.layer | 0,
-        rot: pd.rot || 0, lx: pd.x, ly: pd.y,
+        id: pd.id, type: pd.type || 'barH', w: pd.w, h: pd.h,
+        layer: 0, band: pd.band || 0, rot: 0,
+        lx: pd.x, ly: pd.y,
         body, alive: true, falling: false, screwIds: [], constraint: null,
-        woodTone: 0.88 + ((pd.layer | 0) % 4) * 0.04
+        woodTone: 0.95 + (planks.length % 4) * 0.02
       };
       World.add(world, body);
       planks.push(plank);
     }
 
-    (def.screws || []).forEach((sd, i) => {
-      const sc = {
-        id: sd.id || ('s' + i),
-        x: board.x + sd.x, y: board.y + sd.y,
-        color: sd.color, plankId: sd.plankId,
-        alive: true, blocked: false
-      };
-      const owner = planks.find(p => p.id === sc.plankId);
-      if (owner) owner.screwIds.push(sc.id);
-      else {
-        // fallback nearest
-        let best = null, bd = 1e9;
-        for (const p of planks) {
-          const d = (p.body.position.x - sc.x) ** 2 + (p.body.position.y - sc.y) ** 2;
-          if (d < bd) { bd = d; best = p; }
-        }
-        if (best) { sc.plankId = best.id; best.screwIds.push(sc.id); }
+    for (const sd of def.screws) {
+      const owner = planks.find(p => p.id === sd.plankId);
+      let sx = board.x + sd.x, sy = board.y + sd.y;
+      if (owner) {
+        // keep screw inside plank AABB
+        const bx = owner.body.position.x, by = owner.body.position.y;
+        sx = Math.max(bx - owner.w / 2 + 14, Math.min(bx + owner.w / 2 - 14, sx));
+        sy = Math.max(by - owner.h / 2 + 14, Math.min(by + owner.h / 2 - 14, sy));
       }
+      const sc = {
+        id: sd.id, x: sx, y: sy, color: sd.color, plankId: sd.plankId,
+        alive: true, locked: !!sd.locked, keyId: sd.keyId || null,
+        lockedUntilBand: sd.lockedUntilBand || 0, isKey: !!sd.isKey,
+        blocked: false
+      };
+      if (owner) owner.screwIds.push(sc.id);
       screws.push(sc);
-    });
-    updateBlocked();
+    }
+    updateLocks();
     refreshHud();
     ensureBgm();
   }
 
   function layoutBoxes() {
-    const bw = 78, gap = 14;
+    const bw = 84, gap = 16;
     const total = boxes.length * bw + (boxes.length - 1) * gap;
     const x0 = (W - total) / 2;
-    boxes.forEach((b, i) => { b.w = bw; b.h = 60; b.x = x0 + i * (bw + gap); b.y = 78; });
+    boxes.forEach((b, i) => { b.w = bw; b.h = 62; b.x = x0 + i * (bw + gap); b.y = 86; });
   }
 
-  function ownerPlank(sc) { return planks.find(p => p.id === sc.plankId && p.alive); }
+  function bandCleared(band) {
+    return !planks.some(p => p.alive && !p.falling && (p.band || 0) < band);
+  }
 
-  function updateBlocked() {
+  function updateLocks() {
     for (const sc of screws) {
       if (!sc.alive) { sc.blocked = false; continue; }
-      const owner = ownerPlank(sc);
-      if (!owner) { sc.blocked = true; continue; }
-      sc.blocked = false;
-      for (const p of planks) {
-        if (!p.alive || p.falling) continue;
-        if (p.layer <= owner.layer) continue;
-        if (pointInPoly(sc.x, sc.y, plankWorldPoly(p))) { sc.blocked = true; break; }
-      }
+      let locked = false;
+      if (sc.lockedUntilBand > 0 && !bandCleared(sc.lockedUntilBand)) locked = true;
+      if (sc.locked && sc.keyId && !removedKeys.has(sc.keyId)) locked = true;
+      sc.blocked = locked;
     }
   }
 
@@ -229,11 +238,10 @@
       if (p.constraint) World.remove(world, p.constraint);
       const lx = sc.x - p.body.position.x, ly = sc.y - p.body.position.y;
       const a = -p.body.angle;
-      const ox = lx * Math.cos(a) - ly * Math.sin(a);
-      const oy = lx * Math.sin(a) + ly * Math.cos(a);
       p.constraint = Constraint.create({
-        bodyA: p.body, pointA: { x: ox, y: oy }, pointB: { x: sc.x, y: sc.y },
-        stiffness: 1, length: 0, damping: 0.18
+        bodyA: p.body,
+        pointA: { x: lx * Math.cos(a) - ly * Math.sin(a), y: lx * Math.sin(a) + ly * Math.cos(a) },
+        pointB: { x: sc.x, y: sc.y }, stiffness: 1, length: 0, damping: 0.2
       });
       World.add(world, p.constraint);
       p.body.frictionAir = 0.06;
@@ -241,16 +249,14 @@
       if (p.constraint) { World.remove(world, p.constraint); p.constraint = null; }
       Body.setStatic(p.body, false);
       p.falling = true;
-      Body.setAngularVelocity(p.body, (Math.random() - 0.5) * 0.08);
+      Body.setAngularVelocity(p.body, (Math.random() - 0.5) * 0.06);
       playSfx('wood', 0.7);
       spawnDust(p.body.position.x, p.body.position.y);
-      updateBlocked();
+      updateLocks();
     }
   }
 
-  function findBoxFor(color) {
-    return boxes.find(b => !b.flying && b.color === color && b.count < BOX_CAP);
-  }
+  function findBoxFor(color) { return boxes.find(b => !b.flying && b.color === color && b.count < BOX_CAP); }
   function nextBoxColorNeeded() {
     const need = {};
     for (const sc of screws) if (sc.alive) need[sc.color] = (need[sc.color] || 0) + 1;
@@ -262,8 +268,7 @@
   function slotPos(i) {
     const sw = 40, gap = 8;
     const total = maxSlots * sw + (maxSlots - 1) * gap;
-    const x0 = (W - total) / 2 + sw / 2;
-    return { x: x0 + i * (sw + gap), y: board.y + board.h + 34 };
+    return { x: (W - total) / 2 + sw / 2 + i * (sw + gap), y: board.y + board.h + 36 };
   }
 
   function removeScrew(sc) {
@@ -271,14 +276,16 @@
     if (sc.blocked) {
       shakeScrewId = sc.id; shakeT = 0.35;
       playSfx('clunk', 0.75);
-      toast('Винт под доской — сначала убери верхнюю');
+      if (sc.lockedUntilBand > 0) toast('Сначала урони доски верхнего ряда');
+      else toast('Сначала открути винт с ключиком');
       return false;
     }
     sc.alive = false;
+    removedKeys.add(sc.id);
     playSfx('screw', 0.7);
     const owner = planks.find(p => p.id === sc.plankId);
     if (owner) refreshPlankPhysics(owner);
-    updateBlocked();
+    updateLocks();
 
     const box = findBoxFor(sc.color);
     if (box) {
@@ -286,7 +293,6 @@
     } else {
       const slot = waitSlots.findIndex(s => !s);
       if (slot < 0) {
-        flyers.push({ kind: 'fail', color: sc.color, x: sc.x, y: sc.y, t: 0, spin: 0 });
         const g = outcomeGen;
         setTimeout(() => { if (g === outcomeGen) endLose(); }, 450);
         return true;
@@ -297,10 +303,10 @@
     }
     if (tutStep === 1) {
       tutStep = 2;
-      if (levelIdx === 0) tutMsg = 'Открути остальные — доска упадёт';
-      else if (levelIdx === 1) tutMsg = 'Серый винт закрыт — сначала верхнюю доску';
-      else if (levelIdx === 2) tutMsg = 'Смотри на цвет коробки';
-      else tutMsg = goalText;
+      tutMsg = levelIdx === 0 ? 'Открути остальные винты' :
+        levelIdx === 1 ? 'Чужой цвет займёт слот ожидания' :
+        levelIdx === 2 ? 'Ключик открывает замки' :
+        levelIdx === 3 ? 'Освободи верхний ряд — откроется нижний' : goalText;
     }
     return true;
   }
@@ -308,10 +314,9 @@
   function onFlyerArrived(f) {
     if (f.kind !== 'toBox') return;
     const box = boxes.find(b => b.id === f.boxId); if (!box) return;
-    box.count++;
-    playSfx('box', 0.5);
+    box.count++; playSfx('box', 0.5);
     spawnSpark(box.x + box.w / 2, box.y + box.h / 2, box.color);
-    if (box.count >= BOX_CAP) { box.flying = true; box.flyT = 0; playSfx('box', 0.7); }
+    if (box.count >= BOX_CAP) { box.flying = true; box.flyT = 0; }
   }
   function tryFlushWaits() {
     let moved;
@@ -343,15 +348,14 @@
   function checkWin() {
     if (state !== 'play') return;
     for (const p of planks) {
-      if (p.falling && p.body.position.y > board.y + board.h + 30) {
+      if (p.falling && p.body.position.y > board.y + board.h + 40) {
         p.alive = false;
         if (p.constraint) { try { World.remove(world, p.constraint); } catch (e) {} p.constraint = null; }
         try { World.remove(world, p.body); } catch (e) {}
+        updateLocks();
       }
     }
-    const remaining = planks.filter(p => p.alive && !p.falling);
-    const screwsLeft = screws.some(s => s.alive);
-    if (!remaining.length && !screwsLeft) {
+    if (!planks.some(p => p.alive && !p.falling) && !screws.some(s => s.alive)) {
       const g = outcomeGen;
       if (checkWin._armed !== g) {
         checkWin._armed = g;
@@ -362,8 +366,7 @@
   function endWin() {
     if (state !== 'play') return;
     state = 'win'; playSfx('win', 0.7); burstConfetti();
-    const stars = 3;
-    save.stars[levelIdx] = Math.max(save.stars[levelIdx] || 0, stars);
+    save.stars[levelIdx] = 3;
     save.coins += 40 + levelIdx * 2;
     if (save.unlocked < levelIdx + 2) save.unlocked = levelIdx + 2;
     persist();
@@ -377,7 +380,7 @@
   }
 
   function screwAt(x, y) {
-    let best = null, bd = 30 * 30;
+    let best = null, bd = 32 * 32;
     for (const sc of screws) {
       if (!sc.alive) continue;
       const d = (sc.x - x) ** 2 + (sc.y - y) ** 2;
@@ -386,8 +389,10 @@
     return best;
   }
   function plankAt(x, y) {
-    const ordered = planks.filter(p => p.alive && !p.falling).sort((a, b) => b.layer - a.layer);
-    for (const p of ordered) if (pointInPoly(x, y, plankWorldPoly(p))) return p;
+    for (const p of planks) {
+      if (!p.alive || p.falling) continue;
+      if (pointInPoly(x, y, plankWorldPoly(p))) return p;
+    }
     return null;
   }
   function onPointer(x, y) {
@@ -399,10 +404,10 @@
         save.boosters.hammer--; persist();
         for (const id of [...p.screwIds]) {
           const sc = screws.find(s => s.id === id && s.alive);
-          if (sc) sc.alive = false;
+          if (sc) { sc.alive = false; removedKeys.add(sc.id); }
         }
         p.screwIds = []; refreshPlankPhysics(p); hammerMode = false;
-        updateBlocked(); refreshHud(); playSfx('wood', 0.8); toast('Доска сломана!');
+        updateLocks(); refreshHud(); playSfx('wood', 0.8); toast('Доска убрана');
       }
       return;
     }
@@ -418,110 +423,90 @@
 
   function useHint() {
     if (state !== 'play' || save.boosters.hint <= 0) return;
-    updateBlocked();
+    updateLocks();
     let pick = screws.find(s => s.alive && !s.blocked && findBoxFor(s.color));
     if (!pick) pick = screws.find(s => s.alive && !s.blocked);
     if (!pick) { toast('Нет свободных винтов'); return; }
-    save.boosters.hint--; persist(); hintScrewId = pick.id; refreshHud(); playSfx('btn', 0.5);
+    save.boosters.hint--; persist(); hintScrewId = pick.id; refreshHud();
   }
   function useSlot() {
     if (state !== 'play' || save.boosters.slot <= 0) return;
     if (maxSlots >= 8) { toast('Максимум слотов'); return; }
     save.boosters.slot--; save.boosters._extraSlots = (save.boosters._extraSlots || 0) + 1;
-    maxSlots++; waitSlots.push(null); persist(); refreshHud(); playSfx('btn', 0.5); toast('+1 слот');
+    maxSlots++; waitSlots.push(null); persist(); refreshHud(); toast('+1 слот');
   }
   function useHammer() {
     if (state !== 'play' || save.boosters.hammer <= 0) return;
     hammerMode = !hammerMode;
-    toast(hammerMode ? 'Выбери доску для молота' : 'Молот отменён');
+    toast(hammerMode ? 'Выбери доску' : 'Отмена');
   }
 
-  function roundRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-  function woodFill(ctx, tone, layer) {
-    const g = ctx.createLinearGradient(-60, -40, 60, 50);
-    const lift = 1 + layer * 0.06;
-    const r = Math.floor(198 * tone * lift), g0 = Math.floor(148 * tone * lift), b = Math.floor(82 * tone);
-    g.addColorStop(0, `rgb(${Math.min(255, r + 35)},${Math.min(255, g0 + 28)},${b + 12})`);
+  function woodFill(tone) {
+    const g = ctx.createLinearGradient(-50, -30, 50, 40);
+    const r = Math.floor(205 * tone), g0 = Math.floor(155 * tone), b = Math.floor(88 * tone);
+    g.addColorStop(0, `rgb(${r + 30},${g0 + 22},${b + 10})`);
     g.addColorStop(0.5, `rgb(${r},${g0},${b})`);
-    g.addColorStop(1, `rgb(${r - 35},${g0 - 28},${b - 18})`);
+    g.addColorStop(1, `rgb(${r - 40},${g0 - 30},${b - 20})`);
     return g;
   }
 
   function drawPlank(p) {
     if (!p.alive && !p.falling) return;
-    if (p.body.position.y > H + 100) return;
+    if (p.body.position.y > H + 80) return;
     const poly = plankWorldPoly(p);
     ctx.save();
-    // drop shadow (stronger for higher layers visually offset)
     ctx.beginPath();
-    poly.forEach(([x, y], i) => i ? ctx.lineTo(x + 3 + p.layer, y + 5 + p.layer * 1.5) : ctx.moveTo(x + 3 + p.layer, y + 5 + p.layer * 1.5));
+    poly.forEach(([x, y], i) => i ? ctx.lineTo(x + 4, y + 6) : ctx.moveTo(x + 4, y + 6));
     ctx.closePath();
-    ctx.fillStyle = `rgba(0,0,0,${0.18 + p.layer * 0.05})`;
-    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fill();
 
-    ctx.beginPath();
-    poly.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
-    ctx.closePath();
-    ctx.fillStyle = woodFill(ctx, p.woodTone, p.layer);
-    ctx.fill();
-    // bevel
-    ctx.strokeStyle = 'rgba(255,235,190,0.4)';
-    ctx.lineWidth = 3; ctx.stroke();
-    ctx.strokeStyle = 'rgba(70,40,15,0.55)';
-    ctx.lineWidth = 2; ctx.stroke();
-    ctx.save(); ctx.clip();
-    ctx.strokeStyle = 'rgba(90,50,20,0.14)'; ctx.lineWidth = 1;
-    const minx = Math.min(...poly.map(p => p[0])), maxx = Math.max(...poly.map(p => p[0]));
-    const miny = Math.min(...poly.map(p => p[1])), maxy = Math.max(...poly.map(p => p[1]));
-    for (let y = miny; y < maxy; y += 5) { ctx.beginPath(); ctx.moveTo(minx, y); ctx.lineTo(maxx, y + 1.5); ctx.stroke(); }
+    const x = p.body.position.x, y = p.body.position.y;
+    ctx.translate(x, y); ctx.rotate(p.body.angle);
+    roundRect(ctx, -p.w / 2, -p.h / 2, p.w, p.h, 12);
+    ctx.fillStyle = woodFill(p.woodTone); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,235,190,0.45)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = 'rgba(70,40,12,0.5)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.save();
+    roundRect(ctx, -p.w / 2, -p.h / 2, p.w, p.h, 12); ctx.clip();
+    ctx.strokeStyle = 'rgba(90,50,20,0.16)'; ctx.lineWidth = 1;
+    for (let yy = -p.h / 2; yy < p.h / 2; yy += 5) {
+      ctx.beginPath(); ctx.moveTo(-p.w / 2, yy); ctx.lineTo(p.w / 2, yy + 1); ctx.stroke();
+    }
+    ctx.restore();
     ctx.restore();
     // holes
     for (const id of p.screwIds) {
       const sc = screws.find(s => s.id === id); if (!sc) continue;
-      ctx.beginPath(); ctx.arc(sc.x, sc.y, 12, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(25,12,5,0.55)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(sc.x, sc.y, 13, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(25,12,5,0.5)'; ctx.fill();
     }
-    ctx.restore();
   }
 
-  function drawScrewHead(x, y, color, spin, scale, blocked, shaking) {
-    const r = 18 * (scale || 1);
+  function drawScrewHead(x, y, color, spin, scale, blocked, shaking, isKey) {
+    const r = 17 * (scale || 1);
     ctx.save();
     ctx.translate(x + (shaking ? Math.sin(animT * 55) * 3 : 0), y);
     ctx.rotate(spin || 0);
     const im = imgs['screw_' + color];
-    if (im && (color === 'red' || color === 'yellow' || color === 'green' || color === 'blue')) {
-      ctx.drawImage(im, -r, -r, r * 2, r * 2);
-    } else {
-      // vector glossy head
-      const grd = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 2, 0, 0, r);
-      grd.addColorStop(0, '#fff8');
-      grd.addColorStop(0.35, COLORS[color] || '#ccc');
-      grd.addColorStop(1, '#0006');
+    if (im) ctx.drawImage(im, -r, -r, r * 2, r * 2);
+    else {
       ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fillStyle = COLORS[color] || '#ccc'; ctx.fill();
-      ctx.fillStyle = grd; ctx.fill();
       ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2; ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(-r * 0.42, 0); ctx.lineTo(r * 0.42, 0);
-      ctx.moveTo(0, -r * 0.42); ctx.lineTo(0, r * 0.42);
-      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.stroke();
+      ctx.moveTo(-r * 0.4, 0); ctx.lineTo(r * 0.4, 0);
+      ctx.moveTo(0, -r * 0.4); ctx.lineTo(0, r * 0.4);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.stroke();
+    }
+    if (isKey && !blocked) {
+      ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('🔑', r * 0.55, -r * 0.55);
     }
     if (blocked) {
       ctx.fillStyle = 'rgba(40,40,40,0.55)';
       ctx.beginPath(); ctx.arc(0, 0, r + 1, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('🔒', 0, 1);
+      ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff'; ctx.fillText('🔒', 0, 1);
     }
     ctx.restore();
   }
@@ -530,16 +515,16 @@
     for (const b of boxes) {
       ctx.save();
       let y = b.y, a = 1, sc = 1;
-      if (b.flying) { y = b.y - b.flyT * 120; a = 1 - b.flyT; sc = 1 + b.flyT * 0.25; }
+      if (b.flying) { y = b.y - b.flyT * 120; a = 1 - b.flyT; sc = 1 + b.flyT * 0.2; }
       ctx.globalAlpha = a;
       ctx.translate(b.x + b.w / 2, y + b.h / 2); ctx.scale(sc, sc);
       ctx.translate(-(b.x + b.w / 2), -(y + b.h / 2));
-      ctx.fillStyle = '#5a3a1c';
-      roundRect(ctx, b.x, y, b.w, b.h, 12); ctx.fill();
+      ctx.fillStyle = '#5c3a1a';
+      roundRect(ctx, b.x, y, b.w, b.h, 14); ctx.fill();
       ctx.strokeStyle = COLORS[b.color]; ctx.lineWidth = 5;
-      roundRect(ctx, b.x + 2, y + 2, b.w - 4, b.h - 4, 10); ctx.stroke();
+      roundRect(ctx, b.x + 3, y + 3, b.w - 6, b.h - 6, 12); ctx.stroke();
       for (let i = 0; i < BOX_CAP; i++) {
-        const cx = b.x + 18 + i * 22, cy = y + b.h / 2;
+        const cx = b.x + 20 + i * 22, cy = y + b.h / 2;
         ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2);
         if (i < b.count) { ctx.fillStyle = COLORS[b.color]; ctx.fill(); }
         else { ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke(); }
@@ -551,59 +536,67 @@
     for (let i = 0; i < maxSlots; i++) {
       const p = slotPos(i);
       ctx.beginPath(); ctx.arc(p.x, p.y, 21, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(40,22,10,0.8)'; ctx.fill();
+      ctx.fillStyle = 'rgba(40,22,10,0.85)'; ctx.fill();
       ctx.strokeStyle = '#c9a06a'; ctx.lineWidth = 2; ctx.stroke();
-      if (waitSlots[i]) drawScrewHead(p.x, p.y, waitSlots[i].color, 0, 0.9, false, false);
+      if (waitSlots[i]) drawScrewHead(p.x, p.y, waitSlots[i].color, 0, 0.9, false, false, false);
     }
     ctx.fillStyle = 'rgba(255,232,192,0.75)';
     ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('Ожидание', W / 2, slotPos(0).y + 34);
   }
 
-  function drawTutorial() {
-    if (levelIdx > 2 && tutStep === 0) return;
+  function drawBandDivider() {
+    if (levelBands < 2) return;
+    // approximate mid of board
+    const y = board.y + board.h * 0.5;
     ctx.save();
-    // goal always
-    ctx.fillStyle = 'rgba(30,15,5,0.82)';
-    roundRect(ctx, board.x, board.y - 44, board.w, 30, 10); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,220,150,0.35)';
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.moveTo(board.x + 12, y); ctx.lineTo(board.x + board.w - 12, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(30,15,5,0.7)';
+    roundRect(ctx, board.x + board.w / 2 - 70, y - 12, 140, 24, 8); ctx.fill();
+    ctx.fillStyle = '#ffe8c0';
+    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const locked = !bandCleared(1);
+    ctx.fillText(locked ? 'Ряд 2 · закрыт 🔒' : 'Ряд 2 · открыт', board.x + board.w / 2, y);
+    ctx.restore();
+  }
+
+  function drawTutorial() {
+    ctx.save();
+    ctx.fillStyle = 'rgba(30,15,5,0.85)';
+    roundRect(ctx, board.x, board.y - 42, board.w, 28, 10); ctx.fill();
     ctx.fillStyle = '#ffe566';
     ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(goalText, board.x + board.w / 2, board.y - 29);
-
-    if (levelIdx <= 2 && tutMsg) {
-      ctx.fillStyle = 'rgba(20,10,5,0.88)';
-      roundRect(ctx, 24, board.y + board.h + 52, W - 48, 40, 12); ctx.fill();
-      ctx.fillStyle = '#fff6e0';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillText(tutMsg, W / 2, board.y + board.h + 72);
+    ctx.fillText(goalText, board.x + board.w / 2, board.y - 28);
+    if (levelIdx <= 3 && tutMsg) {
+      ctx.fillStyle = 'rgba(20,10,5,0.9)';
+      roundRect(ctx, 20, board.y + board.h + 54, W - 40, 38, 12); ctx.fill();
+      ctx.fillStyle = '#fff6e0'; ctx.font = 'bold 12px sans-serif';
+      ctx.fillText(tutMsg, W / 2, board.y + board.h + 73);
     }
-    // highlight free teaching screw
     if (levelIdx <= 1) {
       const free = screws.find(s => s.alive && !s.blocked);
-      const blocked = screws.find(s => s.alive && s.blocked);
-      const target = levelIdx === 1 && tutStep >= 2 && blocked ? blocked : free;
-      if (target) {
+      if (free) {
         const pulse = 1 + Math.sin(animT * 6) * 0.08;
-        ctx.beginPath(); ctx.arc(target.x, target.y, 28 * pulse, 0, Math.PI * 2);
-        ctx.strokeStyle = target.blocked ? 'rgba(255,120,80,0.9)' : 'rgba(255,220,80,0.9)';
-        ctx.lineWidth = 3; ctx.stroke();
-        if (imgs.finger && !target.blocked) {
-          ctx.drawImage(imgs.finger, target.x - 8, target.y + 12 + Math.sin(animT * 5) * 8, 58, 58);
-        }
+        ctx.beginPath(); ctx.arc(free.x, free.y, 26 * pulse, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,220,80,0.9)'; ctx.lineWidth = 3; ctx.stroke();
+        if (imgs.finger) ctx.drawImage(imgs.finger, free.x - 6, free.y + 14 + Math.sin(animT * 5) * 7, 56, 56);
       }
     }
     ctx.restore();
   }
 
   function spawnDust(x, y) {
-    for (let i = 0; i < 10; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 80, vy: -Math.random() * 60, r: 2 + Math.random() * 3, color: '#c9a06a', t: 0, life: 0.5 });
+    for (let i = 0; i < 10; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 80, vy: -Math.random() * 50, r: 2 + Math.random() * 3, color: '#c9a06a', t: 0, life: 0.45 });
   }
   function spawnSpark(x, y, color) {
-    for (let i = 0; i < 8; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 120, vy: (Math.random() - 0.5) * 120, r: 2, color: COLORS[color] || '#fff', t: 0, life: 0.4 });
+    for (let i = 0; i < 8; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, r: 2, color: COLORS[color] || '#fff', t: 0, life: 0.35 });
   }
   function burstConfetti() {
     const cols = Object.values(COLORS);
-    for (let i = 0; i < 55; i++) confetti.push({ x: W * Math.random(), y: -20, vx: (Math.random() - 0.5) * 80, vy: 80 + Math.random() * 120, rot: 0, vr: (Math.random() - 0.5) * 8, color: cols[i % cols.length], t: 0 });
+    for (let i = 0; i < 50; i++) confetti.push({ x: W * Math.random(), y: -10, vx: (Math.random() - 0.5) * 70, vy: 90 + Math.random() * 100, rot: 0, vr: (Math.random() - 0.5) * 8, color: cols[i % cols.length], t: 0 });
   }
   function drawParticles(dt) {
     particles = particles.filter(p => {
@@ -615,7 +608,7 @@
     });
     confetti = confetti.filter(c => {
       c.t += dt; c.x += c.vx * dt; c.y += c.vy * dt; c.rot += c.vr * dt;
-      if (c.t > 2.5) return false;
+      if (c.t > 2.2) return false;
       ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.rot); ctx.fillStyle = c.color; ctx.fillRect(-4, -3, 8, 6); ctx.restore();
       return true;
     });
@@ -626,33 +619,24 @@
       const t = Math.min(1, f.t); const e = 1 - Math.pow(1 - t, 3);
       if (f.kind === 'toBox' || f.kind === 'toWait') {
         const x = f.x + (f.tx - f.x) * e, y = f.y + (f.ty - f.y) * e - Math.sin(e * Math.PI) * 40;
-        drawScrewHead(x, y, f.color, f.spin, 1.1, false, false);
+        drawScrewHead(x, y, f.color, f.spin, 1.1, false, false, false);
         if (t >= 1) { onFlyerArrived(f); return false; }
         return true;
       }
-      drawScrewHead(f.x, f.y + t * 20, f.color, f.spin, 1, false, false);
       return t < 1;
     });
   }
 
   function frame(dt) {
-    animT += dt;
-    if (shakeT > 0) shakeT -= dt;
+    animT += dt; if (shakeT > 0) shakeT -= dt;
     ctx.clearRect(0, 0, W, H);
     if (imgs.workshop_bg) ctx.drawImage(imgs.workshop_bg, 0, 0, W, H);
-    else {
-      const bg = ctx.createLinearGradient(0, 0, 0, H);
-      bg.addColorStop(0, '#5a3a1e'); bg.addColorStop(1, '#2a1a0c');
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    }
+    else { ctx.fillStyle = '#3a2412'; ctx.fillRect(0, 0, W, H); }
 
     if (state === 'home') {
       if (imgs.title_plaque) {
-        const tw = Math.min(W - 40, 340), th = tw * 0.35;
-        ctx.drawImage(imgs.title_plaque, (W - tw) / 2, 48, tw, th);
-      } else {
-        ctx.fillStyle = '#fff3d0'; ctx.font = 'bold 42px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText('Винтики', W / 2, 100);
+        const tw = Math.min(W - 36, 340), th = tw * 0.36;
+        ctx.drawImage(imgs.title_plaque, (W - tw) / 2, 40, tw, th);
       }
       return;
     }
@@ -661,34 +645,32 @@
       if (engine && state === 'play') {
         Engine.update(engine, Math.min(32, dt * 1000));
         for (const p of planks) {
-          if (p.constraint && p.body && Math.abs(p.body.angularVelocity) > 0.06)
+          if (p.constraint && Math.abs(p.body.angularVelocity) > 0.05)
             Body.setAngularVelocity(p.body, p.body.angularVelocity * 0.85);
         }
       }
       tickBoxes(dt);
       drawBoxes();
-      // tray
-      if (imgs.board_tray) ctx.drawImage(imgs.board_tray, board.x - 14, board.y - 14, board.w + 28, board.h + 28);
+      if (imgs.board_tray) ctx.drawImage(imgs.board_tray, board.x - 12, board.y - 12, board.w + 24, board.h + 24);
       else {
-        ctx.fillStyle = '#6b4423'; roundRect(ctx, board.x - 10, board.y - 10, board.w + 20, board.h + 20, 16); ctx.fill();
-        ctx.fillStyle = '#4a2f16'; roundRect(ctx, board.x, board.y, board.w, board.h, 12); ctx.fill();
+        ctx.fillStyle = '#6b4423'; roundRect(ctx, board.x - 8, board.y - 8, board.w + 16, board.h + 16, 18); ctx.fill();
+        ctx.fillStyle = '#4a2f16'; roundRect(ctx, board.x, board.y, board.w, board.h, 14); ctx.fill();
       }
-      const sorted = [...planks].filter(p => p.alive || p.falling).sort((a, b) => a.layer - b.layer);
-      for (const p of sorted) drawPlank(p);
+      for (const p of planks) if (p.alive || p.falling) drawPlank(p);
+      drawBandDivider();
       for (const sc of screws) {
         if (!sc.alive) continue;
         if (hintScrewId === sc.id) {
           ctx.beginPath(); ctx.arc(sc.x, sc.y, 24 + Math.sin(animT * 8) * 3, 0, Math.PI * 2);
           ctx.strokeStyle = '#ffe566'; ctx.lineWidth = 3; ctx.stroke();
         }
-        drawScrewHead(sc.x, sc.y, sc.color, 0, 1, sc.blocked, shakeScrewId === sc.id && shakeT > 0);
+        drawScrewHead(sc.x, sc.y, sc.color, 0, 1, sc.blocked, shakeScrewId === sc.id && shakeT > 0, sc.isKey);
       }
       drawWaitRow();
       drawFlyers(dt);
       drawTutorial();
       drawParticles(dt);
       if (state === 'play') checkWin();
-      if (hammerMode) { ctx.fillStyle = 'rgba(255,100,50,0.12)'; ctx.fillRect(0, 0, W, H); }
     }
   }
 
@@ -706,12 +688,7 @@
     const playing = name === 'play';
     $('hud').style.display = playing ? 'block' : 'none';
     $('boosters').style.display = playing ? 'flex' : 'none';
-    // hide HTML title card content when playing — canvas draws
-    if (name === 'home') {
-      // keep HTML home visible
-    }
   }
-
   function refreshHud() {
     $('lvl-pill').textContent = 'Ур. ' + (levelIdx + 1);
     $('coin-pill').textContent = '🪙 ' + (save.coins | 0);
@@ -727,7 +704,7 @@
       const cell = document.createElement('div');
       const unlocked = i < save.unlocked;
       cell.className = 'mapcell' + (unlocked ? '' : ' lock') + (save.stars[i] ? ' done' : '');
-      cell.innerHTML = (unlocked ? (i + 1) : '🔒') + (save.stars[i] ? '<div class="stars">' + '★'.repeat(save.stars[i]) + '</div>' : '');
+      cell.innerHTML = (unlocked ? (i + 1) : '🔒') + (save.stars[i] ? '<div class="stars">★★★</div>' : '');
       if (unlocked) cell.onclick = () => startLevel(i);
       g.appendChild(cell);
     }
@@ -737,26 +714,40 @@
       const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
       const j = await r.json();
       if (j.webVersion && j.webVersion !== VERSION) {
-        toast('Доступна ' + j.webVersion + ' — перезагрузка…');
-        setTimeout(() => location.reload(), 600);
+        toast('Доступна ' + j.webVersion); setTimeout(() => location.reload(), 600);
       } else toast('У вас последняя версия ' + VERSION);
-    } catch (e) { toast('Не удалось проверить обновление'); }
+    } catch (e) { toast('Нет сети для обновления'); }
   }
   function loadImg(src) {
-    return new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+    return new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
   }
   function loadAudio(name, src) { const a = new Audio(src); a.preload = 'auto'; audio[name] = a; }
 
+  function assertNoOverlapRuntime() {
+    const boxesA = planks.filter(p => p.alive && !p.falling).map(p => ({
+      id: p.id,
+      x: p.body.position.x - p.w / 2, y: p.body.position.y - p.h / 2, w: p.w, h: p.h
+    }));
+    for (let i = 0; i < boxesA.length; i++) {
+      for (let j = i + 1; j < boxesA.length; j++) {
+        const a = boxesA[i], b = boxesA[j];
+        const hit = !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+        if (hit) return { ok: false, a: a.id, b: b.id };
+      }
+    }
+    for (const p of boxesA) {
+      if (p.x < board.x - 1 || p.y < board.y - 1 || p.x + p.w > board.x + board.w + 1 || p.y + p.h > board.y + board.h + 1)
+        return { ok: false, oob: p.id };
+    }
+    return { ok: true, count: boxesA.length };
+  }
+
   async function boot() {
     resize(); window.addEventListener('resize', resize);
-    $('ver').textContent = 'v' + VERSION;
     try {
       const r = await fetch('levels.json?t=' + Date.now());
-      const j = await r.json();
-      levels = j.levels || [];
-    } catch (e) { levels = []; toast('Нет levels.json'); }
-    if (!levels.length) levels = [{ name: 'empty', slots: 5, boxes: ['red'], planks: [], screws: [] }];
-
+      const j = await r.json(); levels = j.levels || [];
+    } catch (e) { levels = []; }
     const pairs = [
       ['workshop_bg', 'assets/sprites/workshop_bg.webp'],
       ['board_tray', 'assets/sprites/board_tray.webp'],
@@ -765,7 +756,9 @@
       ['screw_red', 'assets/sprites/screw_red.webp'],
       ['screw_yellow', 'assets/sprites/screw_yellow.webp'],
       ['screw_green', 'assets/sprites/screw_green.webp'],
-      ['screw_blue', 'assets/sprites/screw_blue.webp']
+      ['screw_blue', 'assets/sprites/screw_blue.webp'],
+      ['screw_purple', 'assets/sprites/screw_purple.webp'],
+      ['screw_orange', 'assets/sprites/screw_orange.webp']
     ];
     await Promise.all(pairs.map(async ([k, s]) => { imgs[k] = await loadImg(s); }));
     loadAudio('screw', 'assets/audio/sfx_screw.wav');
@@ -788,36 +781,30 @@
     $('btn-sound').onclick = () => { muted = !muted; persist(); refreshHud(); if (muted && audio.bgm) audio.bgm.pause(); else ensureBgm(); };
     $('btn-update').onclick = checkOta;
     $('btn-home-update').onclick = checkOta;
-    $('b-hint').onclick = useHint;
-    $('b-slot').onclick = useSlot;
-    $('b-hammer').onclick = useHammer;
-
-    // Improve home HTML title if plaque loaded — keep subtitle
-    refreshHud();
-    requestAnimationFrame(loop);
+    $('b-hint').onclick = useHint; $('b-slot').onclick = useSlot; $('b-hammer').onclick = useHammer;
+    refreshHud(); requestAnimationFrame(loop);
 
     window.__V = {
-      VERSION, startLevel,
+      VERSION, startLevel, assertNoOverlapRuntime,
       getState: () => ({
         state, levelIdx,
         screws: screws.filter(s => s.alive).length,
-        blocked: screws.filter(s => s.alive && s.blocked).length,
+        locked: screws.filter(s => s.alive && s.blocked).length,
         planks: planks.filter(p => p.alive && !p.falling).length,
-        falling: planks.filter(p => p.falling).length,
         wait: waitSlots.filter(Boolean).length,
-        maxSlots,
-        boxes: boxes.map(b => ({ c: b.color, n: b.count, fly: b.flying })),
-        tutStep, tutMsg, goalText
+        boxes: boxes.map(b => ({ c: b.color, n: b.count })),
+        geom: assertNoOverlapRuntime(),
+        tutMsg, goalText
       }),
       tapFree: () => {
-        updateBlocked();
+        updateLocks();
         const sc = screws.find(s => s.alive && !s.blocked && findBoxFor(s.color))
           || screws.find(s => s.alive && !s.blocked);
         if (sc) { removeScrew(sc); return sc.id; }
         return null;
       },
-      tapBlocked: () => {
-        updateBlocked();
+      tapLocked: () => {
+        updateLocks();
         const sc = screws.find(s => s.alive && s.blocked);
         if (sc) { removeScrew(sc); return sc.id; }
         return null;
@@ -836,24 +823,14 @@
       },
       autoSolve: (maxSteps) => {
         let steps = 0;
-        while (steps < (maxSteps || 100) && state === 'play') {
-          updateBlocked();
+        while (steps++ < (maxSteps || 120) && state === 'play') {
+          updateLocks();
           const id = window.__V.tapFree();
-          window.__V.idle(0.3);
-          steps++;
+          window.__V.idle(0.28);
           if (!id && !screws.some(s => s.alive)) break;
-          if (!id) {
-            const top = [...planks].filter(p => p.alive && !p.falling).sort((a, b) => b.layer - a.layer)[0];
-            if (!top) break;
-            for (const sid of [...top.screwIds]) {
-              const sc = screws.find(s => s.id === sid && s.alive);
-              if (sc && !sc.blocked) removeScrew(sc);
-              else if (sc) { sc.alive = false; }
-            }
-            refreshPlankPhysics(top); updateBlocked(); window.__V.idle(0.35);
-          }
+          if (!id) break;
         }
-        window.__V.idle(1.2);
+        window.__V.idle(1.0);
         const st = window.__V.getState();
         if (st.state === 'play' && st.planks === 0 && st.screws === 0) endWin();
         return window.__V.getState();
