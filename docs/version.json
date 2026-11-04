@@ -1,9 +1,9 @@
 {
-  "version": "4.0.2",
-  "versionCode": 40002,
+  "version": "4.0.3",
+  "versionCode": 40003,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "4.0.2",
+  "webVersion": "4.0.3",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v4.0.2: FIX звуков — настоящий OTA (GitHub www.zip + Cap AppUpdate)\n• Отключены системные клики WebView (soundEffectsEnabled=false)\n• Удалены старые резкие sfx_*.wav/ogg; только assets/audio/sfx/\n• Авто-применение web-обновления при старте"
+  "changelog": "• v4.0.3: FIX BGM — смена трека больше не накладывается (singleton)\n• stop/pause/unload предыдущего + request token против гонок play()\n• Превью и visibility не плодят второй плеер"
 }

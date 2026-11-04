@@ -1,0 +1,79 @@
+{
+  "version": "4.0.3",
+  "samples": [
+    {
+      "label": "start-track1",
+      "n": 1,
+      "track": 1,
+      "paused": false,
+      "src": "track1.ogg",
+      "poolPlaying": 0
+    },
+    {
+      "label": "after-rapid-1-5-2-4-3-1-5-2",
+      "n": 1,
+      "track": 2,
+      "paused": false,
+      "src": "track2.ogg",
+      "poolPlaying": 0
+    },
+    {
+      "label": "after-burst-switches",
+      "n": 1,
+      "track": 2,
+      "paused": false,
+      "src": "track2.ogg",
+      "poolPlaying": 0
+    },
+    {
+      "label": "after-startLevel",
+      "n": 1,
+      "track": 2,
+      "paused": false,
+      "src": "track2.ogg",
+      "poolPlaying": 0
+    },
+    {
+      "label": "after-level-change",
+      "n": 1,
+      "track": 2,
+      "paused": false,
+      "src": "track2.ogg",
+      "poolPlaying": 0
+    },
+    {
+      "label": "after-preview-then-select",
+      "n": 1,
+      "track": 2,
+      "paused": false,
+      "src": "track2.ogg",
+      "poolPlaying": 0
+    },
+    {
+      "label": "after-visibility-cycle",
+      "n": 1,
+      "track": 2,
+      "paused": false,
+      "src": "track2.ogg",
+      "poolPlaying": 0
+    },
+    {
+      "label": "after-stop",
+      "n": 0,
+      "track": null,
+      "paused": true,
+      "src": null,
+      "poolPlaying": 0
+    },
+    {
+      "label": "final-track3",
+      "n": 1,
+      "track": 3,
+      "paused": false,
+      "src": "track3.ogg",
+      "poolPlaying": 0
+    }
+  ],
+  "maxSimultaneous": 1,
+  "pass": true
+}

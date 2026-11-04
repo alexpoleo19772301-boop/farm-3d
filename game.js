@@ -1,8 +1,8 @@
-/* Краски v4.0.2 — paint / water sort */
+/* Краски v4.0.3 — paint / water sort */
 (function () {
   'use strict';
-  const VERSION = '4.0.2';
-  const APP_VERSION = { version: '4.0.2', versionCode: 40002, webVersion: '4.0.2' };
+  const VERSION = '4.0.3';
+  const APP_VERSION = { version: '4.0.3', versionCode: 40003, webVersion: '4.0.3' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -146,19 +146,137 @@
     try { a.load(); } catch (e) {}
     audio[name] = a;
   }
-  function ensureBgm() {
-    if (!musicOn || bgmStarted) return;
+  /* ---------- BGM singleton (exactly one playing source) ---------- */
+  let bgmReq = 0;           // request token — stale play() ignored
+  let bgmFadeTimer = null;
+  const _bgmPool = new Set(); // track every HTMLAudioElement we ever used for BGM/preview
+
+  function _killAudioEl(a) {
+    if (!a) return;
+    try { a.onplay = a.onplaying = a.onended = a.onerror = null; } catch (e) {}
+    try { a.pause(); } catch (e) {}
+    try { a.currentTime = 0; } catch (e) {}
+    try { a.loop = false; } catch (e) {}
+    try { a.volume = 0; } catch (e) {}
+    try { a.removeAttribute('src'); a.src = ''; a.load(); } catch (e) {}
+    _bgmPool.delete(a);
+  }
+
+  function stopPreview() {
+    if (previewAudio) {
+      _killAudioEl(previewAudio);
+      previewAudio = null;
+    }
+  }
+
+  function stopBgm() {
+    if (bgmFadeTimer) { clearTimeout(bgmFadeTimer); bgmFadeTimer = null; }
+    bgmReq++; // invalidate in-flight play()
+    const a = audio.bgm;
+    audio.bgm = null;
+    bgmStarted = false;
+    _killAudioEl(a);
+    // safety: kill any leaked pool members still potentially audible
+    for (const el of Array.from(_bgmPool)) {
+      if (!el.paused) _killAudioEl(el);
+      else _bgmPool.delete(el);
+    }
+  }
+
+  function applyBgmVol() {
+    const a = audio.bgm;
+    if (!a) return;
+    try { a.volume = musicOn ? musicVol : 0; } catch (e) {}
+    if (!musicOn) {
+      try { a.pause(); } catch (e) {}
+      bgmStarted = false;
+    }
+  }
+
+  /** Start or resume the single BGM element for current trackId. */
+  function ensureBgm(forceRestart) {
+    if (!musicOn) { stopBgm(); stopPreview(); return; }
     const tr = BGM_TRACKS.find(t => t.id === trackId) || BGM_TRACKS[0];
     let a = audio.bgm;
-    if (!a || a._track !== trackId) {
-      a = new Audio(tr.file); a.loop = true; a._track = trackId; audio.bgm = a;
+    const needNew = forceRestart || !a || a._track !== trackId || !a.src;
+    if (needNew) {
+      // tear down previous completely before creating the next
+      stopPreview();
+      if (a) { audio.bgm = null; _killAudioEl(a); }
+      const req = ++bgmReq;
+      a = new Audio();
+      a.preload = 'auto';
+      a.loop = true;
+      a._track = trackId;
+      a._bgm = true;
+      a.src = tr.file;
+      a.volume = musicVol;
+      _bgmPool.add(a);
+      audio.bgm = a;
+      const playP = a.play();
+      if (playP && playP.then) {
+        playP.then(() => {
+          if (req !== bgmReq || audio.bgm !== a) {
+            // stale — another switch happened
+            _killAudioEl(a);
+            return;
+          }
+          bgmStarted = true;
+        }).catch(() => {
+          if (req === bgmReq && audio.bgm === a) bgmStarted = false;
+        });
+      } else {
+        bgmStarted = true;
+      }
+      return;
     }
+    // same track — just ensure playing + volume
     a.volume = musicVol;
-    a.play().then(() => { bgmStarted = true; }).catch(() => {});
+    if (a.paused) {
+      const req = ++bgmReq;
+      a.play().then(() => {
+        if (req !== bgmReq || audio.bgm !== a) { _killAudioEl(a); return; }
+        bgmStarted = true;
+      }).catch(() => {});
+    } else {
+      bgmStarted = true;
+    }
   }
-  function applyBgmVol() {
-    if (audio.bgm) audio.bgm.volume = musicOn ? musicVol : 0;
-    if (!musicOn && audio.bgm) try { audio.bgm.pause(); bgmStarted = false; } catch (e) {}
+
+  function setBgmTrack(id) {
+    const next = Math.max(1, Math.min(5, id | 0));
+    if (next === trackId && audio.bgm && !audio.bgm.paused && audio.bgm._track === next) {
+      stopPreview();
+      return;
+    }
+    trackId = next;
+    save.trackId = trackId;
+    persist();
+    stopPreview();
+    ensureBgm(true); // forceRestart → stop old, play new
+  }
+
+  function countPlayingBgm() {
+    let n = 0;
+    const seen = new Set();
+    const consider = (el) => {
+      if (!el || seen.has(el)) return;
+      seen.add(el);
+      try {
+        if (!el.paused && el.currentTime >= 0 && (el.src || el.currentSrc)) n++;
+      } catch (e) {}
+    };
+    consider(audio.bgm);
+    consider(previewAudio);
+    for (const el of _bgmPool) consider(el);
+    // also scan document for leaked looping audios pointing at bgm/
+    try {
+      document.querySelectorAll('audio').forEach((el) => {
+        const src = el.currentSrc || el.src || '';
+        if (src.indexOf('/bgm/') >= 0 || src.indexOf('assets/audio/bgm') >= 0) consider(el);
+      });
+    } catch (e) {}
+    return n;
   }
 
   function totalStars() {
@@ -1191,10 +1309,26 @@
       row.innerHTML = '<div style="flex:1"><div class="tn">' + t.name + '</div><div class="td">' + t.desc + '</div></div><button class="preview" data-id="' + t.id + '">▶</button>';
       row.onclick = (ev) => {
         if (ev.target.classList.contains('preview')) {
-          try { if (previewAudio) previewAudio.pause(); previewAudio = new Audio(t.file); previewAudio.volume = musicVol; previewAudio.play(); } catch (e) {}
+          // Preview uses the same singleton pipeline: stop everything, play this track once as preview
+          stopBgm();
+          stopPreview();
+          const req = ++bgmReq;
+          const a = new Audio();
+          a.preload = 'auto';
+          a.loop = false;
+          a._track = t.id;
+          a.src = t.file;
+          a.volume = musicVol;
+          _bgmPool.add(a);
+          previewAudio = a;
+          a.play().then(() => {
+            if (req !== bgmReq || previewAudio !== a) _killAudioEl(a);
+          }).catch(() => {});
+          a.onended = () => { if (previewAudio === a) { previewAudio = null; _killAudioEl(a); } };
           return;
         }
-        trackId = t.id; save.trackId = trackId; bgmStarted = false; persist(); applyBgmVol(); ensureBgm(); renderSettings();
+        setBgmTrack(t.id);
+        renderSettings();
       };
       list.appendChild(row);
     }
@@ -1317,11 +1451,21 @@
     $('b-undo').onclick = useUndo;
     $('b-flask').onclick = useExtraFlask;
     $('b-hint').onclick = useHint;
-    const tm = $('tog-music'); if (tm) tm.onchange = () => { musicOn = tm.checked; save.musicOn = musicOn; applyBgmVol(); persist(); };
+    const tm = $('tog-music'); if (tm) tm.onchange = () => { musicOn = tm.checked; save.musicOn = musicOn; persist(); if (musicOn) ensureBgm(true); else { stopBgm(); stopPreview(); } };
     const tv = $('tog-vib'); if (tv) tv.onchange = () => { vibrateOn = tv.checked; save.vibrateOn = vibrateOn; persist(); };
     const sm = $('sl-music'); if (sm) sm.oninput = () => { musicVol = (+sm.value || 0) / 100; save.musicVol = musicVol; $('val-music').textContent = Math.round(musicVol * 100) + '%'; applyBgmVol(); persist(); };
     const ss = $('sl-sfx'); if (ss) ss.oninput = () => { sfxVol = (+ss.value || 0) / 100; save.sfxVol = sfxVol; $('val-sfx').textContent = Math.round(sfxVol * 100) + '%'; persist(); };
   }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // keep element but pause to avoid focus-stack duplicates on some WebViews
+      try { if (audio.bgm && !audio.bgm.paused) audio.bgm.pause(); } catch (e) {}
+      stopPreview();
+    } else if (musicOn) {
+      ensureBgm(false);
+    }
+  });
 
   async function boot() {
     resize(); window.addEventListener('resize', resize);
@@ -1362,6 +1506,7 @@
       select: (i) => { selected = i; },
       tick: (sec) => { const steps = Math.ceil(sec / 0.016); for (let i = 0; i < steps; i++) { if (pourAnim) { pourAnim.t += 0.016; if (pourAnim.t >= pourAnim.duration) finishPour(); } animT += 0.016; } },
       solveHint, openDaily, openSettings, checkOta, sfxLog, audio, playSfx,
+      ensureBgm, stopBgm, setBgmTrack, countPlayingBgm, stopPreview, BGM_TRACKS,
       autoSolve: (maxSteps) => {
         let steps = 0;
         while (steps++ < (maxSteps || 80) && state === 'play') {
