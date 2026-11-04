@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="theme-color" content="#3d2914"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+<title>Винтики</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#2a1a0c;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#fff}
+#wrap{position:relative;width:100%;height:100%;max-width:100%;margin:0 auto;background:radial-gradient(ellipse at 50% 30%,#5a3a1e,#2a1a0c 70%)}
+canvas#game{display:block;width:100%;height:100%;touch-action:none}
+.screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px;z-index:5;background:rgba(20,10,5,.72);backdrop-filter:blur(4px)}
+.screen.on{display:flex}
+.card{background:linear-gradient(180deg,#8b5a2b,#5c3a18);border:3px solid #e8c48a;border-radius:22px;padding:22px 20px;width:min(92%,360px);box-shadow:0 12px 40px rgba(0,0,0,.45);text-align:center}
+.card h1{font-size:28px;margin-bottom:8px;color:#fff6e0;text-shadow:0 2px 0 #3a2008}
+.card p{opacity:.92;margin:8px 0 16px;line-height:1.4;font-size:15px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(180deg,#f0c45a,#d4922a);color:#3a2008;font-weight:800;border:none;border-radius:16px;padding:14px 22px;font-size:17px;margin:6px;cursor:pointer;box-shadow:0 4px 0 #8a5a18;min-width:140px}
+.btn:active{transform:translateY(2px);box-shadow:0 2px 0 #8a5a18}
+.btn.ghost{background:linear-gradient(180deg,#6b4a2a,#4a3018);color:#ffe8c0;box-shadow:0 4px 0 #2a1808}
+.btn.green{background:linear-gradient(180deg,#7dcf5a,#3a9a28);color:#14380c;box-shadow:0 4px 0 #1e6010}
+#hud{position:absolute;left:0;right:0;top:0;z-index:4;pointer-events:none;padding:calc(8px + env(safe-area-inset-top)) 10px 0}
+#hud .row{display:flex;gap:8px;align-items:center;pointer-events:auto}
+.pill{background:rgba(40,22,10,.82);border:2px solid #c9a06a;border-radius:999px;padding:8px 12px;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:6px;color:#ffe8c0}
+.pill button,.iconbtn{pointer-events:auto;background:#5c3a18;border:2px solid #e8c48a;color:#fff;border-radius:12px;padding:8px 10px;font-weight:700;cursor:pointer}
+#boosters{position:absolute;left:0;right:0;bottom:0;z-index:4;display:flex;justify-content:center;gap:12px;padding:0 12px calc(14px + env(safe-area-inset-bottom));pointer-events:none}
+.booster{pointer-events:auto;width:72px;height:72px;border-radius:18px;background:linear-gradient(180deg,#6b4a2a,#3d2814);border:3px solid #e8c48a;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#ffe8c0;position:relative;cursor:pointer}
+.booster .ic{font-size:22px;line-height:1}
+.booster .badge{position:absolute;top:-6px;right:-6px;background:#e23;border-radius:999px;min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff}
+#ver{position:absolute;right:8px;bottom:4px;z-index:6;font-size:11px;opacity:.55;pointer-events:none}
+#toast{position:absolute;left:50%;top:18%;transform:translateX(-50%);z-index:20;background:rgba(0,0,0,.75);padding:10px 16px;border-radius:12px;display:none;font-size:14px;max-width:90%;text-align:center}
+#mapgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-height:55vh;overflow:auto;padding:4px;width:100%}
+.mapcell{aspect-ratio:1;border-radius:12px;background:#4a3018;border:2px solid #c9a06a;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;cursor:pointer;color:#ffe8c0}
+.mapcell.lock{opacity:.4;cursor:default}
+.mapcell.done{background:#3a6a28;border-color:#9de06a}
+.stars{font-size:10px;letter-spacing:1px;color:#ffd76a}
+#logoTitle{font-size:42px;font-weight:900;color:#fff3d0;text-shadow:0 3px 0 #5a3010,0 8px 18px rgba(0,0,0,.45);letter-spacing:1px;margin-bottom:6px}
+.sub{opacity:.85;margin-bottom:18px}
+
+.settings-card{width:min(94%,380px);max-height:88vh;overflow:auto;text-align:left}
+.settings-card h1{text-align:center}
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0;padding:8px 4px;border-bottom:1px solid rgba(255,228,192,.18)}
+.set-row label{font-size:14px;color:#ffe8c0;font-weight:700;flex:1}
+.set-row .val{font-size:12px;opacity:.8;min-width:36px;text-align:right}
+.toggle{appearance:none;width:48px;height:28px;border-radius:999px;background:#3a2814;border:2px solid #c9a06a;position:relative;cursor:pointer;flex-shrink:0}
+.toggle:checked{background:#3a9a28;border-color:#9de06a}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#ffe8c0;transition:left .15s}
+.toggle:checked::after{left:22px}
+.set-slider{flex:1.2;accent-color:#f0c45a;height:28px}
+.track-list{display:flex;flex-direction:column;gap:8px;margin:8px 0 4px}
+.track-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:rgba(40,22,10,.55);border:2px solid #8a6238;cursor:pointer}
+.track-item.on{border-color:#f0c45a;background:rgba(80,50,18,.75);box-shadow:0 0 0 1px #f0c45a55}
+.track-item .tn{font-weight:800;color:#fff6e0;font-size:14px}
+.track-item .td{font-size:11px;opacity:.75;margin-top:2px}
+.track-item .preview{background:#5c3a18;border:2px solid #e8c48a;color:#ffe8c0;border-radius:10px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0}
+#btn-home-settings{margin-top:4px}
+.home-gear{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:7}
+
+.daily-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.daily-cell{background:rgba(40,22,10,.55);border:2px solid #8a6238;border-radius:12px;padding:8px 4px;text-align:center}
+.daily-cell.done{border-color:#9de06a;background:rgba(40,80,30,.45)}
+.daily-cell.today{border-color:#f0c45a;box-shadow:0 0 0 1px #f0c45a66}
+.daily-cell .d-day{font-size:11px;opacity:.85;font-weight:700}
+.daily-cell .d-gift{font-size:13px;font-weight:800;margin-top:4px;color:#ffe8c0}
+.quest-row{background:rgba(40,22,10,.55);border:2px solid #8a6238;border-radius:14px;padding:10px 12px;margin:8px 0;text-align:left;position:relative}
+.quest-row.ready{border-color:#f0c45a}
+.quest-row.claimed{opacity:.65}
+.q-label{font-weight:800;color:#fff6e0;font-size:14px}
+.q-bar{height:10px;background:rgba(0,0,0,.35);border-radius:999px;margin:8px 0 4px;overflow:hidden}
+.q-fill{height:100%;background:linear-gradient(90deg,#f0c45a,#d4922a);border-radius:999px}
+.q-meta{font-size:12px;opacity:.85}
+.q-claim{margin-top:8px;min-width:100px;padding:8px 12px;font-size:14px}
+.q-done{position:absolute;right:12px;top:12px;font-size:18px;color:#9de06a}
+#badge-daily{position:absolute;top:-6px;right:-6px;background:#e23;border-radius:999px;min-width:18px;height:18px;display:none;align-items:center;justify-content:center;font-size:11px;border:2px solid #fff}
+.home-daily-wrap{position:relative;display:inline-flex}
+.win-stars-anim{font-size:36px;letter-spacing:4px;color:#ffd76a;text-shadow:0 2px 0 #5a3010;animation:starPop .6s ease}
+@keyframes starPop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+#star-pill{margin-left:4px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <button class="iconbtn home-gear" id="btn-home-settings" title="Звук">⚙️</button>
+  <canvas id="game"></canvas>
+  <div id="hud" style="display:none">
+    <div class="row">
+      <button class="iconbtn" id="btn-map">Карта</button>
+      <span class="pill" id="lvl-pill">Ур. 1</span>
+      <span class="pill" id="coin-pill">🪙 0</span>
+      <span class="pill" id="star-pill">★ 0</span>
+      <span style="flex:1"></span>
+      <button class="iconbtn" id="btn-settings" title="Звук">⚙️</button>
+      <button class="iconbtn" id="btn-update" title="Обновить">↻</button>
+    </div>
+  </div>
+  <div id="boosters" style="display:none">
+    <div class="booster" id="b-slot"><div class="ic">➕</div>Слот<div class="badge" id="badge-slot">2</div></div>
+    <div class="booster" id="b-hammer"><div class="ic">🔨</div>Молот<div class="badge" id="badge-hammer">2</div></div>
+    <div class="booster" id="b-hint"><div class="ic">💡</div>Хинт<div class="badge" id="badge-hint">3</div></div>
+  </div>
+  <div class="screen on" id="sc-home">
+    <div id="logoTitle">Винтики</div>
+    <div class="sub">Доски в поле · замки и ряды · цвета</div>
+    <div class="card">
+      <p>Доски не наезжают друг на друга. Замки и нижний ряд открываются по плану. Смотри цвет коробки!</p>
+      <div class="home-daily-wrap">
+        <button class="btn green" id="btn-play">Играть</button>
+        <span id="badge-daily">!</span>
+      </div>
+      <button class="btn ghost" id="btn-home-daily">🎁 Награды и задания</button>
+      <button class="btn ghost" id="btn-home-map">Карта уровней</button>
+      <button class="btn ghost" id="btn-home-update">Обновить</button>
+      <button class="btn ghost" id="btn-home-sound">🎵 Звук</button>
+    </div>
+  </div>
+  <div class="screen" id="sc-map">
+    <div class="card" style="width:min(96%,400px)">
+      <h1>Карта</h1>
+      <p id="map-stars" style="margin:0 0 8px;color:#ffd76a;font-weight:800">★ 0</p>
+      <div id="mapgrid"></div>
+      <button class="btn ghost" id="btn-map-back">Назад</button>
+    </div>
+  </div>
+  <div class="screen" id="sc-win">
+    <div class="card">
+      <h1>Победа! 🎉</h1>
+      <p id="win-stars">★★★</p>
+      <p id="win-coins">+50 монет</p>
+      <button class="btn green" id="btn-next">Дальше</button>
+      <button class="btn ghost" id="btn-win-replay" style="display:none">Ещё раз ★</button>
+      <button class="btn ghost" id="btn-win-map">Карта</button>
+    </div>
+  </div>
+  <div class="screen" id="sc-lose">
+    <div class="card">
+      <h1>Слоты полны</h1>
+      <p>Ждущие винты забили ряд. Попробуй ещё раз!</p>
+      <button class="btn" id="btn-retry">Заново</button>
+      <button class="btn ghost" id="btn-lose-map">Карта</button>
+    </div>
+  </div>
+  
+  <div class="screen" id="sc-settings">
+    <div class="card settings-card">
+      <h1>🔊 Звук</h1>
+      <div class="set-row">
+        <label for="tog-music">Музыка</label>
+        <input type="checkbox" class="toggle" id="tog-music" checked/>
+      </div>
+      <div class="set-row">
+        <label for="sl-music">Громкость музыки</label>
+        <input type="range" class="set-slider" id="sl-music" min="0" max="100" value="40"/>
+        <span class="val" id="val-music">40%</span>
+      </div>
+      <div class="set-row">
+        <label for="sl-sfx">Громкость эффектов</label>
+        <input type="range" class="set-slider" id="sl-sfx" min="0" max="100" value="70"/>
+        <span class="val" id="val-sfx">70%</span>
+      </div>
+      <div class="set-row">
+        <label for="tog-vib">Вибрация</label>
+        <input type="checkbox" class="toggle" id="tog-vib" checked/>
+      </div>
+      <p style="margin:12px 0 6px;font-weight:800;color:#fff6e0;font-size:15px;text-align:left">Мелодия</p>
+      <div class="track-list" id="track-list"></div>
+      <button class="btn green" id="btn-settings-done" style="width:100%;margin-top:14px">Готово</button>
+    </div>
+  </div>
+  
+  <div class="screen" id="sc-daily">
+    <div class="card settings-card">
+      <h1>🎁 Ежедневки</h1>
+      <p id="daily-streak" style="margin:4px 0 8px;font-weight:700">Серия: 0 / 7</p>
+      <div class="daily-grid" id="daily-grid"></div>
+      <button class="btn green" id="btn-daily-claim" style="width:100%">Забрать награду</button>
+      <h1 style="margin-top:16px;font-size:22px">📋 Задания дня</h1>
+      <div id="quest-list"></div>
+      <button class="btn ghost" id="btn-daily-back" style="width:100%;margin-top:10px">Назад</button>
+    </div>
+  </div>
+  <div class="screen" id="sc-tut">
+    <div class="card">
+      <h1 id="tut-title">Подсказка</h1>
+      <p id="tut-body">…</p>
+      <button class="btn green" id="btn-tut-ok">Понятно</button>
+    </div>
+  </div>
+  <div id="toast"></div>
+  <div id="ver">v3.8.1</div>
+</div>
+<script src="vendor/matter.min.js?v=3.8.1"></script>
+<script src="game.js?v=3.8.1"></script>
+</body>
+</html>

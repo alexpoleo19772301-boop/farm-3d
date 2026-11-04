@@ -1,0 +1,9 @@
+{
+  "version": "3.8.1",
+  "versionCode": 38001,
+  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
+  "webVersion": "3.8.1",
+  "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
+  "force": false,
+  "changelog": "• v3.8.1: мини-босс — заголовок под HUD без наложений на 360/390/412; подпись «Кусочки (свайп)»\n• v3.8.0: крупные шляпки, металлическая цепь, мини-босс-пазл"
+}
