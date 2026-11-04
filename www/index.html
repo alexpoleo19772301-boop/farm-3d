@@ -7,28 +7,28 @@
 <title>Спасти принцессу: Маджонг</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overflow:hidden;font-family:"Trebuchet MS",system-ui,Segoe UI,Roboto,sans-serif;background:#2a1840;color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none}
-#app{position:relative;width:100%;height:100%;max-width:520px;margin:0 auto;overflow:hidden;background:#1a0f2e}
+html,body{height:100%;overflow:hidden;font-family:"Trebuchet MS",system-ui,Segoe UI,Roboto,sans-serif;background:#1a0f2e;color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#app{position:relative;width:100%;height:100%;max-width:520px;margin:0 auto;overflow:hidden;background:#12081f}
 canvas#game{display:block;width:100%;height:100%;touch-action:none}
-.overlay{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;padding-top:max(20px,env(safe-area-inset-top));padding-bottom:max(20px,env(safe-area-inset-bottom));background:radial-gradient(ellipse at 50% 20%,#6b3fa0,#1a0f2e 70%);text-align:center}
+.overlay{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;padding-top:max(20px,env(safe-area-inset-top));padding-bottom:max(20px,env(safe-area-inset-bottom));background:radial-gradient(ellipse at 50% 18%,#6b3fa0,#12081f 72%);text-align:center}
 .overlay.hidden{display:none}
-.overlay h1{font-size:26px;font-weight:900;margin:8px 0;text-shadow:0 3px 0 #4a1a7a,0 0 24px rgba(255,120,220,.5);line-height:1.2}
-.overlay p{font-size:14px;opacity:.9;line-height:1.45;max-width:340px;margin:0 auto 12px}
+.overlay h1{font-size:24px;font-weight:900;margin:8px 0;text-shadow:0 3px 0 #4a1a7a,0 0 24px rgba(255,120,220,.5);line-height:1.2}
+.overlay p{font-size:13px;opacity:.92;line-height:1.45;max-width:340px;margin:0 auto 12px}
 .btn{border:none;border-radius:16px;padding:12px 22px;font-size:16px;font-weight:900;cursor:pointer;background:linear-gradient(180deg,#ff7ad9,#e040a0);color:#fff;border:3px solid #fff6;box-shadow:0 4px 0 #9a2068,0 8px 20px rgba(0,0,0,.35);margin:6px}
 .btn:active{transform:translateY(2px);box-shadow:0 2px 0 #9a2068}
 .btn.gold{background:linear-gradient(180deg,#ffe082,#ffb300);color:#4a2a00;border-color:#fff8;box-shadow:0 4px 0 #c67c00,0 8px 20px rgba(0,0,0,.35)}
 .btn.ghost{background:linear-gradient(180deg,#7e57c2,#5e35b1);box-shadow:0 4px 0 #311b92,0 8px 20px rgba(0,0,0,.35)}
 .btn.small{font-size:13px;padding:8px 14px;border-radius:12px}
 .hud{position:absolute;left:0;right:0;top:0;z-index:15;display:flex;gap:6px;align-items:center;padding:8px;padding-top:max(8px,env(safe-area-inset-top));pointer-events:none}
-.hud > *{pointer-events:auto}
-.pill{background:rgba(20,8,40,.75);border:2px solid #e1bee7;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800;backdrop-filter:blur(6px)}
+.hud>*{pointer-events:auto}
+.pill{background:rgba(20,8,40,.78);border:2px solid #e1bee7;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800;backdrop-filter:blur(6px)}
 .pill.btnish{cursor:pointer;background:linear-gradient(180deg,#7e57c2,#5e35b1)}
+.pill.warn{border-color:#ff8a80;background:rgba(80,10,30,.85)}
 .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:15;display:flex;gap:8px;justify-content:center;align-items:flex-end;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));pointer-events:none}
-.bottombar > *{pointer-events:auto}
+.bottombar>*{pointer-events:auto}
 .boost{width:64px;height:64px;border-radius:18px;border:3px solid #fff8;background:linear-gradient(180deg,#ce93d8,#8e24aa);color:#fff;font-weight:900;font-size:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 4px 0 #4a148c;cursor:pointer;position:relative}
 .boost .ico{font-size:22px;line-height:1}
 .boost .cnt{position:absolute;top:-6px;right:-6px;background:#ff4081;border:2px solid #fff;border-radius:999px;min-width:22px;height:22px;font-size:11px;display:flex;align-items:center;justify-content:center}
-.boost:disabled{opacity:.4;filter:grayscale(.5)}
 .toast{position:absolute;left:50%;top:70px;transform:translateX(-50%);z-index:40;background:rgba(30,10,50,.92);padding:10px 16px;border-radius:14px;font-size:13px;font-weight:700;border:2px solid #ce93d8;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%;text-align:center}
 .toast.show{opacity:1}
 .map-wrap{position:absolute;inset:0;z-index:10;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:16px;padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(80px,env(safe-area-inset-bottom));background:linear-gradient(180deg,#4a148c,#1a0f2e 40%,#311b92);display:none}
@@ -42,7 +42,7 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
 .lvl .stars{font-size:10px;letter-spacing:1px;margin-top:2px}
 .map-top{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
 .modal-stars{font-size:28px;margin:8px 0;letter-spacing:4px}
-.princess-hero{width:min(36vw,150px);height:auto;filter:drop-shadow(0 8px 16px rgba(0,0,0,.45));margin-bottom:6px}
+.princess-hero{width:min(36vw,150px);height:auto;filter:drop-shadow(0 8px 16px rgba(0,0,0,.45));margin-bottom:6px;background:transparent}
 .ver{position:absolute;right:8px;bottom:8px;font-size:10px;opacity:.5;z-index:5;pointer-events:none}
 </style>
 </head>
@@ -52,23 +52,23 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
   <div class="hud" id="hud" style="display:none">
     <button class="pill btnish" id="btn-back">← Карта</button>
     <div class="pill">Ур. <span id="hud-level">1</span></div>
-    <div class="pill">⭐ <span id="hud-stars">0</span></div>
+    <div class="pill" id="hud-danger">🪨 <span id="hud-stones">0</span>%</div>
     <div class="pill" style="margin-left:auto">🪙 <span id="hud-coins">0</span></div>
     <button class="pill btnish" id="btn-mute">🔊</button>
   </div>
   <div class="bottombar" id="boosts" style="display:none">
-    <button class="boost" id="b-undo" title="Отмена"><span class="ico">↩️</span>Отмена<span class="cnt" id="c-undo">3</span></button>
-    <button class="boost" id="b-hint" title="Подсказка"><span class="ico">💡</span>Ход<span class="cnt" id="c-hint">3</span></button>
-    <button class="boost" id="b-shuffle" title="Перемешать"><span class="ico">🔀</span>Микс<span class="cnt" id="c-shuffle">3</span></button>
+    <button class="boost" id="b-undo"><span class="ico">↩️</span>Отмена<span class="cnt" id="c-undo">3</span></button>
+    <button class="boost" id="b-hint"><span class="ico">💡</span>Ход<span class="cnt" id="c-hint">3</span></button>
+    <button class="boost" id="b-shuffle"><span class="ico">🔀</span>Микс<span class="cnt" id="c-shuffle">3</span></button>
   </div>
   <div class="toast" id="toast"></div>
-  <div class="ver" id="ver-label">v2.0.0</div>
+  <div class="ver" id="ver-label">v2.1.0</div>
 
   <div class="overlay" id="screen-intro">
     <img class="princess-hero" id="intro-princess" alt="Принцесса" src="assets/sprites/princess.webp"/>
     <h1>Спасти принцессу</h1>
-    <p>Маджонг в башне. Собирай одинаковые плитки по три в лоток — и принцесса спустится вниз!</p>
-    <p style="opacity:.7;font-size:12px">v2.0.0 · без рекламы · свои символы</p>
+    <p>Камни давят сверху! Собирай плитки по три в лоток — открой путь, чтобы галька сыпалась вниз, а не завалила принцессу.</p>
+    <p style="opacity:.7;font-size:12px">v2.1.0 · без рекламы · свои символы</p>
     <button class="btn gold" id="btn-play">Играть</button>
     <button class="btn ghost small" id="btn-update">⬇ Обновить</button>
   </div>
@@ -82,7 +82,7 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <button class="btn small ghost" id="map-mute">🔊</button>
     </div>
     <div class="map-title">Карта уровней</div>
-    <div class="map-sub">Спаси принцессу на каждом этаже башни</div>
+    <div class="map-sub">Открой сток на каждом этаже башни</div>
     <div class="map-grid" id="map-grid"></div>
   </div>
 
@@ -90,15 +90,15 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     <img class="princess-hero" src="assets/sprites/princess_win.webp" alt="Победа"/>
     <h1>Принцесса спасена!</h1>
     <div class="modal-stars" id="win-stars">⭐⭐⭐</div>
-    <p id="win-msg">Отличная работа</p>
+    <p id="win-msg">Камни ушли в пропасть</p>
     <button class="btn gold" id="btn-next">Дальше</button>
     <button class="btn ghost" id="btn-win-map">Карта</button>
   </div>
 
   <div class="overlay hidden" id="screen-lose">
-    <img class="princess-hero" src="assets/sprites/princess.webp" alt="Проигрыш" style="filter:grayscale(.3) drop-shadow(0 8px 16px rgba(0,0,0,.45))"/>
-    <h1>Лоток полон!</h1>
-    <p>Принцесса застряла. Попробуй ещё раз или возьми бустер.</p>
+    <img class="princess-hero" id="lose-princess" src="assets/sprites/princess_scared.webp" alt="Проигрыш"/>
+    <h1>Завалило камнями!</h1>
+    <p id="lose-msg">Открывай путь быстрее — галька не ждёт.</p>
     <button class="btn gold" id="btn-retry">Ещё раз</button>
     <button class="btn ghost" id="btn-lose-map">Карта</button>
   </div>
