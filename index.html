@@ -58,6 +58,27 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
 .track-item .preview{background:#5c3a18;border:2px solid #e8c48a;color:#ffe8c0;border-radius:10px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0}
 #btn-home-settings{margin-top:4px}
 .home-gear{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:7}
+
+.daily-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.daily-cell{background:rgba(40,22,10,.55);border:2px solid #8a6238;border-radius:12px;padding:8px 4px;text-align:center}
+.daily-cell.done{border-color:#9de06a;background:rgba(40,80,30,.45)}
+.daily-cell.today{border-color:#f0c45a;box-shadow:0 0 0 1px #f0c45a66}
+.daily-cell .d-day{font-size:11px;opacity:.85;font-weight:700}
+.daily-cell .d-gift{font-size:13px;font-weight:800;margin-top:4px;color:#ffe8c0}
+.quest-row{background:rgba(40,22,10,.55);border:2px solid #8a6238;border-radius:14px;padding:10px 12px;margin:8px 0;text-align:left;position:relative}
+.quest-row.ready{border-color:#f0c45a}
+.quest-row.claimed{opacity:.65}
+.q-label{font-weight:800;color:#fff6e0;font-size:14px}
+.q-bar{height:10px;background:rgba(0,0,0,.35);border-radius:999px;margin:8px 0 4px;overflow:hidden}
+.q-fill{height:100%;background:linear-gradient(90deg,#f0c45a,#d4922a);border-radius:999px}
+.q-meta{font-size:12px;opacity:.85}
+.q-claim{margin-top:8px;min-width:100px;padding:8px 12px;font-size:14px}
+.q-done{position:absolute;right:12px;top:12px;font-size:18px;color:#9de06a}
+#badge-daily{position:absolute;top:-6px;right:-6px;background:#e23;border-radius:999px;min-width:18px;height:18px;display:none;align-items:center;justify-content:center;font-size:11px;border:2px solid #fff}
+.home-daily-wrap{position:relative;display:inline-flex}
+.win-stars-anim{font-size:36px;letter-spacing:4px;color:#ffd76a;text-shadow:0 2px 0 #5a3010;animation:starPop .6s ease}
+@keyframes starPop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+#star-pill{margin-left:4px}
 </style>
 </head>
 <body>
@@ -69,6 +90,7 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <button class="iconbtn" id="btn-map">Карта</button>
       <span class="pill" id="lvl-pill">Ур. 1</span>
       <span class="pill" id="coin-pill">🪙 0</span>
+      <span class="pill" id="star-pill">★ 0</span>
       <span style="flex:1"></span>
       <button class="iconbtn" id="btn-settings" title="Звук">⚙️</button>
       <button class="iconbtn" id="btn-update" title="Обновить">↻</button>
@@ -84,7 +106,11 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     <div class="sub">Доски в поле · замки и ряды · цвета</div>
     <div class="card">
       <p>Доски не наезжают друг на друга. Замки и нижний ряд открываются по плану. Смотри цвет коробки!</p>
-      <button class="btn green" id="btn-play">Играть</button>
+      <div class="home-daily-wrap">
+        <button class="btn green" id="btn-play">Играть</button>
+        <span id="badge-daily">!</span>
+      </div>
+      <button class="btn ghost" id="btn-home-daily">🎁 Награды и задания</button>
       <button class="btn ghost" id="btn-home-map">Карта уровней</button>
       <button class="btn ghost" id="btn-home-update">Обновить</button>
       <button class="btn ghost" id="btn-home-sound">🎵 Звук</button>
@@ -93,6 +119,7 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
   <div class="screen" id="sc-map">
     <div class="card" style="width:min(96%,400px)">
       <h1>Карта</h1>
+      <p id="map-stars" style="margin:0 0 8px;color:#ffd76a;font-weight:800">★ 0</p>
       <div id="mapgrid"></div>
       <button class="btn ghost" id="btn-map-back">Назад</button>
     </div>
@@ -103,6 +130,7 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <p id="win-stars">★★★</p>
       <p id="win-coins">+50 монет</p>
       <button class="btn green" id="btn-next">Дальше</button>
+      <button class="btn ghost" id="btn-win-replay" style="display:none">Ещё раз ★</button>
       <button class="btn ghost" id="btn-win-map">Карта</button>
     </div>
   </div>
@@ -141,10 +169,29 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <button class="btn green" id="btn-settings-done" style="width:100%;margin-top:14px">Готово</button>
     </div>
   </div>
+  
+  <div class="screen" id="sc-daily">
+    <div class="card settings-card">
+      <h1>🎁 Ежедневки</h1>
+      <p id="daily-streak" style="margin:4px 0 8px;font-weight:700">Серия: 0 / 7</p>
+      <div class="daily-grid" id="daily-grid"></div>
+      <button class="btn green" id="btn-daily-claim" style="width:100%">Забрать награду</button>
+      <h1 style="margin-top:16px;font-size:22px">📋 Задания дня</h1>
+      <div id="quest-list"></div>
+      <button class="btn ghost" id="btn-daily-back" style="width:100%;margin-top:10px">Назад</button>
+    </div>
+  </div>
+  <div class="screen" id="sc-tut">
+    <div class="card">
+      <h1 id="tut-title">Подсказка</h1>
+      <p id="tut-body">…</p>
+      <button class="btn green" id="btn-tut-ok">Понятно</button>
+    </div>
+  </div>
   <div id="toast"></div>
-  <div id="ver">v3.6.0</div>
+  <div id="ver">v3.7.0</div>
 </div>
-<script src="vendor/matter.min.js?v=3.6.0"></script>
-<script src="game.js?v=3.6.0"></script>
+<script src="vendor/matter.min.js?v=3.7.0"></script>
+<script src="game.js?v=3.7.0"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
-/* Винтики v3.6.0 — 5 BGM tracks + sound settings */
+/* Винтики v3.7.0 — daily/quests/stars/obstacles */
 (function () {
   'use strict';
-  const VERSION = '3.6.0';
+  const VERSION = '3.7.0';
   const COLORS = {
     red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
     purple: '#9b4de0', orange: '#f08a2a'
@@ -26,6 +26,11 @@
   let muted = !musicOn; // legacy alias
   let settingsReturn = 'home';
   let previewAudio = null;
+  let runUsedBooster = false, runUsedHint = false, runMoves = 0, runPar = 0;
+  let runUnscrewed = 0, runPlanksBroken = 0;
+  let bombHud = null; // {plankId, left}
+  let pendingTut = null; // obstacle tutorial queue
+  let starAnimT = 0;
   let animT = 0, particles = [], flyers = [], confetti = [], shards = [];
   let screenShake = 0;
   let tutStep = 0, tutMsg = '', hintScrewId = null, hammerMode = false;
@@ -51,7 +56,11 @@
     const defaults = {
       unlocked: 1, coins: 0, stars: {}, muted: false,
       musicOn: true, musicVol: 0.40, sfxVol: 0.70, vibrateOn: true, trackId: 1,
-      boosters: { slot: 2, hammer: 2, hint: 3 }
+      boosters: { slot: 2, hammer: 2, hint: 3 },
+      daily: { lastClaim: null, streak: 0, lastQuestDay: null, quests: [] },
+      seenTut: {},
+      starChests: {},
+      questBadge: false
     };
     try {
       const raw = Object.assign({}, defaults, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'));
@@ -62,11 +71,304 @@
       if (raw.sfxVol == null) raw.sfxVol = 0.70;
       if (raw.vibrateOn == null) raw.vibrateOn = true;
       if (raw.trackId == null) raw.trackId = 1;
+      if (!raw.daily) raw.daily = { lastClaim: null, streak: 0, lastQuestDay: null, quests: [] };
+      if (!raw.seenTut) raw.seenTut = {};
+      if (!raw.starChests) raw.starChests = {};
+      if (raw.questBadge == null) raw.questBadge = false;
+      // normalize stars values to 0..3 ints
+      const ns = {};
+      for (const k of Object.keys(raw.stars || {})) {
+        const v = raw.stars[k];
+        ns[k] = Math.max(0, Math.min(3, (typeof v === 'number' ? v : 3) | 0));
+      }
+      raw.stars = ns;
       return raw;
     } catch (e) {
       return Object.assign({}, defaults);
     }
   }
+
+  function todayKey() {
+    const d = new Date();
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+  function yesterdayKey() {
+    const d = new Date(); d.setDate(d.getDate() - 1);
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+  function totalStars() {
+    let n = 0; for (const k of Object.keys(save.stars || {})) n += (save.stars[k] | 0); return n;
+  }
+  const DAILY_REWARDS = [
+    { day: 1, coins: 50 },
+    { day: 2, coins: 80 },
+    { day: 3, coins: 120 },
+    { day: 4, coins: 160 },
+    { day: 5, coins: 220 },
+    { day: 6, coins: 280 },
+    { day: 7, coins: 400, boosters: { hint: 1, hammer: 1, slot: 1 } }
+  ];
+  const QUEST_POOL = [
+    { type: 'pass_levels', label: 'Пройди {n} уровня', targets: [2, 3, 4], reward: [60, 90, 120] },
+    { type: 'unscrew', label: 'Открути {n} винтов', targets: [30, 50, 70], reward: [50, 80, 110] },
+    { type: 'break_planks', label: 'Разрушь {n} досок', targets: [12, 20, 28], reward: [50, 80, 110] },
+    { type: 'win_no_boost', label: 'Победи {n} раз без бустеров', targets: [1, 2, 3], reward: [70, 100, 140] },
+    { type: 'earn_stars', label: 'Собери {n} ★ за день', targets: [5, 8, 12], reward: [60, 100, 150] }
+  ];
+  const STAR_MILESTONES = [
+    { at: 10, coins: 100, id: 'm10' },
+    { at: 30, coins: 200, boosters: { hint: 1 }, id: 'm30' },
+    { at: 60, coins: 350, boosters: { hammer: 1, hint: 1 }, id: 'm60' },
+    { at: 90, coins: 500, boosters: { slot: 1, hammer: 1, hint: 1 }, id: 'm90' },
+    { at: 120, coins: 800, boosters: { slot: 2, hammer: 1, hint: 2 }, id: 'm120' }
+  ];
+  function mulberry32(a) {
+    return function () {
+      let t = a += 0x6D2B79F5;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function ensureDailyQuests() {
+    const day = todayKey();
+    if (!save.daily) save.daily = { lastClaim: null, streak: 0, lastQuestDay: null, quests: [] };
+    if (save.daily.lastQuestDay === day && Array.isArray(save.daily.quests) && save.daily.quests.length) return;
+    const seed = parseInt(day.replace(/-/g, ''), 10) ^ 0x37A1;
+    const rnd = mulberry32(seed);
+    const pool = QUEST_POOL.slice();
+    const picks = [];
+    while (picks.length < 3 && pool.length) {
+      const i = (rnd() * pool.length) | 0;
+      const q = pool.splice(i, 1)[0];
+      const ti = (rnd() * q.targets.length) | 0;
+      picks.push({
+        id: q.type + '_' + picks.length,
+        type: q.type,
+        target: q.targets[ti],
+        progress: 0,
+        reward: q.reward[ti],
+        label: q.label.replace('{n}', String(q.targets[ti])),
+        claimed: false
+      });
+    }
+    save.daily.lastQuestDay = day;
+    save.daily.quests = picks;
+    save.questBadge = true;
+    persist();
+  }
+  function questProgress(type, amount) {
+    ensureDailyQuests();
+    let changed = false;
+    for (const q of save.daily.quests) {
+      if (q.type !== type || q.claimed) continue;
+      const before = q.progress | 0;
+      q.progress = Math.min(q.target, before + (amount || 1));
+      if (q.progress !== before) changed = true;
+      if (q.progress >= q.target && !q.claimed) save.questBadge = true;
+    }
+    if (changed) persist();
+    updateQuestBadge();
+  }
+  function claimQuest(id) {
+    ensureDailyQuests();
+    const q = save.daily.quests.find(x => x.id === id);
+    if (!q || q.claimed || q.progress < q.target) return false;
+    q.claimed = true;
+    save.coins += q.reward;
+    persist(); refreshHud(); renderQuests();
+    toast('+' + q.reward + ' монет');
+    return true;
+  }
+  function canClaimDaily() {
+    if (!save.daily) return true;
+    return save.daily.lastClaim !== todayKey();
+  }
+  function currentStreakPreview() {
+    const d = save.daily || {};
+    if (d.lastClaim === todayKey()) return d.streak | 0;
+    if (d.lastClaim === yesterdayKey()) return (d.streak | 0);
+    return 0;
+  }
+  function claimDaily() {
+    if (!canClaimDaily()) { toast('Уже получено сегодня'); return null; }
+    let streak = 0;
+    if (save.daily.lastClaim === yesterdayKey()) streak = (save.daily.streak | 0);
+    else streak = 0;
+    streak = Math.min(7, streak + 1);
+    const reward = DAILY_REWARDS[streak - 1];
+    save.daily.lastClaim = todayKey();
+    save.daily.streak = streak;
+    save.coins += reward.coins;
+    if (reward.boosters) {
+      for (const k of Object.keys(reward.boosters)) {
+        save.boosters[k] = (save.boosters[k] | 0) + reward.boosters[k];
+      }
+    }
+    persist(); refreshHud();
+    return { streak, reward };
+  }
+  function checkStarMilestones() {
+    const ts = totalStars();
+    const got = [];
+    for (const m of STAR_MILESTONES) {
+      if (ts >= m.at && !save.starChests[m.id]) {
+        save.starChests[m.id] = true;
+        save.coins += m.coins;
+        if (m.boosters) {
+          for (const k of Object.keys(m.boosters)) save.boosters[k] = (save.boosters[k] | 0) + m.boosters[k];
+        }
+        got.push(m);
+      }
+    }
+    if (got.length) { persist(); refreshHud(); }
+    return got;
+  }
+  function updateQuestBadge() {
+    const el = $('badge-daily');
+    if (!el) return;
+    ensureDailyQuests();
+    const claimable = canClaimDaily() || save.daily.quests.some(q => !q.claimed && q.progress >= q.target);
+    el.style.display = claimable || save.questBadge ? 'flex' : 'none';
+  }
+  function openDaily() {
+    ensureDailyQuests();
+    settingsReturn = (state === 'play') ? 'play' : (state === 'map' ? 'map' : 'home');
+    showScreen('daily');
+    renderDaily();
+    renderQuests();
+    save.questBadge = false; persist(); updateQuestBadge();
+  }
+  function renderDaily() {
+    const streak = save.daily.lastClaim === todayKey() ? (save.daily.streak | 0) : currentStreakPreview();
+    const nextDay = save.daily.lastClaim === todayKey() ? streak : Math.min(7, streak + 1) || 1;
+    const grid = $('daily-grid'); if (!grid) return;
+    grid.innerHTML = '';
+    for (const r of DAILY_REWARDS) {
+      const cell = document.createElement('div');
+      const claimed = (save.daily.streak | 0) >= r.day && save.daily.lastClaim;
+      const isToday = r.day === (save.daily.lastClaim === todayKey() ? save.daily.streak : Math.min(7, currentStreakPreview() + 1) || 1);
+      cell.className = 'daily-cell' + (r.day <= (save.daily.lastClaim === todayKey() ? save.daily.streak : 0) ? ' done' : '') + (isToday && canClaimDaily() ? ' today' : '');
+      let gift = '🪙' + r.coins;
+      if (r.boosters) gift = '🎁+' + r.coins;
+      cell.innerHTML = '<div class="d-day">День ' + r.day + '</div><div class="d-gift">' + gift + '</div>';
+      grid.appendChild(cell);
+    }
+    const st = $('daily-streak'); if (st) st.textContent = 'Серия: ' + (save.daily.lastClaim === todayKey() ? save.daily.streak : currentStreakPreview()) + ' / 7';
+    const btn = $('btn-daily-claim');
+    if (btn) {
+      btn.disabled = !canClaimDaily();
+      btn.textContent = canClaimDaily() ? 'Забрать награду' : 'Уже получено';
+    }
+  }
+  function renderQuests() {
+    ensureDailyQuests();
+    const box = $('quest-list'); if (!box) return;
+    box.innerHTML = '';
+    for (const q of save.daily.quests) {
+      const row = document.createElement('div');
+      row.className = 'quest-row' + (q.claimed ? ' claimed' : '') + (q.progress >= q.target && !q.claimed ? ' ready' : '');
+      const pct = Math.min(100, Math.round(100 * (q.progress || 0) / q.target));
+      row.innerHTML = '<div class="q-label">' + q.label + '</div>'
+        + '<div class="q-bar"><div class="q-fill" style="width:' + pct + '%"></div></div>'
+        + '<div class="q-meta">' + (q.progress | 0) + ' / ' + q.target + ' · 🪙' + q.reward + '</div>';
+      if (q.progress >= q.target && !q.claimed) {
+        const b = document.createElement('button');
+        b.className = 'btn green q-claim'; b.textContent = 'Забрать';
+        b.onclick = () => claimQuest(q.id);
+        row.appendChild(b);
+      } else if (q.claimed) {
+        const d = document.createElement('div'); d.className = 'q-done'; d.textContent = '✓'; row.appendChild(d);
+      }
+      box.appendChild(row);
+    }
+  }
+  function showObstacleTut(kind) {
+    if (save.seenTut[kind]) return;
+    save.seenTut[kind] = true; persist();
+    const info = {
+      rusty: { title: 'Ржавый винт', body: 'Ржавые винты нужно нажать дважды, чтобы открутить.' },
+      glass: { title: 'Стеклянная доска', body: 'Стеклянная доска разлетается на осколки — осторожно, это просто эффект!' },
+      chain: { title: 'Цепь', body: 'Два винта связаны цепью. Оба должны быть свободны (без замка), прежде чем любой из них открутится.' },
+      ice: { title: 'Лёд', body: 'Сначала разбей лёд одним нажатием, затем открути винт.' },
+      bomb: { title: 'Доска-бомба', body: 'У этой доски ограниченное число ходов. Успей снять все её винты, пока таймер не истечёт!' }
+    }[kind];
+    if (!info) return;
+    const t = $('tut-title'), b = $('tut-body'), sc = $('sc-tut');
+    if (t) t.textContent = info.title;
+    if (b) b.textContent = info.body;
+    if (sc) { pendingTut = kind; showScreen('tut'); }
+    else toast(info.title + ': ' + info.body);
+  }
+  function closeTut() {
+    showScreen('play');
+    pendingTut = null;
+  }
+  function applyObstacles(def, idx) {
+    const L = idx + 1;
+    const planks = (def.planks || []).map(p => Object.assign({}, p));
+    const screws = (def.screws || []).map(s => Object.assign({}, s));
+    const intro = [];
+    // helper picks
+    const freeScrews = () => screws.filter(s => !s.locked && !s.isKey && !s.rusty && !s.ice && !s.chainId);
+    if (L >= 8) {
+      const n = L >= 18 ? 2 : 1;
+      const cand = freeScrews();
+      for (let i = 0; i < n && i < cand.length; i++) {
+        const s = cand[(i * 3) % cand.length];
+        if (!s || s.rusty) continue;
+        s.rusty = true; s.rustyHits = 0;
+      }
+      if (cand.length) intro.push('rusty');
+    }
+    if (L >= 10) {
+      // glass plank: prefer a plank with >=2 screws
+      const ranked = planks.slice().sort((a, b) => {
+        const sa = screws.filter(s => s.plankId === a.id).length;
+        const sb = screws.filter(s => s.plankId === b.id).length;
+        return sb - sa;
+      });
+      if (ranked.length >= 2) {
+        ranked[0].material = 'glass';
+        intro.push('glass');
+      }
+    }
+    if (L >= 15) {
+      const cand = freeScrews().filter(s => !s.rusty);
+      if (cand.length >= 2) {
+        const a = cand[0], b = cand[Math.min(cand.length - 1, 1 + (L % 3))];
+        if (a && b && a.id !== b.id) {
+          a.chainId = 'c' + L; b.chainId = 'c' + L;
+          intro.push('chain');
+        }
+      }
+    }
+    if (L >= 20) {
+      const cand = freeScrews().filter(s => !s.chainId);
+      const n = L >= 30 ? 2 : 1;
+      let added = 0;
+      for (let i = 0; i < cand.length && added < n; i++) {
+        const s = cand[(i * 5) % cand.length];
+        if (!s || s.ice) continue;
+        s.ice = true; s.iceBroken = false; added++;
+      }
+      if (added) intro.push('ice');
+    }
+    if (L >= 28) {
+      // bomb: a plank that isn't glass if possible, with screws
+      let target = planks.find(p => p.material !== 'glass') || planks[0];
+      const scN = screws.filter(s => s.plankId === target.id).length;
+      if (scN > 0) {
+        target.bomb = true;
+        target.bombMoves = Math.max(scN + 2, scN + 1 + ((L - 28) / 4 | 0));
+        intro.push('bomb');
+      }
+    }
+    return Object.assign({}, def, { planks, screws, _intro: intro });
+  }
+
   function persist() {
     save.muted = !musicOn;
     save.musicOn = musicOn;
@@ -328,7 +630,8 @@
     removedKeys = new Set();
     const toastEl = $('toast'); if (toastEl) toastEl.style.display = 'none';
     const raw = levels[idx] || levels[0];
-    const def = rebuildAsJigsaw(raw, idx);
+    const def0 = rebuildAsJigsaw(raw, idx);
+    const def = applyObstacles(def0, idx);
     goalText = def.goal || 'Урони все доски';
     goalBannerT = (def.tut || levelIdx <= 3) ? 3.5 : 2.0;
     levelBands = def.bands || 1;
@@ -336,6 +639,10 @@
     if (save.boosters._extraSlots) maxSlots += save.boosters._extraSlots;
     tutStep = 0; tutMsg = '';
     if (def.tut) { tutStep = 1; tutMsg = def.tut[1] || ''; }
+    runUsedBooster = false; runUsedHint = false; runMoves = 0;
+    runUnscrewed = 0; runPlanksBroken = 0;
+    runPar = Math.max(3, (def.screws || []).length + 2);
+    bombHud = null;
 
     clearWorld();
     planks = []; screws = [];
@@ -365,7 +672,11 @@
         woodTone: 0.95 + (planks.length % 4) * 0.02,
         edges: pd.edges || { t: [0], r: [0], b: [0], l: [0] },
         tabR: pd.tabR || 12,
-        cells: pd.cells || null
+        cells: pd.cells || null,
+        material: pd.material || 'wood',
+        bomb: !!pd.bomb,
+        bombMoves: pd.bombMoves || 0,
+        bombLeft: pd.bombMoves || 0
       };
       World.add(world, body);
       planks.push(plank);
@@ -384,7 +695,10 @@
         id: sd.id, x: sx, y: sy, color: sd.color, plankId: sd.plankId,
         alive: true, locked: !!sd.locked, keyId: sd.keyId || null,
         lockedUntilBand: sd.lockedUntilBand || 0, isKey: !!sd.isKey,
-        blocked: false
+        blocked: false,
+        rusty: !!sd.rusty, rustyHits: sd.rustyHits || 0,
+        ice: !!sd.ice, iceBroken: !!sd.iceBroken,
+        chainId: sd.chainId || null
       };
       if (owner) owner.screwIds.push(sc.id);
       screws.push(sc);
@@ -417,6 +731,12 @@
     updateLocks();
     refreshHud();
     ensureBgm();
+    if (def._intro && def._intro.length) {
+      const kind = def._intro.find(k => !save.seenTut[k]);
+      if (kind) setTimeout(() => { if (state === 'play') showObstacleTut(kind); }, 450);
+    }
+    const bp = planks.find(p => p.bomb && p.alive);
+    if (bp) bombHud = { plankId: bp.id, left: bp.bombLeft };
   }
 
   function layoutBoxes() {
@@ -437,6 +757,18 @@
       if (sc.lockedUntilBand > 0 && !bandCleared(sc.lockedUntilBand)) locked = true;
       if (sc.locked && sc.keyId && !removedKeys.has(sc.keyId)) locked = true;
       sc.blocked = locked;
+      sc._baseBlocked = locked;
+    }
+    // chain: both must be free of base locks before either can unscrew
+    const byChain = {};
+    for (const sc of screws) {
+      if (!sc.alive || !sc.chainId) continue;
+      (byChain[sc.chainId] = byChain[sc.chainId] || []).push(sc);
+    }
+    for (const id of Object.keys(byChain)) {
+      const group = byChain[id];
+      const anyBase = group.some(s => s._baseBlocked);
+      if (anyBase) for (const s of group) s.blocked = true;
     }
   }
 
@@ -468,11 +800,14 @@
         kink: (Math.random() - 0.5) * 18
       });
     }
-    p.shatter = { t: 0, phase: 'crack', crackDur: 0.15, shards: [], cracks, px, py, ang, tone: p.woodTone };
-    playSfx('wood', 0.95);
-    playSfx('crack', 0.7);
-    screenShake = 0.28;
+    const isGlass = p.material === 'glass';
+    p.shatter = { t: 0, phase: 'crack', crackDur: isGlass ? 0.1 : 0.15, shards: [], cracks, px, py, ang, tone: p.woodTone, glass: isGlass };
+    if (isGlass) { playSfx('crack', 0.95); playSfx('crack', 0.55); }
+    else { playSfx('wood', 0.95); playSfx('crack', 0.7); }
+    screenShake = isGlass ? 0.2 : 0.28;
     spawnDust(px, py);
+    runPlanksBroken++;
+    questProgress('break_planks', 1);
     updateLocks();
   }
 
@@ -497,10 +832,11 @@
         rot: Math.random() * Math.PI * 2,
         omega: (Math.random() - 0.5) * 14,
         t: 0, life: 0.85 + Math.random() * 0.35,
-        tone: sh.tone + (Math.random() - 0.5) * 0.06
+        tone: sh.tone + (Math.random() - 0.5) * 0.06,
+        glass: !!sh.glass
       });
     }
-    // sawdust burst
+    // sawdust / glass burst
     for (let i = 0; i < 18; i++) {
       particles.push({
         x: sh.px + (Math.random() - 0.5) * p.w * 0.6,
@@ -508,7 +844,9 @@
         vx: (Math.random() - 0.5) * 160,
         vy: -40 - Math.random() * 140,
         r: 1.2 + Math.random() * 2.8,
-        color: Math.random() < 0.5 ? '#d2a66a' : '#a87840',
+        color: sh.glass
+          ? (Math.random() < 0.5 ? '#cfefff' : '#8ec8e8')
+          : (Math.random() < 0.5 ? '#d2a66a' : '#a87840'),
         t: 0, life: 0.55 + Math.random() * 0.45
       });
     }
@@ -1006,16 +1344,39 @@
     if (sc.blocked) {
       shakeScrewId = sc.id; shakeT = 0.35;
       playSfx('clunk', 0.75);
-      if (sc.lockedUntilBand > 0) toast('Сначала урони доски верхнего ряда');
+      if (sc.chainId && screws.some(s => s.alive && s.chainId === sc.chainId && s._baseBlocked))
+        toast('Цепь: сначала освободи оба винта');
+      else if (sc.lockedUntilBand > 0) toast('Сначала урони доски верхнего ряда');
       else toast('Сначала открути винт с ключиком');
       return false;
+    }
+    // ice: first tap cracks
+    if (sc.ice && !sc.iceBroken) {
+      sc.iceBroken = true;
+      playSfx('crack', 0.55); buzz(12);
+      shakeScrewId = sc.id; shakeT = 0.25;
+      toast('Лёд треснул!');
+      return true;
+    }
+    // rusty: needs 2 taps
+    if (sc.rusty && (sc.rustyHits | 0) < 1) {
+      sc.rustyHits = (sc.rustyHits | 0) + 1;
+      playSfx('clunk', 0.6); buzz(10);
+      shakeScrewId = sc.id; shakeT = 0.3;
+      toast('Ржавый винт — ещё раз!');
+      return true;
     }
     sc.alive = false;
     removedKeys.add(sc.id);
     playSfx('screw', 0.7); buzz(16);
+    runMoves++;
+    runUnscrewed++;
+    questProgress('unscrew', 1);
     const owner = planks.find(p => p.id === sc.plankId);
     if (owner) refreshPlankPhysics(owner);
     updateLocks();
+    // bomb timer: each successful unscrew counts as a move for bomb planks
+    tickBombsOnMove();
 
     const box = findBoxFor(sc.color);
     if (box) {
@@ -1039,6 +1400,22 @@
         levelIdx === 3 ? 'Освободи верхний ряд — откроется нижний' : goalText;
     }
     return true;
+  }
+  function tickBombsOnMove() {
+    for (const p of planks) {
+      if (!p.bomb || !p.alive || p.falling) continue;
+      // only tick if bomb plank still has live screws
+      const live = livingScrewsOnPlank(p);
+      if (!live.length) continue;
+      p.bombLeft = Math.max(0, (p.bombLeft | 0) - 1);
+      bombHud = { plankId: p.id, left: p.bombLeft };
+      if (p.bombLeft <= 0) {
+        toast('💥 Бомба! Доска взорвалась');
+        playSfx('lose', 0.5); buzz([30, 40, 30]);
+        const g = outcomeGen;
+        setTimeout(() => { if (g === outcomeGen) endLose(); }, 500);
+      }
+    }
   }
 
   function onFlyerArrived(f) {
@@ -1088,12 +1465,30 @@
   function endWin() {
     if (state !== 'play') return;
     state = 'win'; playSfx('win', 0.7); buzz([20,40,20]); burstConfetti();
-    save.stars[levelIdx] = 3;
-    save.coins += 40 + levelIdx * 2;
+    const freeSlots = waitSlots.filter(s => !s).length;
+    let earned = 1;
+    if (!runUsedBooster && !runUsedHint) earned = 2;
+    if (earned === 2 && (freeSlots >= 2 || runMoves <= runPar)) earned = 3;
+    const prev = save.stars[levelIdx] | 0;
+    const best = Math.max(prev, earned);
+    const gained = Math.max(0, best - prev);
+    save.stars[levelIdx] = best;
+    const coins = 40 + levelIdx * 2 + (earned * 10);
+    save.coins += coins;
     if (save.unlocked < levelIdx + 2) save.unlocked = levelIdx + 2;
+    questProgress('pass_levels', 1);
+    if (gained) questProgress('earn_stars', gained);
+    if (!runUsedBooster && !runUsedHint) questProgress('win_no_boost', 1);
+    const chests = checkStarMilestones();
     persist();
-    $('win-stars').textContent = '★★★';
-    $('win-coins').textContent = '+' + (40 + levelIdx * 2) + ' монет';
+    starAnimT = 1.2;
+    const starStr = '★'.repeat(earned) + '☆'.repeat(3 - earned);
+    const ws = $('win-stars'); if (ws) { ws.textContent = starStr; ws.className = 'win-stars-anim'; }
+    let coinMsg = '+' + coins + ' монет';
+    if (gained) coinMsg += ' · новых ★ ' + gained;
+    if (chests.length) coinMsg += ' · сундук!';
+    const wc = $('win-coins'); if (wc) wc.textContent = coinMsg;
+    const wr = $('win-replay'); if (wr) wr.style.display = (best < 3) ? 'inline-flex' : 'none';
     showScreen('win'); refreshHud();
   }
   function endLose() {
@@ -1149,17 +1544,19 @@
     let pick = screws.find(s => s.alive && !s.blocked && findBoxFor(s.color));
     if (!pick) pick = screws.find(s => s.alive && !s.blocked);
     if (!pick) { toast('Нет свободных винтов'); return; }
-    save.boosters.hint--; persist(); hintScrewId = pick.id; refreshHud();
+    save.boosters.hint--; runUsedHint = true; persist(); hintScrewId = pick.id; refreshHud();
   }
   function useSlot() {
     if (state !== 'play' || save.boosters.slot <= 0) return;
     if (maxSlots >= 8) { toast('Максимум слотов'); return; }
     save.boosters.slot--; save.boosters._extraSlots = (save.boosters._extraSlots || 0) + 1;
+    runUsedBooster = true;
     maxSlots++; waitSlots.push(null); persist(); refreshHud(); toast('+1 слот');
   }
   function useHammer() {
     if (state !== 'play' || save.boosters.hammer <= 0) return;
     hammerMode = !hammerMode;
+    if (hammerMode) runUsedBooster = true;
     toast(hammerMode ? 'Выбери доску' : 'Отмена');
   }
 
@@ -1192,7 +1589,14 @@
     ctx.translate(x, y); ctx.rotate(ang);
     const reach = tabReachFor(p);
     ctx.beginPath(); jigsawPath(ctx, p.w, p.h, edges, tabR);
-    ctx.fillStyle = woodFill(p.woodTone); ctx.fill('nonzero');
+    if (p.material === 'glass') {
+      const gg = ctx.createLinearGradient(-p.w/2, -p.h/2, p.w/2, p.h/2);
+      gg.addColorStop(0, 'rgba(200,235,255,0.72)');
+      gg.addColorStop(0.5, 'rgba(160,210,240,0.55)');
+      gg.addColorStop(1, 'rgba(120,180,220,0.65)');
+      ctx.fillStyle = gg;
+    } else ctx.fillStyle = woodFill(p.woodTone);
+    ctx.fill('nonzero');
     // bevel + grain clipped to FULL outline (tabs included)
     ctx.save();
     ctx.beginPath(); jigsawPath(ctx, p.w, p.h, edges, tabR);
@@ -1234,6 +1638,17 @@
       }
     }
     ctx.restore();
+    if (p.bomb && p.alive && !p.falling) {
+      ctx.save();
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = p.bombLeft <= 2 ? '#ff4433' : '#ffe066';
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 3;
+      const label = '💣' + (p.bombLeft | 0);
+      ctx.strokeText(label, p.body.position.x, p.body.position.y - p.h / 2 - 12);
+      ctx.fillText(label, p.body.position.x, p.body.position.y - p.h / 2 - 12);
+      ctx.restore();
+    }
     if (!p.shattering) {
       for (const id of p.screwIds) {
         const sc = screws.find(s => s.id === id); if (!sc || !sc.alive) continue;
@@ -1243,7 +1658,7 @@
     }
   }
 
-  function drawScrewHead(x, y, color, spin, scale, blocked, shaking, isKey) {
+  function drawScrewHead(x, y, color, spin, scale, blocked, shaking, isKey, opts) {
     // draw ~15% smaller than layout radius so wood padding is always visible
     const r = screwR * 0.85 * (scale || 1);
     ctx.save();
@@ -1260,6 +1675,27 @@
       ctx.moveTo(0, -r * 0.4); ctx.lineTo(0, r * 0.4);
       ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.stroke();
     }
+    opts = opts || {};
+    if (opts.rusty) {
+      ctx.fillStyle = 'rgba(120,70,30,0.45)';
+      ctx.beginPath(); ctx.arc(0, 0, r + 2, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('🧱', r * 0.55, -r * 0.55);
+    }
+    if (opts.ice && !opts.iceBroken) {
+      ctx.fillStyle = 'rgba(180,220,255,0.55)';
+      ctx.beginPath(); ctx.arc(0, 0, r + 3, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-r * 0.6, -r * 0.2); ctx.lineTo(r * 0.5, r * 0.5); ctx.stroke();
+      ctx.font = '12px sans-serif'; ctx.fillStyle = '#e8f6ff'; ctx.fillText('❄️', 0, 0);
+    } else if (opts.ice && opts.iceBroken) {
+      ctx.strokeStyle = 'rgba(200,230,255,0.7)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(-r * 0.5, -r * 0.3); ctx.lineTo(r * 0.4, r * 0.4); ctx.stroke();
+    }
+    if (opts.chainId) {
+      ctx.font = '13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('🔗', -r * 0.55, -r * 0.55);
+    }
     if (isKey && !blocked) {
       ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('🔑', r * 0.55, -r * 0.55);
@@ -1271,6 +1707,25 @@
       ctx.fillStyle = '#fff'; ctx.fillText('🔒', 0, 1);
     }
     ctx.restore();
+  }
+  function drawChains() {
+    const seen = new Set();
+    for (const sc of screws) {
+      if (!sc.alive || !sc.chainId || seen.has(sc.chainId)) continue;
+      seen.add(sc.chainId);
+      const group = screws.filter(s => s.alive && s.chainId === sc.chainId);
+      if (group.length < 2) continue;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(200,200,210,0.85)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(group[0].x, group[0].y);
+      for (let i = 1; i < group.length; i++) ctx.lineTo(group[i].x, group[i].y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
   }
 
   function drawBoxes() {
@@ -1453,13 +1908,14 @@ function drawTrayNine() {
       drawTrayNine();
       for (const p of planks) if (p.alive || (p.shattering && p.shatter && p.shatter.phase === 'crack')) drawPlank(p);
       drawBandDivider();
-      for (const sc of screws) {
+      drawChains();
+    for (const sc of screws) {
         if (!sc.alive) continue;
         if (hintScrewId === sc.id) {
           ctx.beginPath(); ctx.arc(sc.x, sc.y, screwR + 8 + Math.sin(animT * 8) * 3, 0, Math.PI * 2);
           ctx.strokeStyle = '#ffe566'; ctx.lineWidth = 3; ctx.stroke();
         }
-        drawScrewHead(sc.x, sc.y, sc.color, 0, 1, sc.blocked, shakeScrewId === sc.id && shakeT > 0, sc.isKey);
+        drawScrewHead(sc.x, sc.y, sc.color, 0, 1, sc.blocked, shakeScrewId === sc.id && shakeT > 0, sc.isKey, { rusty: sc.rusty, ice: sc.ice, iceBroken: sc.iceBroken, chainId: sc.chainId });
       }
       drawWaitRow();
       drawTutorial();
@@ -1479,14 +1935,14 @@ function drawTrayNine() {
 
   function showScreen(name) {
     state = name === 'play' ? 'play' : name;
-    ['home', 'map', 'win', 'lose', 'settings'].forEach(s => {
+    ['home', 'map', 'win', 'lose', 'settings', 'daily', 'tut'].forEach(s => {
       const el = $('sc-' + s); if (el) el.classList.toggle('on', s === name);
     });
     const playing = name === 'play';
     $('hud').style.display = playing ? 'block' : 'none';
     $('boosters').style.display = playing ? 'flex' : 'none';
     const hg = $('btn-home-settings');
-    if (hg) hg.style.display = (name === 'home' || name === 'settings') ? 'block' : 'none';
+    if (hg) hg.style.display = (name === 'home' || name === 'settings' || name === 'daily') ? 'block' : 'none';
   }
   function refreshHud() {
     $('lvl-pill').textContent = 'Ур. ' + (levelIdx + 1);
@@ -1495,14 +1951,20 @@ function drawTrayNine() {
     $('badge-hammer').textContent = save.boosters.hammer;
     $('badge-hint').textContent = save.boosters.hint;
     $('ver').textContent = 'v' + VERSION;
+    const sc = $('star-pill'); if (sc) sc.textContent = '★ ' + totalStars();
+    const cp = $('coin-pill'); if (cp) cp.textContent = '🪙 ' + (save.coins | 0);
+    updateQuestBadge();
   }
   function buildMap() {
+    const ms = $('map-stars'); if (ms) ms.textContent = '★ ' + totalStars() + ' / ' + (levels.length * 3);
     const g = $('mapgrid'); g.innerHTML = '';
     for (let i = 0; i < levels.length; i++) {
       const cell = document.createElement('div');
       const unlocked = i < save.unlocked;
-      cell.className = 'mapcell' + (unlocked ? '' : ' lock') + (save.stars[i] ? ' done' : '');
-      cell.innerHTML = (unlocked ? (i + 1) : '🔒') + (save.stars[i] ? '<div class="stars">★★★</div>' : '');
+      const st = save.stars[i] | 0;
+      cell.className = 'mapcell' + (unlocked ? '' : ' lock') + (st ? ' done' : '');
+      const starsHtml = st ? ('<div class="stars">' + '★'.repeat(st) + '☆'.repeat(3 - st) + '</div>') : '';
+      cell.innerHTML = (unlocked ? (i + 1) : '🔒') + starsHtml;
       if (unlocked) cell.onclick = () => startLevel(i);
       g.appendChild(cell);
     }
@@ -1595,6 +2057,25 @@ function drawTrayNine() {
     loadBgmTrack(trackId, { autoplay: false });
 
     $('btn-play').onclick = () => startLevel(Math.min(save.unlocked - 1, levels.length - 1));
+    $('btn-home-daily') && ($('btn-home-daily').onclick = () => openDaily());
+    const bdc = $('btn-daily-claim');
+    if (bdc) bdc.onclick = () => {
+      const r = claimDaily();
+      if (r) {
+        let msg = 'День ' + r.streak + ': +' + r.reward.coins + ' монет';
+        if (r.reward.boosters) msg += ' + бустеры!';
+        toast(msg);
+        renderDaily(); refreshHud();
+      }
+    };
+    const bdb = $('btn-daily-back');
+    if (bdb) bdb.onclick = () => {
+      const back = settingsReturn || 'home';
+      showScreen(back === 'play' ? 'home' : back);
+    };
+    const bto = $('btn-tut-ok'); if (bto) bto.onclick = () => closeTut();
+    const bwr = $('btn-win-replay'); if (bwr) bwr.onclick = () => startLevel(levelIdx);
+
     $('btn-home-map').onclick = () => { buildMap(); showScreen('map'); };
     $('btn-map-back').onclick = () => showScreen('home');
     $('btn-map').onclick = () => { buildMap(); showScreen('map'); };
@@ -1630,7 +2111,12 @@ function drawTrayNine() {
     $('btn-update').onclick = checkOta;
     $('btn-home-update').onclick = checkOta;
     $('b-hint').onclick = useHint; $('b-slot').onclick = useSlot; $('b-hammer').onclick = useHammer;
-    refreshHud(); checkOta(true); requestAnimationFrame(loop);
+    refreshHud(); ensureDailyQuests(); updateQuestBadge();
+    checkOta(true); requestAnimationFrame(loop);
+    // daily reward popup on first launch of the day
+    if (canClaimDaily()) {
+      setTimeout(() => { if (state === 'home') openDaily(); }, 600);
+    }
     document.addEventListener('visibilitychange', () => onAppVisible(!document.hidden));
     window.addEventListener('pagehide', () => pauseBgm());
     window.addEventListener('freeze', () => pauseBgm());
@@ -1644,6 +2130,7 @@ function drawTrayNine() {
 
     window.__V = {
       VERSION, openSettings, closeSettings, renderSettings, BGM_TRACKS,
+      openDaily, renderDaily, renderQuests, claimDaily, applyObstacles, totalStars,
       startLevel, assertNoOverlapRuntime, plankRects, startPlankFall, startPlankShatter, assignPuzzleEdges,
       assertScrewsInside: () => {
         const bad = [];
@@ -1721,7 +2208,14 @@ function drawTrayNine() {
         }
         return { ok: hits.length === 0, hits: hits.slice(0, 20), rim, boardPad: BOARD_PAD, tray: { ...tray }, board: { ...board } };
       },
-      getScrews: () => screws.filter(s => s.alive).map(s => ({ id: s.id, x: s.x, y: s.y, plankId: s.plankId, color: s.color })),
+      getScrews: () => screws.filter(s => s.alive).map(s => ({ id: s.id, x: s.x, y: s.y, plankId: s.plankId, color: s.color, rusty: !!s.rusty, ice: !!s.ice, iceBroken: !!s.iceBroken, chainId: s.chainId || null, blocked: !!s.blocked })),
+      getObstacles: () => ({
+        rusty: screws.filter(s => s.alive && s.rusty).map(s => s.id),
+        ice: screws.filter(s => s.alive && s.ice).map(s => s.id),
+        chain: screws.filter(s => s.alive && s.chainId).map(s => ({ id: s.id, chainId: s.chainId })),
+        glass: planks.filter(p => p.alive && p.material === 'glass').map(p => p.id),
+        bomb: planks.filter(p => p.alive && p.bomb).map(p => ({ id: p.id, left: p.bombLeft, moves: p.bombMoves }))
+      }),
       getFalling: () => planks.filter(p => p.falling).map(p => ({ id: p.id, shatter: p.shatter && { phase: p.shatter.phase, t: p.shatter.t } })),
       getShards: () => shards.length,
       getEdges: () => planks.filter(p => p.alive).map(p => ({ id: p.id, edges: p.edges, tabR: p.tabR, w: p.w, h: p.h })),
