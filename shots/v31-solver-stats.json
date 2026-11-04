@@ -1,0 +1,420 @@
+[
+  {
+    "i": 0,
+    "name": "Старт",
+    "solvable": true,
+    "blocked": 0,
+    "greedyFail": 0,
+    "screws": 3,
+    "colors": 1
+  },
+  {
+    "i": 1,
+    "name": "Перекрытие",
+    "solvable": true,
+    "blocked": 1,
+    "greedyFail": 0,
+    "screws": 5,
+    "colors": 1
+  },
+  {
+    "i": 2,
+    "name": "Цвета",
+    "solvable": true,
+    "blocked": 1,
+    "greedyFail": 0,
+    "screws": 10,
+    "colors": 2
+  },
+  {
+    "i": 3,
+    "name": "Давление",
+    "solvable": true,
+    "blocked": 1,
+    "greedyFail": 0,
+    "screws": 9,
+    "colors": 4
+  },
+  {
+    "i": 4,
+    "name": "Слои",
+    "solvable": true,
+    "blocked": 1,
+    "greedyFail": 0,
+    "screws": 10,
+    "colors": 4
+  },
+  {
+    "i": 5,
+    "name": "Ур.6",
+    "solvable": true,
+    "blocked": 5,
+    "greedyFail": 0,
+    "screws": 6,
+    "colors": 4,
+    "relaxed": true,
+    "attempts": 19
+  },
+  {
+    "i": 6,
+    "name": "Ур.7",
+    "solvable": true,
+    "blocked": 5,
+    "greedyFail": 1,
+    "screws": 9,
+    "colors": 3,
+    "relaxed": true,
+    "attempts": 44
+  },
+  {
+    "i": 7,
+    "name": "Ур.8",
+    "solvable": true,
+    "blocked": 5,
+    "greedyFail": 1,
+    "screws": 9,
+    "colors": 3,
+    "relaxed": true,
+    "attempts": 37
+  },
+  {
+    "i": 8,
+    "name": "Ур.9",
+    "solvable": true,
+    "blocked": 4,
+    "greedyFail": 1,
+    "screws": 9,
+    "colors": 3,
+    "attempts": 26
+  },
+  {
+    "i": 9,
+    "name": "Ур.10",
+    "solvable": true,
+    "blocked": 4,
+    "greedyFail": 1,
+    "screws": 9,
+    "colors": 3,
+    "attempts": 19
+  },
+  {
+    "i": 10,
+    "name": "Ур.11",
+    "solvable": true,
+    "blocked": 5,
+    "greedyFail": 1,
+    "screws": 10,
+    "colors": 4,
+    "attempts": 49
+  },
+  {
+    "i": 11,
+    "name": "Ур.12",
+    "solvable": true,
+    "blocked": 5,
+    "greedyFail": 1,
+    "screws": 10,
+    "colors": 4,
+    "attempts": 42
+  },
+  {
+    "i": 12,
+    "name": "Ур.13",
+    "solvable": true,
+    "blocked": 4,
+    "greedyFail": 1,
+    "screws": 11,
+    "colors": 5,
+    "attempts": 3
+  },
+  {
+    "i": 13,
+    "name": "Ур.14",
+    "solvable": true,
+    "blocked": 5,
+    "greedyFail": 1,
+    "screws": 15,
+    "colors": 5,
+    "attempts": 20
+  },
+  {
+    "i": 14,
+    "name": "Ур.15",
+    "solvable": true,
+    "blocked": 5,
+    "greedyFail": 1,
+    "screws": 15,
+    "colors": 5,
+    "attempts": 13
+  },
+  {
+    "i": 15,
+    "name": "Ур.16",
+    "solvable": true,
+    "blocked": 6,
+    "greedyFail": 1,
+    "screws": 11,
+    "colors": 4,
+    "attempts": 10
+  },
+  {
+    "i": 16,
+    "name": "Ур.17",
+    "solvable": true,
+    "blocked": 7,
+    "greedyFail": 1,
+    "screws": 12,
+    "colors": 4,
+    "attempts": 16
+  },
+  {
+    "i": 17,
+    "name": "Ур.18",
+    "solvable": true,
+    "blocked": 7,
+    "greedyFail": 1,
+    "screws": 12,
+    "colors": 4,
+    "attempts": 9
+  },
+  {
+    "i": 18,
+    "name": "Ур.19",
+    "solvable": true,
+    "blocked": 7,
+    "greedyFail": 1,
+    "screws": 12,
+    "colors": 4,
+    "attempts": 2
+  },
+  {
+    "i": 19,
+    "name": "Ур.20",
+    "solvable": true,
+    "blocked": 4,
+    "greedyFail": 1,
+    "screws": 10,
+    "colors": 5,
+    "attempts": 6
+  },
+  {
+    "i": 20,
+    "name": "Ур.21",
+    "solvable": true,
+    "blocked": 9,
+    "greedyFail": 1,
+    "screws": 15,
+    "colors": 6,
+    "attempts": 2
+  },
+  {
+    "i": 21,
+    "name": "Ур.22",
+    "solvable": true,
+    "blocked": 3,
+    "greedyFail": 1,
+    "screws": 12,
+    "colors": 5,
+    "attempts": 2
+  },
+  {
+    "i": 22,
+    "name": "Ур.23",
+    "solvable": true,
+    "blocked": 6,
+    "greedyFail": 1,
+    "screws": 11,
+    "colors": 6,
+    "attempts": 14
+  },
+  {
+    "i": 23,
+    "name": "Ур.24",
+    "solvable": true,
+    "blocked": 6,
+    "greedyFail": 1,
+    "screws": 11,
+    "colors": 6,
+    "attempts": 7
+  },
+  {
+    "i": 24,
+    "name": "Ур.25",
+    "solvable": true,
+    "blocked": 9,
+    "greedyFail": 1,
+    "screws": 15,
+    "colors": 6,
+    "attempts": 0
+  },
+  {
+    "i": 25,
+    "name": "Ур.26",
+    "solvable": true,
+    "blocked": 5,
+    "greedyFail": 1,
+    "screws": 14,
+    "colors": 6,
+    "attempts": 2
+  },
+  {
+    "i": 26,
+    "name": "Ур.27",
+    "solvable": true,
+    "blocked": 6,
+    "greedyFail": 1,
+    "screws": 14,
+    "colors": 6,
+    "attempts": 11
+  },
+  {
+    "i": 27,
+    "name": "Ур.28",
+    "solvable": true,
+    "blocked": 6,
+    "greedyFail": 1,
+    "screws": 14,
+    "colors": 6,
+    "attempts": 4
+  },
+  {
+    "i": 28,
+    "name": "Ур.29",
+    "solvable": true,
+    "blocked": 4,
+    "greedyFail": 1,
+    "screws": 13,
+    "colors": 5,
+    "attempts": 6
+  },
+  {
+    "i": 29,
+    "name": "Ур.30",
+    "solvable": true,
+    "blocked": 9,
+    "greedyFail": 1,
+    "screws": 15,
+    "colors": 5,
+    "attempts": 21
+  },
+  {
+    "i": 30,
+    "name": "Ур.31",
+    "solvable": true,
+    "blocked": 9,
+    "greedyFail": 1,
+    "screws": 15,
+    "colors": 5,
+    "attempts": 14
+  },
+  {
+    "i": 31,
+    "name": "Ур.32",
+    "solvable": true,
+    "blocked": 9,
+    "greedyFail": 1,
+    "screws": 15,
+    "colors": 6,
+    "attempts": 7
+  },
+  {
+    "i": 32,
+    "name": "Ур.33",
+    "solvable": true,
+    "blocked": 9,
+    "greedyFail": 1,
+    "screws": 15,
+    "colors": 6,
+    "attempts": 0
+  },
+  {
+    "i": 33,
+    "name": "Ур.34",
+    "solvable": true,
+    "blocked": 6,
+    "greedyFail": 1,
+    "screws": 15,
+    "colors": 7,
+    "attempts": 3
+  },
+  {
+    "i": 34,
+    "name": "Ур.35",
+    "solvable": true,
+    "blocked": 9,
+    "greedyFail": 1,
+    "screws": 17,
+    "colors": 6,
+    "attempts": 8
+  },
+  {
+    "i": 35,
+    "name": "Ур.36",
+    "solvable": true,
+    "blocked": 9,
+    "greedyFail": 1,
+    "screws": 17,
+    "colors": 6,
+    "attempts": 1
+  },
+  {
+    "i": 36,
+    "name": "Ур.37",
+    "solvable": true,
+    "blocked": 11,
+    "greedyFail": 1,
+    "screws": 15,
+    "colors": 6,
+    "attempts": 2
+  },
+  {
+    "i": 37,
+    "name": "Ур.38",
+    "solvable": true,
+    "blocked": 9,
+    "greedyFail": 1,
+    "screws": 15,
+    "colors": 6,
+    "attempts": 5
+  },
+  {
+    "i": 38,
+    "name": "Ур.39",
+    "solvable": true,
+    "blocked": 8,
+    "greedyFail": 1,
+    "screws": 14,
+    "colors": 6,
+    "attempts": 2
+  },
+  {
+    "i": 39,
+    "name": "Ур.40",
+    "solvable": true,
+    "blocked": 11,
+    "greedyFail": 1,
+    "screws": 18,
+    "colors": 6,
+    "attempts": 6
+  },
+  {
+    "i": 40,
+    "name": "Ур.41",
+    "solvable": true,
+    "blocked": 8,
+    "greedyFail": 1,
+    "screws": 15,
+    "colors": 5,
+    "attempts": 1
+  },
+  {
+    "i": 41,
+    "name": "Ур.42",
+    "solvable": true,
+    "blocked": 9,
+    "greedyFail": 1,
+    "screws": 16,
+    "colors": 7,
+    "attempts": 0
+  }
+]

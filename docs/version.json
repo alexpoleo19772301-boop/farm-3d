@@ -1,9 +1,9 @@
 {
-  "version": "3.0.0",
-  "versionCode": 30000,
+  "version": "3.1.0",
+  "versionCode": 31000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.0.0",
+  "webVersion": "3.1.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• Винтики v3.0.0 — головоломка с винтами и досками\n• Коробки по цветам (по 3), слоты ожидания\n• Физика Matter.js: поворот на одном винте, падение\n• 42 уровня, карта, бустеры, туториал с пальцем\n• Принцесса архивирована (tag princess-final)"
+  "changelog": "• v3.1.0: реальные перекрытия (винт под доской серый+замок+clunk)\n• Давление цветов: 2 коробки, много цветов, слоты\n• 42 уровня проверены солвером\n• Туториал L1–L3, цель «Урони все доски»\n• Арт ближе к мокапу: workshop BG, glossy screws"
 }
