@@ -1,0 +1,99 @@
+{
+  "version": "4.0.5",
+  "options": [
+    {
+      "id": 0,
+      "name": "Выкл",
+      "file": null
+    },
+    {
+      "id": 1,
+      "name": "В стакан (бутылка)",
+      "file": "assets/audio/sfx/sfx_pour_1.ogg"
+    },
+    {
+      "id": 2,
+      "name": "В стакан №2",
+      "file": "assets/audio/sfx/sfx_pour_2.ogg"
+    },
+    {
+      "id": 3,
+      "name": "В кружку (мягко)",
+      "file": "assets/audio/sfx/sfx_pour_3.ogg"
+    },
+    {
+      "id": 4,
+      "name": "В кружку №2",
+      "file": "assets/audio/sfx/sfx_pour_4.ogg"
+    },
+    {
+      "id": 5,
+      "name": "Ручеёк",
+      "file": "assets/audio/sfx/sfx_pour_5.ogg"
+    }
+  ],
+  "plays": [
+    {
+      "id": 1,
+      "log": [
+        {
+          "t": 1793817919973,
+          "name": "pour_1",
+          "src": "assets/audio/sfx/sfx_pour_1.ogg",
+          "vol": 0.4675
+        }
+      ],
+      "hasBuf": true
+    },
+    {
+      "id": 2,
+      "log": [
+        {
+          "t": 1793817920014,
+          "name": "pour_2",
+          "src": "assets/audio/sfx/sfx_pour_2.ogg",
+          "vol": 0.4675
+        }
+      ],
+      "hasBuf": true
+    },
+    {
+      "id": 3,
+      "log": [
+        {
+          "t": 1793817920055,
+          "name": "pour_3",
+          "src": "assets/audio/sfx/sfx_pour_3.ogg",
+          "vol": 0.4675
+        }
+      ],
+      "hasBuf": true
+    },
+    {
+      "id": 4,
+      "log": [
+        {
+          "t": 1793817920095,
+          "name": "pour_4",
+          "src": "assets/audio/sfx/sfx_pour_4.ogg",
+          "vol": 0.4675
+        }
+      ],
+      "hasBuf": true
+    },
+    {
+      "id": 5,
+      "log": [
+        {
+          "t": 1793817920136,
+          "name": "pour_5",
+          "src": "assets/audio/sfx/sfx_pour_5.ogg",
+          "vol": 0.4675
+        }
+      ],
+      "hasBuf": true
+    }
+  ],
+  "offLog": [],
+  "defaultId": 1
+}

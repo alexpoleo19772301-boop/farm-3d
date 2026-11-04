@@ -1,9 +1,9 @@
 {
-  "version": "4.0.4",
-  "versionCode": 40004,
+  "version": "4.0.5",
+  "versionCode": 40005,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "4.0.4",
+  "webVersion": "4.0.5",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v4.0.4: FIX переливание — sfx_pour был почти неслышен (mean −68 dB / peak 0.008); пересобран + loudnorm\n• WebAudio buffers + пул HTMLAudio; unlock на жесте (Android WebView); SFX громче (default 55%)\n• Красивый фон мастерской/пейзажа за полем (cover, dim, particles; меняется по уровням)"
+  "changelog": "• v4.0.5: звук переливания — 5 реальных CC0 записей (не synth); выбор в настройках «Звук переливания» + Выкл\n• Источники: BigSoundBank (Joseph Sardin) + OpenGameArt Waterflow (TyberiusGames), все CC0\n• Дефолт: «В стакан (бутылка)» (#1)"
 }

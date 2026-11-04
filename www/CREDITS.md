@@ -28,7 +28,7 @@ Pixabay / не-CC0 источники **не** использовались.
 | `sfx_undo.ogg` | Отмена | Kenney UI Audio (`mouserelease1`) | Kenney | **CC0** |
 | `sfx_box.ogg` / `sfx_reward.ogg` | Бустер / награда | Kenney UI Audio (`switch26`) | Kenney | **CC0** |
 | `sfx_cork.ogg` | Пробка / собранная колба | [bubbles 'pop'](https://opengameart.org/content/bubbles-pop) | farfadet46 (OGA) | **CC0** |
-| `sfx_pour.ogg` | Перелив | мягкий synth (sine bubbles + pink noise) + фрагмент [Water Drops](https://opengameart.org/content/water-drops) | оригинал + ceoxblackj | **CC0** |
+| `sfx_pour.ogg` / `sfx_pour_{1..5}.ogg` | Перелив (выбор в настройках) | см. раздел v4.0.5 ниже | Joseph Sardin / TyberiusGames | **CC0** |
 | `sfx_win.ogg` | Победа | мягкий sine-аккорд + [Completion sound](https://opengameart.org/content/completion-sound) (`completetask`) | оригинал + haeldb | **CC0** |
 | `sfx_hint.ogg` | Подсказка | мягкий sine-chime (оригинал проекта) | оригинал | **CC0** |
 | `sfx_coin.ogg` / `sfx_star.ogg` | Монеты / звёзды | мягкий sine-bell (оригинал проекта) | оригинал | **CC0** |

@@ -1,8 +1,8 @@
-/* Краски v4.0.4 — paint / water sort */
+/* Краски v4.0.5 — paint / water sort */
 (function () {
   'use strict';
-  const VERSION = '4.0.4';
-  const APP_VERSION = { version: '4.0.4', versionCode: 40004, webVersion: '4.0.4' };
+  const VERSION = '4.0.5';
+  const APP_VERSION = { version: '4.0.5', versionCode: 40005, webVersion: '4.0.5' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -43,6 +43,8 @@
   } else if (!save.sfxBoost404) { save.sfxBoost404 = 1; }
   let vibrateOn = save.vibrateOn !== false;
   let trackId = Math.max(1, Math.min(5, (save.trackId | 0) || 1));
+  let pourSfxId = (save.pourSfxId == null ? 1 : (save.pourSfxId | 0)); // 0=off, 1..5
+  if (pourSfxId < 0 || pourSfxId > 5) pourSfxId = 1;
   let settingsReturn = 'home';
   let previewAudio = null;
   let animT = 0;
@@ -68,6 +70,16 @@
     { id: 4, file: 'assets/audio/bgm/track4.ogg', name: 'Вечерняя комната', desc: 'спокойный фон' },
     { id: 5, file: 'assets/audio/bgm/track5.ogg', name: 'Мягкий пульс', desc: 'минимал' }
   ];
+
+  const POUR_OPTIONS = [
+    { id: 0, name: 'Выкл', desc: 'без звука переливания', file: null },
+    { id: 1, name: 'В стакан (бутылка)', desc: 'пластиковая бутылка → стеклянный стакан', file: 'assets/audio/sfx/sfx_pour_1.ogg' },
+    { id: 2, name: 'В стакан №2', desc: 'другой дубль наполнения стакана', file: 'assets/audio/sfx/sfx_pour_2.ogg' },
+    { id: 3, name: 'В кружку (мягко)', desc: 'вода комнатной температуры в кружку', file: 'assets/audio/sfx/sfx_pour_3.ogg' },
+    { id: 4, name: 'В кружку №2', desc: 'ровная струя в кружку', file: 'assets/audio/sfx/sfx_pour_4.ogg' },
+    { id: 5, name: 'Ручеёк', desc: 'мягкий поток воды (OpenGameArt)', file: 'assets/audio/sfx/sfx_pour_5.ogg' }
+  ];
+
   const BOSS_IMGS = [
     'assets/boss/boss1_workshop.jpg','assets/boss/boss2_village.jpg','assets/boss/boss3_cat.jpg','assets/boss/boss4_landscape.jpg',
     'assets/boss/boss5_bakery.jpg','assets/boss/boss6_forest.jpg','assets/boss/boss7_beach.jpg','assets/boss/boss8_winter.jpg'
@@ -77,7 +89,7 @@
   function loadSave() {
     const defaults = {
       unlocked: 1, coins: 120, stars: {},
-      musicOn: true, musicVol: 0.40, sfxVol: 0.55, vibrateOn: true, trackId: 1,
+      musicOn: true, musicVol: 0.40, sfxVol: 0.55, vibrateOn: true, trackId: 1, pourSfxId: 1,
       boosters: { undo: 5, flask: 2, hint: 3 },
       daily: { lastClaim: null, streak: 0, lastQuestDay: null, quests: [] },
       seenTut: {}, starChests: {}, questBadge: false
@@ -156,6 +168,10 @@
 
   function playSfx(name, vol) {
     if (sfxVol <= 0.001) return;
+    if (name === 'pour') {
+      if (pourSfxId <= 0) return;
+      name = 'pour_' + pourSfxId;
+    }
     unlockAudio();
     const gain = Math.max(0, Math.min(1, (vol == null ? 1 : vol) * sfxVol));
     const srcUrl = sfxSrc[name] || (audio[name] && (audio[name].currentSrc || audio[name].src)) || '';
@@ -1435,6 +1451,30 @@
     const ss = $('sl-sfx'); if (ss) ss.value = String(Math.round(sfxVol * 100));
     const vm = $('val-music'); if (vm) vm.textContent = Math.round(musicVol * 100) + '%';
     const vs = $('val-sfx'); if (vs) vs.textContent = Math.round(sfxVol * 100) + '%';
+
+    const plist = $('pour-list');
+    if (plist) {
+      plist.innerHTML = '';
+      for (const opt of POUR_OPTIONS) {
+        const row = document.createElement('div');
+        row.className = 'track-item' + (opt.id === pourSfxId ? ' on' : '');
+        row.innerHTML = '<div style="flex:1"><div class="tn">' + opt.name + '</div><div class="td">' + opt.desc + '</div></div>' +
+          (opt.file ? '<button type="button" class="preview" data-pour="' + opt.id + '">▶</button>' : '');
+        row.onclick = (ev) => {
+          const isPreview = !!(ev.target && ev.target.getAttribute && ev.target.getAttribute('data-pour') != null);
+          pourSfxId = opt.id;
+          save.pourSfxId = pourSfxId;
+          persist();
+          if (opt.file && (isPreview || true)) {
+            // Always preview when selecting an audible option (and on ▶)
+            playSfx('pour', 0.85);
+          }
+          renderSettings();
+        };
+        plist.appendChild(row);
+      }
+    }
+
     const list = $('track-list'); if (!list) return;
     list.innerHTML = '';
     for (const t of BGM_TRACKS) {
@@ -1612,6 +1652,7 @@
     loadAudio('btn', SFX + 'sfx_btn.ogg');
     loadAudio('tap', SFX + 'sfx_tap.ogg');
     loadAudio('pour', SFX + 'sfx_pour.ogg');
+    for (let i = 1; i <= 5; i++) loadAudio('pour_' + i, SFX + 'sfx_pour_' + i + '.ogg');
     loadAudio('cork', SFX + 'sfx_cork.ogg');
     loadAudio('win', SFX + 'sfx_win.ogg');
     loadAudio('error', SFX + 'sfx_error.ogg');
@@ -1648,7 +1689,7 @@
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },
       tick: (sec) => { const steps = Math.ceil(sec / 0.016); for (let i = 0; i < steps; i++) { if (pourAnim) { pourAnim.t += 0.016; if (pourAnim.t >= pourAnim.duration) finishPour(); } animT += 0.016; } },
-      solveHint, openDaily, openSettings, checkOta, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx,
+      solveHint, openDaily, openSettings, checkOta, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx, POUR_OPTIONS, getPourSfxId: () => pourSfxId, setPourSfxId: (id) => { pourSfxId = Math.max(0, Math.min(5, id|0)); save.pourSfxId = pourSfxId; persist(); },
       ensureBgm, stopBgm, setBgmTrack, countPlayingBgm, stopPreview, BGM_TRACKS,
       autoSolve: (maxSteps) => {
         let steps = 0;

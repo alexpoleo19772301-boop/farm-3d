@@ -152,13 +152,15 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       </div>
       <div class="set-row">
         <label for="sl-sfx">Громкость эффектов</label>
-        <input type="range" class="set-slider" id="sl-sfx" min="0" max="100" value="38"/>
-        <span class="val" id="val-sfx">38%</span>
+        <input type="range" class="set-slider" id="sl-sfx" min="0" max="100" value="55"/>
+        <span class="val" id="val-sfx">55%</span>
       </div>
       <div class="set-row">
         <label for="tog-vib">Вибрация</label>
         <input type="checkbox" class="toggle" id="tog-vib" checked/>
       </div>
+      <p style="margin:12px 0 6px;font-weight:800;color:#fff6ff;font-size:15px;text-align:left">Звук переливания</p>
+      <div class="track-list" id="pour-list"></div>
       <p style="margin:12px 0 6px;font-weight:800;color:#fff6ff;font-size:15px;text-align:left">Мелодия</p>
       <div class="track-list" id="track-list"></div>
       <button class="btn green" id="btn-settings-done" style="width:100%;margin-top:14px">Готово</button>
@@ -183,8 +185,8 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     </div>
   </div>
   <div id="toast"></div>
-  <div id="ver">v4.0.4</div>
+  <div id="ver">v4.0.5</div>
 </div>
-<script src="game.js?v=4.0.4"></script>
+<script src="game.js?v=4.0.5"></script>
 </body>
 </html>
