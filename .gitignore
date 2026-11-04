@@ -11,3 +11,4 @@ shots/**/*.png
 !shots/**/*strip*.png
 !shots/**/*filmstrip*.png
 !shots/**/*compare*.png
+tmp/

@@ -1,7 +1,7 @@
-/* Винтики v3.5.2 — quiet ambient BGM */
+/* Винтики v3.6.0 — 5 BGM tracks + sound settings */
 (function () {
   'use strict';
-  const VERSION = '3.5.2';
+  const VERSION = '3.6.0';
   const COLORS = {
     red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
     purple: '#9b4de0', orange: '#f08a2a'
@@ -18,7 +18,14 @@
   let W = 390, H = 844, dpr = 1;
   let state = 'home', levelIdx = 0, levels = [];
   let save = loadSave();
-  let muted = !!save.muted;
+  let musicOn = save.musicOn !== false;
+  let musicVol = Math.max(0, Math.min(1, +save.musicVol || 0.40));
+  let sfxVol = Math.max(0, Math.min(1, +save.sfxVol || 0.70));
+  let vibrateOn = save.vibrateOn !== false;
+  let trackId = Math.max(1, Math.min(5, (save.trackId | 0) || 1));
+  let muted = !musicOn; // legacy alias
+  let settingsReturn = 'home';
+  let previewAudio = null;
   let animT = 0, particles = [], flyers = [], confetti = [], shards = [];
   let screenShake = 0;
   let tutStep = 0, tutMsg = '', hintScrewId = null, hammerMode = false;
@@ -41,57 +48,117 @@
   let levelBands = 1;
 
   function loadSave() {
+    const defaults = {
+      unlocked: 1, coins: 0, stars: {}, muted: false,
+      musicOn: true, musicVol: 0.40, sfxVol: 0.70, vibrateOn: true, trackId: 1,
+      boosters: { slot: 2, hammer: 2, hint: 3 }
+    };
     try {
-      return Object.assign({
-        unlocked: 1, coins: 0, stars: {}, muted: false,
-        boosters: { slot: 2, hammer: 2, hint: 3 }
-      }, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'));
+      const raw = Object.assign({}, defaults, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'));
+      if (raw.boosters == null) raw.boosters = defaults.boosters;
+      // migrate legacy muted → musicOn
+      if (raw.musicOn == null) raw.musicOn = !raw.muted;
+      if (raw.musicVol == null) raw.musicVol = 0.40;
+      if (raw.sfxVol == null) raw.sfxVol = 0.70;
+      if (raw.vibrateOn == null) raw.vibrateOn = true;
+      if (raw.trackId == null) raw.trackId = 1;
+      return raw;
     } catch (e) {
-      return { unlocked: 1, coins: 0, stars: {}, muted: false, boosters: { slot: 2, hammer: 2, hint: 3 } };
+      return Object.assign({}, defaults);
     }
   }
-  function persist() { save.muted = muted; localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }
+  function persist() {
+    save.muted = !musicOn;
+    save.musicOn = musicOn;
+    save.musicVol = musicVol;
+    save.sfxVol = sfxVol;
+    save.vibrateOn = vibrateOn;
+    save.trackId = trackId;
+    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+  }
   function toast(msg) {
     const el = $('toast'); el.textContent = msg; el.style.display = 'block';
     clearTimeout(toast._t); toast._t = setTimeout(() => { el.style.display = 'none'; }, 2200);
   }
+  const BGM_TRACKS = [
+    { id: 1, file: 'assets/audio/bgm/track1.ogg', name: 'Тихий рояль', desc: 'мягкое соло-фортепиано' },
+    { id: 2, file: 'assets/audio/bgm/track2.ogg', name: 'Закатные струны', desc: 'акустическая гитара' },
+    { id: 3, file: 'assets/audio/bgm/track3.ogg', name: 'Музыкальная шкатулка', desc: 'нежная колыбельная' },
+    { id: 4, file: 'assets/audio/bgm/track4.ogg', name: 'Дождь и колокольчики', desc: 'лес, дождь, лёгкие chimes' },
+    { id: 5, file: 'assets/audio/bgm/track5.ogg', name: 'Спокойный lo-fi', desc: 'мягкий chill без ударных' }
+  ];
+  // slider 0..1 → actual BGM gain (cap keeps music unobtrusive vs SFX)
+  function bgmGain() { return Math.max(0, Math.min(0.28, musicVol * 0.28)); }
   function playSfx(name, vol) {
-    if (muted) return;
+    if (sfxVol <= 0.001) return;
     const a = audio[name]; if (!a) return;
-    try { const c = a.cloneNode(); c.volume = vol == null ? 0.55 : vol; c.play().catch(() => {}); } catch (e) {}
+    try {
+      const c = a.cloneNode();
+      const base = vol == null ? 0.55 : vol;
+      c.volume = Math.max(0, Math.min(1, base * sfxVol));
+      c.play().catch(() => {});
+    } catch (e) {}
   }
-  const BGM_VOL = 0.09; // unobtrusive ambient — well under SFX
+  function buzz(ms) {
+    if (!vibrateOn) return;
+    try { if (navigator.vibrate) navigator.vibrate(ms || 18); } catch (e) {}
+  }
   let bgmFadeRAF = 0;
   function syncBgmVolume() {
     if (!audio.bgm) return;
-    if (muted) audio.bgm.volume = 0;
-    // during fade-in leave volume alone; otherwise hold target
-    else if (!bgmFadeRAF) audio.bgm.volume = BGM_VOL;
+    if (!musicOn || muted) audio.bgm.volume = 0;
+    else if (!bgmFadeRAF) audio.bgm.volume = bgmGain();
   }
   function fadeInBgm(durMs) {
-    const a = audio.bgm; if (!a || muted) return;
+    const a = audio.bgm; if (!a || !musicOn || muted) return;
     if (bgmFadeRAF) cancelAnimationFrame(bgmFadeRAF);
     const t0 = performance.now();
     const dur = durMs || 2800;
+    const target = bgmGain();
     a.volume = 0;
     const step = (now) => {
-      if (muted || document.hidden) { bgmFadeRAF = 0; a.volume = 0; return; }
+      if (!musicOn || muted || document.hidden) { bgmFadeRAF = 0; a.volume = 0; return; }
       const u = Math.min(1, (now - t0) / dur);
-      // ease-in
-      a.volume = BGM_VOL * (u * u);
+      a.volume = target * (u * u);
       if (u < 1) bgmFadeRAF = requestAnimationFrame(step);
-      else { a.volume = BGM_VOL; bgmFadeRAF = 0; }
+      else { a.volume = target; bgmFadeRAF = 0; }
     };
     bgmFadeRAF = requestAnimationFrame(step);
+  }
+  function trackMeta(id) {
+    return BGM_TRACKS.find(t => t.id === (id | 0)) || BGM_TRACKS[0];
+  }
+  function loadBgmTrack(id, opts) {
+    const meta = trackMeta(id);
+    trackId = meta.id;
+    const keepPos = opts && opts.keepPos;
+    const old = audio.bgm;
+    const wasPlaying = old && !old.paused && musicOn && !muted;
+    const pos = keepPos && old ? old.currentTime : 0;
+    if (old) { try { old.pause(); } catch (e) {} }
+    const a = new Audio(meta.file + '?v=' + VERSION);
+    a.preload = 'auto';
+    a.loop = true;
+    audio.bgm = a;
+    bgmStarted = false;
+    if (wasPlaying || (opts && opts.autoplay)) {
+      const start = () => {
+        try { if (pos > 0.5) a.currentTime = 0; } catch (e) {}
+        ensureBgm();
+      };
+      if (a.readyState >= 2) start();
+      else a.addEventListener('canplay', start, { once: true });
+    } else syncBgmVolume();
   }
   function ensureBgm() {
     const a = audio.bgm; if (!a) return;
     a.loop = true;
-    if (muted) { try { a.pause(); } catch (e) {} a.volume = 0; return; }
+    muted = !musicOn;
+    if (!musicOn || muted) { try { a.pause(); } catch (e) {} a.volume = 0; return; }
     if (document.hidden) { try { a.pause(); } catch (e) {} return; }
     const needFade = a.paused || !bgmStarted;
     const p = a.play();
-    const after = () => { bgmStarted = true; if (needFade) fadeInBgm(3000); else syncBgmVolume(); };
+    const after = () => { bgmStarted = true; if (needFade) fadeInBgm(2600); else syncBgmVolume(); };
     if (p && p.then) p.then(after).catch(() => {});
     else after();
   }
@@ -99,9 +166,79 @@
     if (bgmFadeRAF) { cancelAnimationFrame(bgmFadeRAF); bgmFadeRAF = 0; }
     if (audio.bgm) try { audio.bgm.pause(); audio.bgm.volume = 0; } catch (e) {}
   }
+  function stopPreview() {
+    if (previewAudio) {
+      try { previewAudio.pause(); previewAudio.src = ''; } catch (e) {}
+      previewAudio = null;
+    }
+  }
+  function previewTrack(id) {
+    stopPreview();
+    const meta = trackMeta(id);
+    const a = new Audio(meta.file + '?v=' + VERSION);
+    a.volume = Math.max(0.05, bgmGain() * 1.15 || 0.12);
+    previewAudio = a;
+    // briefly duck BGM
+    if (audio.bgm && !audio.bgm.paused) { try { audio.bgm.volume = 0; } catch (e) {} }
+    const p = a.play();
+    if (p && p.catch) p.catch(() => {});
+    clearTimeout(previewTrack._t);
+    previewTrack._t = setTimeout(() => {
+      stopPreview();
+      syncBgmVolume();
+      if (musicOn && !document.hidden) ensureBgm();
+    }, 8000);
+  }
   function onAppVisible(vis) {
-    if (!vis) pauseBgm();
-    else if (!muted) ensureBgm();
+    if (!vis) { stopPreview(); pauseBgm(); }
+    else if (musicOn) ensureBgm();
+  }
+  function openSettings() {
+    settingsReturn = (state === 'play') ? 'play' : (state === 'map' ? 'map' : (state === 'settings' ? settingsReturn : state));
+    if (!['home', 'map', 'play', 'win', 'lose'].includes(settingsReturn)) settingsReturn = 'home';
+    stopPreview();
+    showScreen('settings');
+    renderSettings();
+  }
+  function closeSettings() {
+    stopPreview();
+    persist();
+    const back = settingsReturn || 'home';
+    if (back === 'play') showScreen('play');
+    else showScreen(back);
+    if (musicOn) ensureBgm();
+  }
+  function renderSettings() {
+    const tm = $('tog-music'); if (tm) tm.checked = !!musicOn;
+    const tv = $('tog-vib'); if (tv) tv.checked = !!vibrateOn;
+    const sm = $('sl-music'); if (sm) sm.value = String(Math.round(musicVol * 100));
+    const ss = $('sl-sfx'); if (ss) ss.value = String(Math.round(sfxVol * 100));
+    const vm = $('val-music'); if (vm) vm.textContent = Math.round(musicVol * 100) + '%';
+    const vs = $('val-sfx'); if (vs) vs.textContent = Math.round(sfxVol * 100) + '%';
+    const list = $('track-list'); if (!list) return;
+    list.innerHTML = '';
+    for (const tr of BGM_TRACKS) {
+      const row = document.createElement('div');
+      row.className = 'track-item' + (tr.id === trackId ? ' on' : '');
+      row.innerHTML = '<div style="flex:1"><div class="tn">' + tr.name + '</div><div class="td">' + tr.desc + '</div></div>';
+      const btn = document.createElement('button');
+      btn.className = 'preview';
+      btn.type = 'button';
+      btn.textContent = '▶';
+      btn.title = 'Превью';
+      btn.onclick = (ev) => { ev.stopPropagation(); previewTrack(tr.id); };
+      row.appendChild(btn);
+      row.onclick = () => {
+        if (trackId !== tr.id) {
+          trackId = tr.id;
+          persist();
+          loadBgmTrack(trackId, { autoplay: musicOn });
+        }
+        renderSettings();
+        previewTrack(tr.id);
+      };
+      list.appendChild(row);
+    }
   }
 
   function shapeVerts(type, w, h) {
@@ -875,7 +1012,7 @@
     }
     sc.alive = false;
     removedKeys.add(sc.id);
-    playSfx('screw', 0.7);
+    playSfx('screw', 0.7); buzz(16);
     const owner = planks.find(p => p.id === sc.plankId);
     if (owner) refreshPlankPhysics(owner);
     updateLocks();
@@ -950,7 +1087,7 @@
   }
   function endWin() {
     if (state !== 'play') return;
-    state = 'win'; playSfx('win', 0.7); burstConfetti();
+    state = 'win'; playSfx('win', 0.7); buzz([20,40,20]); burstConfetti();
     save.stars[levelIdx] = 3;
     save.coins += 40 + levelIdx * 2;
     if (save.unlocked < levelIdx + 2) save.unlocked = levelIdx + 2;
@@ -1342,12 +1479,14 @@ function drawTrayNine() {
 
   function showScreen(name) {
     state = name === 'play' ? 'play' : name;
-    ['home', 'map', 'win', 'lose'].forEach(s => {
+    ['home', 'map', 'win', 'lose', 'settings'].forEach(s => {
       const el = $('sc-' + s); if (el) el.classList.toggle('on', s === name);
     });
     const playing = name === 'play';
     $('hud').style.display = playing ? 'block' : 'none';
     $('boosters').style.display = playing ? 'flex' : 'none';
+    const hg = $('btn-home-settings');
+    if (hg) hg.style.display = (name === 'home' || name === 'settings') ? 'block' : 'none';
   }
   function refreshHud() {
     $('lvl-pill').textContent = 'Ур. ' + (levelIdx + 1);
@@ -1355,7 +1494,6 @@ function drawTrayNine() {
     $('badge-slot').textContent = save.boosters.slot;
     $('badge-hammer').textContent = save.boosters.hammer;
     $('badge-hint').textContent = save.boosters.hint;
-    $('btn-sound').textContent = muted ? '🔇' : '🔊';
     $('ver').textContent = 'v' + VERSION;
   }
   function buildMap() {
@@ -1454,7 +1592,7 @@ function drawTrayNine() {
     loadAudio('win', 'assets/audio/sfx_win.wav');
     loadAudio('lose', 'assets/audio/sfx_lose_v.wav');
     loadAudio('btn', 'assets/audio/sfx_btn.ogg');
-    loadAudio('bgm', 'assets/audio/music_vintiki.ogg');
+    loadBgmTrack(trackId, { autoplay: false });
 
     $('btn-play').onclick = () => startLevel(Math.min(save.unlocked - 1, levels.length - 1));
     $('btn-home-map').onclick = () => { buildMap(); showScreen('map'); };
@@ -1464,7 +1602,31 @@ function drawTrayNine() {
     $('btn-win-map').onclick = () => { buildMap(); showScreen('map'); };
     $('btn-retry').onclick = () => startLevel(levelIdx);
     $('btn-lose-map').onclick = () => { buildMap(); showScreen('map'); };
-    $('btn-sound').onclick = () => { muted = !muted; persist(); refreshHud(); syncBgmVolume(); if (muted) pauseBgm(); else ensureBgm(); };
+    const openSet = () => openSettings();
+    const bs = $('btn-settings'); if (bs) bs.onclick = openSet;
+    const bhs = $('btn-home-settings'); if (bhs) bhs.onclick = openSet;
+    const bhSound = $('btn-home-sound'); if (bhSound) bhSound.onclick = openSet;
+    const bsd = $('btn-settings-done'); if (bsd) bsd.onclick = () => closeSettings();
+    const tm = $('tog-music');
+    if (tm) tm.onchange = () => {
+      musicOn = !!tm.checked; muted = !musicOn; persist();
+      if (musicOn) ensureBgm(); else pauseBgm();
+    };
+    const tv = $('tog-vib');
+    if (tv) tv.onchange = () => { vibrateOn = !!tv.checked; persist(); if (vibrateOn) buzz(25); };
+    const sm = $('sl-music');
+    if (sm) sm.oninput = () => {
+      musicVol = Math.max(0, Math.min(1, (+sm.value || 0) / 100));
+      const vm = $('val-music'); if (vm) vm.textContent = Math.round(musicVol * 100) + '%';
+      persist(); syncBgmVolume();
+      if (musicOn && musicVol > 0 && audio.bgm && audio.bgm.paused && !document.hidden) ensureBgm();
+    };
+    const ss = $('sl-sfx');
+    if (ss) ss.oninput = () => {
+      sfxVol = Math.max(0, Math.min(1, (+ss.value || 0) / 100));
+      const vs = $('val-sfx'); if (vs) vs.textContent = Math.round(sfxVol * 100) + '%';
+      persist();
+    };
     $('btn-update').onclick = checkOta;
     $('btn-home-update').onclick = checkOta;
     $('b-hint').onclick = useHint; $('b-slot').onclick = useSlot; $('b-hammer').onclick = useHammer;
@@ -1472,16 +1634,17 @@ function drawTrayNine() {
     document.addEventListener('visibilitychange', () => onAppVisible(!document.hidden));
     window.addEventListener('pagehide', () => pauseBgm());
     window.addEventListener('freeze', () => pauseBgm());
-    window.addEventListener('pageshow', () => { if (!muted) ensureBgm(); });
+    window.addEventListener('pageshow', () => { if (musicOn) ensureBgm(); });
     window.addEventListener('blur', () => { /* keep playing if still visible tab */ });
     // Capacitor / WebView pause hooks when available
     try {
       document.addEventListener('pause', () => pauseBgm(), false);
-      document.addEventListener('resume', () => { if (!muted) ensureBgm(); }, false);
+      document.addEventListener('resume', () => { if (musicOn) ensureBgm(); }, false);
     } catch (e) {}
 
     window.__V = {
-      VERSION, startLevel, assertNoOverlapRuntime, plankRects, startPlankFall, startPlankShatter, assignPuzzleEdges,
+      VERSION, openSettings, closeSettings, renderSettings, BGM_TRACKS,
+      startLevel, assertNoOverlapRuntime, plankRects, startPlankFall, startPlankShatter, assignPuzzleEdges,
       assertScrewsInside: () => {
         const bad = [];
         for (const sc of screws) {

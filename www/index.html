@@ -39,10 +39,30 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
 .stars{font-size:10px;letter-spacing:1px;color:#ffd76a}
 #logoTitle{font-size:42px;font-weight:900;color:#fff3d0;text-shadow:0 3px 0 #5a3010,0 8px 18px rgba(0,0,0,.45);letter-spacing:1px;margin-bottom:6px}
 .sub{opacity:.85;margin-bottom:18px}
+
+.settings-card{width:min(94%,380px);max-height:88vh;overflow:auto;text-align:left}
+.settings-card h1{text-align:center}
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0;padding:8px 4px;border-bottom:1px solid rgba(255,228,192,.18)}
+.set-row label{font-size:14px;color:#ffe8c0;font-weight:700;flex:1}
+.set-row .val{font-size:12px;opacity:.8;min-width:36px;text-align:right}
+.toggle{appearance:none;width:48px;height:28px;border-radius:999px;background:#3a2814;border:2px solid #c9a06a;position:relative;cursor:pointer;flex-shrink:0}
+.toggle:checked{background:#3a9a28;border-color:#9de06a}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#ffe8c0;transition:left .15s}
+.toggle:checked::after{left:22px}
+.set-slider{flex:1.2;accent-color:#f0c45a;height:28px}
+.track-list{display:flex;flex-direction:column;gap:8px;margin:8px 0 4px}
+.track-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:rgba(40,22,10,.55);border:2px solid #8a6238;cursor:pointer}
+.track-item.on{border-color:#f0c45a;background:rgba(80,50,18,.75);box-shadow:0 0 0 1px #f0c45a55}
+.track-item .tn{font-weight:800;color:#fff6e0;font-size:14px}
+.track-item .td{font-size:11px;opacity:.75;margin-top:2px}
+.track-item .preview{background:#5c3a18;border:2px solid #e8c48a;color:#ffe8c0;border-radius:10px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0}
+#btn-home-settings{margin-top:4px}
+.home-gear{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:7}
 </style>
 </head>
 <body>
 <div id="wrap">
+  <button class="iconbtn home-gear" id="btn-home-settings" title="Звук">⚙️</button>
   <canvas id="game"></canvas>
   <div id="hud" style="display:none">
     <div class="row">
@@ -50,7 +70,7 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <span class="pill" id="lvl-pill">Ур. 1</span>
       <span class="pill" id="coin-pill">🪙 0</span>
       <span style="flex:1"></span>
-      <button class="iconbtn" id="btn-sound">🔊</button>
+      <button class="iconbtn" id="btn-settings" title="Звук">⚙️</button>
       <button class="iconbtn" id="btn-update" title="Обновить">↻</button>
     </div>
   </div>
@@ -67,6 +87,7 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <button class="btn green" id="btn-play">Играть</button>
       <button class="btn ghost" id="btn-home-map">Карта уровней</button>
       <button class="btn ghost" id="btn-home-update">Обновить</button>
+      <button class="btn ghost" id="btn-home-sound">🎵 Звук</button>
     </div>
   </div>
   <div class="screen" id="sc-map">
@@ -93,10 +114,37 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <button class="btn ghost" id="btn-lose-map">Карта</button>
     </div>
   </div>
+  
+  <div class="screen" id="sc-settings">
+    <div class="card settings-card">
+      <h1>🔊 Звук</h1>
+      <div class="set-row">
+        <label for="tog-music">Музыка</label>
+        <input type="checkbox" class="toggle" id="tog-music" checked/>
+      </div>
+      <div class="set-row">
+        <label for="sl-music">Громкость музыки</label>
+        <input type="range" class="set-slider" id="sl-music" min="0" max="100" value="40"/>
+        <span class="val" id="val-music">40%</span>
+      </div>
+      <div class="set-row">
+        <label for="sl-sfx">Громкость эффектов</label>
+        <input type="range" class="set-slider" id="sl-sfx" min="0" max="100" value="70"/>
+        <span class="val" id="val-sfx">70%</span>
+      </div>
+      <div class="set-row">
+        <label for="tog-vib">Вибрация</label>
+        <input type="checkbox" class="toggle" id="tog-vib" checked/>
+      </div>
+      <p style="margin:12px 0 6px;font-weight:800;color:#fff6e0;font-size:15px;text-align:left">Мелодия</p>
+      <div class="track-list" id="track-list"></div>
+      <button class="btn green" id="btn-settings-done" style="width:100%;margin-top:14px">Готово</button>
+    </div>
+  </div>
   <div id="toast"></div>
-  <div id="ver">v3.5.2</div>
+  <div id="ver">v3.6.0</div>
 </div>
-<script src="vendor/matter.min.js?v=3.5.2"></script>
-<script src="game.js?v=3.5.2"></script>
+<script src="vendor/matter.min.js?v=3.6.0"></script>
+<script src="game.js?v=3.6.0"></script>
 </body>
 </html>

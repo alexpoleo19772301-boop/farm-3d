@@ -1,15 +1,25 @@
-# Credits — Спасти принцессу: Маджонг
+# Винтики (com.alex.farm3d)
 
-- Original art generated for this game (princess, tiles, tower, UI). Not affiliated with Mahjong Blast or any other commercial title.
-- Audio: original synthesized CC0-style SFX and theme (numpy + ffmpeg).
-- Engine: HTML5 Canvas + Capacitor.
+Оригинальная казуальная игра. Движок: HTML5 Canvas + Matter.js + Capacitor.
 
+## Фоновая музыка (v3.6.0) — все CC0 / Public Domain
 
-## Audio — Винтики v3.5.1
-- Background music `music_vintiki.ogg`: original composition (CC0), synthesized with Python/NumPy + ffmpeg.
-  Cozy workshop lo-fi/acoustic loop ~90 BPM, 32 bars: kalimba lead melody, warm I–vi–IV–V / I–V–vi–IV pads, soft bass, light percussion, reverb. Seamless loop.
-- SFX: original synthesized CC0-style effects.
+Файлы в `www/assets/audio/bgm/track{1..5}.ogg` (loudnorm ≈ −23 LUFS, OGG Vorbis ~q4).
 
-## Audio — Винтики v3.5.2
-- Background music `music_vintiki.ogg`: original quiet ambient (CC0), Python/NumPy + ffmpeg.
-  Soft warm low-passed pad chords (long attack/release), sparse felt-piano / soft bell notes, no drums/percussion/bass thump. ~2.5 min seamless loop. Very low in-game volume with fade-in.
+| # | Имя в игре | Источник | Автор | Лицензия | Примечание |
+|---|------------|----------|-------|----------|------------|
+| 1 | Тихий рояль | [Soft Piano Emotional 1](https://opengameart.org/content/soft-piano-emotional-1) (OpenGameArt) | Tozan | **CC0** | укорочено/зациклено ~150 с |
+| 2 | Закатные струны | [Sunset Plains](https://opengameart.org/content/sunset-plains) (OpenGameArt) | Yoiyami | **CC0** | акустическая гитара ~150 с |
+| 3 | Музыкальная шкатулка | [whispered music box](https://archive.org/details/Ondrosik-Free-music-catalog) (archive.org CC0 catalog) | Ondrosik | **CC0** | ~105 с loop |
+| 4 | Дождь и колокольчики | [AMB Rain Loop 1](https://opengameart.org/content/amb-rain-loop-1) + тихие chimes из track3 | Kresiek The Furry (дождь) + Ondrosik (chimes) | **CC0** | микс ~120 с |
+| 5 | Спокойный lo-fi | [Chill lofi inspired](https://opengameart.org/content/chill-lofi-inspired) (OpenGameArt) | omfgdude | **CC0** | ~125 с |
+
+Pixabay / не-CC0 источники **не** использовались.
+
+## SFX
+
+Синтезированные / старые ассеты проекта (`sfx_*.ogg|wav`) — оригинал проекта.
+
+## Графика
+
+Оригинальные спрайты мастерской, лотка, винтов.

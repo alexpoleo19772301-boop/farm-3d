@@ -1,9 +1,9 @@
 {
-  "version": "3.5.2",
-  "versionCode": 35002,
+  "version": "3.6.0",
+  "versionCode": 36000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.5.2",
+  "webVersion": "3.6.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.5.2: тихая ненавязчивая ambient-музыка (мягкие пэды, редкие ноты)\n• Без ударных/баса/kalimba; ~2.5 мин loop; громкость ~0.09 + fade-in"
+  "changelog": "• v3.6.0: 5 разных тихих мелодий на выбор (рояль, гитара, шкатулка, дождь+chimes, lo-fi)\n• Экран «Звук»: выбор трека с превью, громкость музыки/SFX, музыка вкл/выкл, вибрация\n• Настройки сохраняются; шестерёнка на главной и в игре\n• Все треки CC0/Public Domain (см. CREDITS.md)"
 }
