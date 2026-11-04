@@ -1,9 +1,9 @@
 {
-  "version": "3.5.1",
-  "versionCode": 35001,
+  "version": "3.5.2",
+  "versionCode": 35002,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.5.1",
+  "webVersion": "3.5.2",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.5.1: новая мелодичная фоновая музыка (kalimba lead, уютный lo-fi loop)\n• 32 такта ~90 BPM, I–vi–IV–V, seamless loop, громкость ниже SFX\n• Пауза BGM при сворачивании/фоне; переключатель звука сохранён"
+  "changelog": "• v3.5.2: тихая ненавязчивая ambient-музыка (мягкие пэды, редкие ноты)\n• Без ударных/баса/kalimba; ~2.5 мин loop; громкость ~0.09 + fade-in"
 }

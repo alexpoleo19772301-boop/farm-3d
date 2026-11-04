@@ -9,3 +9,7 @@
 - Background music `music_vintiki.ogg`: original composition (CC0), synthesized with Python/NumPy + ffmpeg.
   Cozy workshop lo-fi/acoustic loop ~90 BPM, 32 bars: kalimba lead melody, warm I–vi–IV–V / I–V–vi–IV pads, soft bass, light percussion, reverb. Seamless loop.
 - SFX: original synthesized CC0-style effects.
+
+## Audio — Винтики v3.5.2
+- Background music `music_vintiki.ogg`: original quiet ambient (CC0), Python/NumPy + ffmpeg.
+  Soft warm low-passed pad chords (long attack/release), sparse felt-piano / soft bell notes, no drums/percussion/bass thump. ~2.5 min seamless loop. Very low in-game volume with fade-in.

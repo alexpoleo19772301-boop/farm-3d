@@ -1,7 +1,7 @@
-/* Винтики v3.5.1 — melodic cozy workshop BGM */
+/* Винтики v3.5.2 — quiet ambient BGM */
 (function () {
   'use strict';
-  const VERSION = '3.5.1';
+  const VERSION = '3.5.2';
   const COLORS = {
     red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
     purple: '#9b4de0', orange: '#f08a2a'
@@ -60,22 +60,44 @@
     const a = audio[name]; if (!a) return;
     try { const c = a.cloneNode(); c.volume = vol == null ? 0.55 : vol; c.play().catch(() => {}); } catch (e) {}
   }
-  const BGM_VOL = 0.22; // keep under SFX (~0.55–0.7)
+  const BGM_VOL = 0.09; // unobtrusive ambient — well under SFX
+  let bgmFadeRAF = 0;
   function syncBgmVolume() {
-    if (audio.bgm) audio.bgm.volume = muted ? 0 : BGM_VOL;
+    if (!audio.bgm) return;
+    if (muted) audio.bgm.volume = 0;
+    // during fade-in leave volume alone; otherwise hold target
+    else if (!bgmFadeRAF) audio.bgm.volume = BGM_VOL;
+  }
+  function fadeInBgm(durMs) {
+    const a = audio.bgm; if (!a || muted) return;
+    if (bgmFadeRAF) cancelAnimationFrame(bgmFadeRAF);
+    const t0 = performance.now();
+    const dur = durMs || 2800;
+    a.volume = 0;
+    const step = (now) => {
+      if (muted || document.hidden) { bgmFadeRAF = 0; a.volume = 0; return; }
+      const u = Math.min(1, (now - t0) / dur);
+      // ease-in
+      a.volume = BGM_VOL * (u * u);
+      if (u < 1) bgmFadeRAF = requestAnimationFrame(step);
+      else { a.volume = BGM_VOL; bgmFadeRAF = 0; }
+    };
+    bgmFadeRAF = requestAnimationFrame(step);
   }
   function ensureBgm() {
     const a = audio.bgm; if (!a) return;
     a.loop = true;
-    syncBgmVolume();
-    if (muted) { try { a.pause(); } catch (e) {} return; }
+    if (muted) { try { a.pause(); } catch (e) {} a.volume = 0; return; }
     if (document.hidden) { try { a.pause(); } catch (e) {} return; }
+    const needFade = a.paused || !bgmStarted;
     const p = a.play();
-    if (p && p.then) p.then(() => { bgmStarted = true; }).catch(() => {});
-    else bgmStarted = true;
+    const after = () => { bgmStarted = true; if (needFade) fadeInBgm(3000); else syncBgmVolume(); };
+    if (p && p.then) p.then(after).catch(() => {});
+    else after();
   }
   function pauseBgm() {
-    if (audio.bgm) try { audio.bgm.pause(); } catch (e) {}
+    if (bgmFadeRAF) { cancelAnimationFrame(bgmFadeRAF); bgmFadeRAF = 0; }
+    if (audio.bgm) try { audio.bgm.pause(); audio.bgm.volume = 0; } catch (e) {}
   }
   function onAppVisible(vis) {
     if (!vis) pauseBgm();
