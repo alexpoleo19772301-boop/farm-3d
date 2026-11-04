@@ -1,9 +1,9 @@
 {
-  "version": "4.0.6",
-  "versionCode": 40006,
+  "version": "4.0.7",
+  "versionCode": 40007,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "4.0.6",
+  "webVersion": "4.0.7",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v4.0.6: выбор языка RU / UK / EN (по умолчанию — язык устройства)\n• Словари: весь HUD, кнопки, настройки, треки, звуки переливания, карта, награды, квесты, босс, win/lose, тосты, туториал\n• Настройки → «Язык / Мова / Language»: Авто · Русский · Українська · English (сразу, без перезапуска)\n• Android label: Краски / Фарби / Paints"
+  "changelog": "• v4.0.7: палитра красок пересобрана — зелёный и синий различаются радикально\n• green #2ECC40 (трава) vs blue #1F4FE0 (royal); teal → яркая бирюза #00C4D8 (не путать с зелёным)\n• yellow #FFD400 vs orange #FF5A00; CIEDE2000 min≈15.7 (56/66 пар ≥25); green↔blue ≈67\n• Режим для дальтоников: узоры на каждом цвете (выкл. по умолчанию)"
 }

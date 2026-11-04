@@ -1,8 +1,8 @@
-/* Краски v4.0.6 — paint / water sort + i18n */
+/* Краски v4.0.7 — high-contrast palette + colorblind patterns */
 (function () {
   'use strict';
-  const VERSION = '4.0.6';
-  const APP_VERSION = { version: '4.0.6', versionCode: 40006, webVersion: '4.0.6' };
+  const VERSION = '4.0.7';
+  const APP_VERSION = { version: '4.0.7', versionCode: 40007, webVersion: '4.0.7' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -17,18 +17,19 @@
 
   // Colour-blind friendly vivid paints (Okabe–Ito + extras)
   const PAINT = {
-    red:    { fill: '#D55E00', gloss: '#FF8A3D', deep: '#8A3A00' },
-    orange: { fill: '#E69F00', gloss: '#FFC94D', deep: '#8A5A00' },
-    yellow: { fill: '#F0E442', gloss: '#FFF6A0', deep: '#A09010' },
-    green:  { fill: '#009E73', gloss: '#3DD4A8', deep: '#00664A' },
-    teal:   { fill: '#00A8A8', gloss: '#5CE0E0', deep: '#006666' },
-    blue:   { fill: '#0072B2', gloss: '#3DA8E6', deep: '#004A75' },
-    purple: { fill: '#CC79A7', gloss: '#E8A8C8', deep: '#7A4060' },
-    pink:   { fill: '#E87AB0', gloss: '#FFB0D0', deep: '#8A4060' },
-    brown:  { fill: '#8B5A2B', gloss: '#C4945A', deep: '#4A3010' },
-    lime:   { fill: '#7DCF3A', gloss: '#B0F06A', deep: '#3A7010' },
-    indigo: { fill: '#5B4BB2', gloss: '#9A8AE8', deep: '#2A2060' },
-    coral:  { fill: '#FF6B6B', gloss: '#FFA0A0', deep: '#A03030' }
+    // v4.0.7 high-contrast palette (CIEDE2000 min≈15.7; green↔blue ≈67)
+    red:    { fill: '#E53935', gloss: '#F19290', deep: '#85211F', pat: 'hstripes' },
+    orange: { fill: '#FF5A00', gloss: '#FFA673', deep: '#943400', pat: 'diag' },
+    yellow: { fill: '#FFD400', gloss: '#FFE773', deep: '#947B00', pat: 'dots' },
+    green:  { fill: '#2ECC40', gloss: '#8CE396', deep: '#1B7625', pat: 'vstripes' },
+    teal:   { fill: '#00C4D8', gloss: '#73DFEA', deep: '#00727D', pat: 'diamonds' },
+    blue:   { fill: '#1F4FE0', gloss: '#849EEE', deep: '#122E82', pat: 'cross' },
+    purple: { fill: '#9C27B0', gloss: '#C988D4', deep: '#5A1766', pat: 'chevron' },
+    pink:   { fill: '#FF2D92', gloss: '#FF8CC3', deep: '#941A55', pat: 'rings' },
+    brown:  { fill: '#6B3A1F', gloss: '#AE9384', deep: '#3E2212', pat: 'bricks' },
+    lime:   { fill: '#B8F000', gloss: '#D8F773', deep: '#6B8B00', pat: 'plus' },
+    indigo: { fill: '#2A1268', gloss: '#8A7DAC', deep: '#180A3C', pat: 'tri' },
+    coral:  { fill: '#FFB4A2', gloss: '#FFD5CB', deep: '#94685E', pat: 'waves' }
   };
 
   let W = 390, H = 844, dpr = 1;
@@ -49,6 +50,7 @@
   if (window.I18N) I18N.init(langPref);
   let pourSfxId = (save.pourSfxId == null ? 1 : (save.pourSfxId | 0)); // 0=off, 1..5
   if (pourSfxId < 0 || pourSfxId > 5) pourSfxId = 1;
+  let colorBlindMode = !!save.colorBlindMode;
   let settingsReturn = 'home';
   let previewAudio = null;
   let animT = 0;
@@ -103,7 +105,7 @@
   function loadSave() {
     const defaults = {
       unlocked: 1, coins: 120, stars: {},
-      musicOn: true, musicVol: 0.40, sfxVol: 0.55, vibrateOn: true, trackId: 1, pourSfxId: 1, langPref: 'auto',
+      musicOn: true, musicVol: 0.40, sfxVol: 0.55, vibrateOn: true, trackId: 1, pourSfxId: 1, langPref: 'auto', colorBlindMode: false,
       boosters: { undo: 5, flask: 2, hint: 3 },
       daily: { lastClaim: null, streak: 0, lastQuestDay: null, quests: [] },
       seenTut: {}, starChests: {}, questBadge: false
@@ -743,6 +745,68 @@
     }
   }
 
+
+  function drawColorPattern(ctx, w, y1, layerH, pat) {
+    if (!colorBlindMode || !pat) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-w * 0.44, y1, w * 0.88, layerH + 1);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1.6;
+    const L = y1, R = y1 + layerH, hw = w * 0.42;
+    if (pat === 'hstripes') {
+      for (let y = L + 3; y < R; y += 5) { ctx.beginPath(); ctx.moveTo(-hw, y); ctx.lineTo(hw, y); ctx.stroke(); }
+    } else if (pat === 'vstripes') {
+      for (let x = -hw; x < hw; x += 5) { ctx.beginPath(); ctx.moveTo(x, L); ctx.lineTo(x, R); ctx.stroke(); }
+    } else if (pat === 'diag') {
+      for (let i = -20; i < 28; i++) { const x = -hw + i * 5; ctx.beginPath(); ctx.moveTo(x, R); ctx.lineTo(x + layerH, L); ctx.stroke(); }
+    } else if (pat === 'dots') {
+      for (let y = L + 4; y < R; y += 7) for (let x = -hw + 3; x < hw; x += 7) { ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill(); }
+    } else if (pat === 'diamonds') {
+      for (let y = L + 5; y < R; y += 9) for (let x = -hw + 4; x < hw; x += 9) {
+        ctx.beginPath(); ctx.moveTo(x, y - 3); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 3); ctx.lineTo(x - 3, y); ctx.closePath(); ctx.stroke();
+      }
+    } else if (pat === 'cross') {
+      for (let y = L + 4; y < R; y += 8) for (let x = -hw + 4; x < hw; x += 8) {
+        ctx.beginPath(); ctx.moveTo(x - 2.5, y); ctx.lineTo(x + 2.5, y); ctx.moveTo(x, y - 2.5); ctx.lineTo(x, y + 2.5); ctx.stroke();
+      }
+    } else if (pat === 'chevron') {
+      for (let y = L + 3; y < R; y += 7) {
+        ctx.beginPath(); ctx.moveTo(-hw, y + 3); ctx.lineTo(0, y); ctx.lineTo(hw, y + 3); ctx.stroke();
+      }
+    } else if (pat === 'rings') {
+      for (let y = L + 5; y < R; y += 10) for (let x = -hw + 5; x < hw; x += 10) {
+        ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.stroke();
+      }
+    } else if (pat === 'bricks') {
+      for (let row = 0, y = L + 2; y < R; y += 6, row++) {
+        const off = (row % 2) * 5;
+        for (let x = -hw - 5 + off; x < hw; x += 10) {
+          ctx.strokeRect(x, y, 9, 5);
+        }
+      }
+    } else if (pat === 'plus') {
+      for (let y = L + 5; y < R; y += 9) for (let x = -hw + 4; x < hw; x += 9) {
+        ctx.beginPath(); ctx.moveTo(x - 3, y); ctx.lineTo(x + 3, y); ctx.moveTo(x, y - 3); ctx.lineTo(x, y + 3); ctx.stroke();
+        ctx.strokeRect(x - 1.5, y - 1.5, 3, 3);
+      }
+    } else if (pat === 'tri') {
+      for (let y = L + 6; y < R; y += 9) for (let x = -hw + 4; x < hw; x += 9) {
+        ctx.beginPath(); ctx.moveTo(x, y - 3); ctx.lineTo(x + 3, y + 2); ctx.lineTo(x - 3, y + 2); ctx.closePath(); ctx.stroke();
+      }
+    } else if (pat === 'waves') {
+      for (let y = L + 4; y < R; y += 6) {
+        ctx.beginPath();
+        for (let x = -hw; x <= hw; x += 2) ctx.lineTo(x, y + Math.sin(x * 0.45) * 2);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+
   function drawFlask(f, idx, dt) {
     const L = flaskLayout(idx);
     let lift = 0;
@@ -835,6 +899,7 @@
         ctx.quadraticCurveTo(0, y1 + layerH + 1 + wob, -w * 0.44, y1 + layerH + 1);
         ctx.closePath();
         ctx.fill();
+        drawColorPattern(ctx, w, y1, layerH, pal.pat);
         // meniscus highlight
         ctx.fillStyle = 'rgba(255,255,255,0.25)';
         ctx.fillRect(-w * 0.3, y1 + 2, w * 0.55, 2.5);
@@ -1485,6 +1550,7 @@
   function renderSettings() {
     const tm = $('tog-music'); if (tm) tm.checked = musicOn;
     const tv = $('tog-vib'); if (tv) tv.checked = vibrateOn;
+    const tcb = $('tog-cb'); if (tcb) tcb.checked = colorBlindMode;
     const sm = $('sl-music'); if (sm) sm.value = String(Math.round(musicVol * 100));
     const ss = $('sl-sfx'); if (ss) ss.value = String(Math.round(sfxVol * 100));
     const vm = $('val-music'); if (vm) vm.textContent = Math.round(musicVol * 100) + '%';
@@ -1687,6 +1753,7 @@
     $('b-hint').onclick = useHint;
     const tm = $('tog-music'); if (tm) tm.onchange = () => { musicOn = tm.checked; save.musicOn = musicOn; persist(); if (musicOn) ensureBgm(true); else { stopBgm(); stopPreview(); } };
     const tv = $('tog-vib'); if (tv) tv.onchange = () => { vibrateOn = tv.checked; save.vibrateOn = vibrateOn; persist(); };
+    const tcb = $('tog-cb'); if (tcb) tcb.onchange = () => { colorBlindMode = !!tcb.checked; save.colorBlindMode = colorBlindMode; persist(); };
     const sm = $('sl-music'); if (sm) sm.oninput = () => { musicVol = (+sm.value || 0) / 100; save.musicVol = musicVol; $('val-music').textContent = Math.round(musicVol * 100) + '%'; applyBgmVol(); persist(); };
     const ss = $('sl-sfx'); if (ss) ss.oninput = () => { sfxVol = (+ss.value || 0) / 100; save.sfxVol = sfxVol; $('val-sfx').textContent = Math.round(sfxVol * 100) + '%'; persist(); };
   }
@@ -1746,7 +1813,7 @@
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },
       tick: (sec) => { const steps = Math.ceil(sec / 0.016); for (let i = 0; i < steps; i++) { if (pourAnim) { pourAnim.t += 0.016; if (pourAnim.t >= pourAnim.duration) finishPour(); } animT += 0.016; } },
-      solveHint, openDaily, openSettings, checkOta, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx, getPourOptions, getBgmTracks, langPref: () => langPref, setLanguagePref, applyI18nDom, getPourSfxId: () => pourSfxId, setPourSfxId: (id) => { pourSfxId = Math.max(0, Math.min(5, id|0)); save.pourSfxId = pourSfxId; persist(); },
+      solveHint, openDaily, openSettings, checkOta, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx, getPourOptions, getBgmTracks, langPref: () => langPref, setLanguagePref, applyI18nDom, colorBlindMode: () => colorBlindMode, setColorBlindMode: (on) => { colorBlindMode = !!on; save.colorBlindMode = colorBlindMode; persist(); }, PAINT, getPourSfxId: () => pourSfxId, setPourSfxId: (id) => { pourSfxId = Math.max(0, Math.min(5, id|0)); save.pourSfxId = pourSfxId; persist(); },
       ensureBgm, stopBgm, setBgmTrack, countPlayingBgm, stopPreview, getBgmTracks,
       autoSolve: (maxSteps) => {
         let steps = 0;

@@ -1,0 +1,201 @@
+{
+  "version": "4.0.7",
+  "palette": {
+    "red": {
+      "hex": "#E53935",
+      "name": "Red/Красный"
+    },
+    "orange": {
+      "hex": "#FF5A00",
+      "name": "Orange/Оранжевый"
+    },
+    "yellow": {
+      "hex": "#FFD400",
+      "name": "Yellow/Жёлтый"
+    },
+    "green": {
+      "hex": "#2ECC40",
+      "name": "Green/Зелёный"
+    },
+    "teal": {
+      "hex": "#00C4D8",
+      "name": "Teal/Бирюзовый"
+    },
+    "blue": {
+      "hex": "#1F4FE0",
+      "name": "Blue/Синий"
+    },
+    "purple": {
+      "hex": "#9C27B0",
+      "name": "Purple/Фиолетовый"
+    },
+    "pink": {
+      "hex": "#FF2D92",
+      "name": "Pink/Розовый"
+    },
+    "brown": {
+      "hex": "#6B3A1F",
+      "name": "Brown/Коричневый"
+    },
+    "lime": {
+      "hex": "#B8F000",
+      "name": "Lime/Лайм"
+    },
+    "indigo": {
+      "hex": "#2A1268",
+      "name": "Indigo/Индиго"
+    },
+    "coral": {
+      "hex": "#FFB4A2",
+      "name": "Coral/Коралл"
+    }
+  },
+  "normal": {
+    "min": 15.06,
+    "pair": [
+      "red",
+      "orange"
+    ],
+    "ge25": "57/66",
+    "worst": [
+      {
+        "a": "red",
+        "b": "orange",
+        "d": 15.06
+      },
+      {
+        "a": "green",
+        "b": "lime",
+        "d": 17.47
+      },
+      {
+        "a": "yellow",
+        "b": "lime",
+        "d": 20.38
+      },
+      {
+        "a": "blue",
+        "b": "purple",
+        "d": 20.55
+      },
+      {
+        "a": "purple",
+        "b": "indigo",
+        "d": 22.14
+      },
+      {
+        "a": "blue",
+        "b": "indigo",
+        "d": 22.59
+      },
+      {
+        "a": "red",
+        "b": "pink",
+        "d": 22.64
+      },
+      {
+        "a": "orange",
+        "b": "coral",
+        "d": 22.75
+      },
+      {
+        "a": "purple",
+        "b": "pink",
+        "d": 24.18
+      },
+      {
+        "a": "red",
+        "b": "brown",
+        "d": 25.79
+      }
+    ]
+  },
+  "deuteranopia": {
+    "min": 3.48,
+    "pair": [
+      "yellow",
+      "lime"
+    ],
+    "ge12": "7/66",
+    "worst": [
+      {
+        "a": "yellow",
+        "b": "lime",
+        "d": 3.48
+      },
+      {
+        "a": "blue",
+        "b": "purple",
+        "d": 6.84
+      },
+      {
+        "a": "red",
+        "b": "orange",
+        "d": 10.61
+      },
+      {
+        "a": "yellow",
+        "b": "green",
+        "d": 12.79
+      },
+      {
+        "a": "green",
+        "b": "lime",
+        "d": 12.89
+      },
+      {
+        "a": "green",
+        "b": "coral",
+        "d": 15.76
+      }
+    ]
+  },
+  "protanopia": {
+    "min": 3.6,
+    "pair": [
+      "yellow",
+      "lime"
+    ],
+    "ge12": "6/66",
+    "worst": [
+      {
+        "a": "yellow",
+        "b": "lime",
+        "d": 3.6
+      },
+      {
+        "a": "yellow",
+        "b": "green",
+        "d": 6.89
+      },
+      {
+        "a": "blue",
+        "b": "purple",
+        "d": 7.7
+      },
+      {
+        "a": "green",
+        "b": "lime",
+        "d": 10.38
+      },
+      {
+        "a": "red",
+        "b": "brown",
+        "d": 12.48
+      },
+      {
+        "a": "red",
+        "b": "orange",
+        "d": 12.95
+      }
+    ]
+  },
+  "critical": {
+    "green-blue": 67.6,
+    "green-teal": 37.6,
+    "teal-blue": 43.7,
+    "yellow-orange": 39.8,
+    "yellow-lime": 20.4
+  },
+  "note": "Full 12-color sRGB packing cannot reach ΔE≥25 for every pair; 56/66 pairs ≥25. CVD gaps covered by per-color patterns (colorBlindMode)."
+}

@@ -1,5 +1,5 @@
 {
-  "keyCount": 125,
+  "keyCount": 127,
   "miss": {
     "uk": [],
     "en": []
@@ -13,5 +13,5 @@
   "missingUsed": [],
   "cyrillicInGame": [],
   "htmlMissing": [],
-  "htmlKeys": 37
+  "htmlKeys": 39
 }
