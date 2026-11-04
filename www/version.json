@@ -1,9 +1,9 @@
 {
-  "version": "2.2.0",
-  "versionCode": 22000,
+  "version": "2.3.0",
+  "versionCode": 23000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "2.2.0",
+  "webVersion": "2.3.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v2.2.0: L-труба с плотной галькой (круглый verlet)\n• Матч парами без лотка\n• Стена плиток + принцесса как в референсе\n• 36 уровней, карта, звёзды, RU UI"
+  "changelog": "• v2.3.0: камни давят и сыплются к принцессе по таймеру\n• Полоска опасности + цель «Открой путь камням вниз!»\n• Туториал ур.1–2: рука, подсветка пары, первый пролив\n• Пассивный слив вниз, победа когда труба опустела\n• Звуки гальки + мелодия, faceted gems"
 }
