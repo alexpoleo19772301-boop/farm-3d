@@ -1,7 +1,7 @@
-/* Винтики v3.4.1 — classic solid jigsaw knobs */
+/* Винтики v3.5.0 — assembled polyomino jigsaw grid */
 (function () {
   'use strict';
-  const VERSION = '3.4.1';
+  const VERSION = '3.5.0';
   const COLORS = {
     red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
     purple: '#9b4de0', orange: '#f08a2a'
@@ -143,151 +143,6 @@
     ]);
   }
 
-  function scaleLevel(def) {
-    // Fit CONTENT bbox into full inner board (planks grow with the enlarged tray)
-    const margin = 8;
-    const usableW = Math.max(40, board.w - margin * 2);
-    const usableH = Math.max(40, board.h - margin * 2);
-    const srcPlanks = def.planks || [];
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const p of srcPlanks) {
-      minX = Math.min(minX, p.x - p.w / 2);
-      minY = Math.min(minY, p.y - p.h / 2);
-      maxX = Math.max(maxX, p.x + p.w / 2);
-      maxY = Math.max(maxY, p.y + p.h / 2);
-    }
-    if (!srcPlanks.length) { minX = 0; minY = 0; maxX = 320; maxY = 320; }
-    const bw = Math.max(40, maxX - minX);
-    const bh = Math.max(40, maxY - minY);
-    // Anisotropic fill: stretch X and Y independently so layout uses the whole tray
-    const Sx = usableW / bw;
-    const Sy = usableH / bh;
-    const S = Math.min(Sx, Sy); // keep for playOrigin compat
-    const contentW = bw * Sx, contentH = bh * Sy;
-    const ox = margin + (usableW - contentW) / 2 - minX * Sx;
-    const oy = margin + (usableH - contentH) / 2 - minY * Sy;
-    playOrigin = { x: board.x + ox, y: board.y + oy, s: S, sx: Sx, sy: Sy };
-    const planks = srcPlanks.map(p => ({
-      ...p, x: ox + p.x * Sx, y: oy + p.y * Sy, w: p.w * Sx, h: p.h * Sy
-    }));
-    const screws = (def.screws || []).map(s => ({
-      ...s, x: ox + s.x * Sx, y: oy + s.y * Sy
-    }));
-    // enlarge planks that can't hold their screws with full padding
-    const pad = screwR + 12;
-    const minD = screwR * 2.4;
-    const by = {};
-    for (const s of screws) (by[s.plankId] = by[s.plankId] || []).push(s);
-    for (const [pid, ss] of Object.entries(by)) {
-      const pl = planks.find(p => p.id === pid); if (!pl) continue;
-      const n = ss.length;
-      const needW = n <= 1 ? pad * 2 + 8 : (n === 2 ? pad * 2 + minD : pad * 2 + minD * 1.25);
-      const needH = n <= 1 ? pad * 2 + 8 : (n === 2 ? pad * 2 + 8 : pad * 2 + minD * 1.15);
-      if (pl.w < needW) pl.w = needW;
-      if (pl.h < needH) pl.h = needH;
-      // layout screws fully inside
-      if (n === 1) { ss[0].x = pl.x; ss[0].y = pl.y; }
-      else if (n === 2) {
-        if (pl.w >= pl.h) {
-          ss[0].x = pl.x - minD / 2; ss[0].y = pl.y;
-          ss[1].x = pl.x + minD / 2; ss[1].y = pl.y;
-        } else {
-          ss[0].x = pl.x; ss[0].y = pl.y - minD / 2;
-          ss[1].x = pl.x; ss[1].y = pl.y + minD / 2;
-        }
-      } else {
-        const R = Math.min(pl.w, pl.h) / 2 - pad;
-        for (let i = 0; i < n; i++) {
-          const a = -Math.PI / 2 + i * Math.PI * 2 / n;
-          ss[i].x = pl.x + Math.cos(a) * Math.max(minD * 0.58, R * 0.85);
-          ss[i].y = pl.y + Math.sin(a) * Math.max(minD * 0.58, R * 0.85);
-        }
-      }
-      for (const s of ss) {
-        s.x = Math.max(pl.x - pl.w / 2 + pad, Math.min(pl.x + pl.w / 2 - pad, s.x));
-        s.y = Math.max(pl.y - pl.h / 2 + pad, Math.min(pl.y + pl.h / 2 - pad, s.y));
-      }
-    }
-    // after enlarging, push any plank AABB back inside board (relative coords 0..board)
-    for (const pl of planks) {
-      const hw = pl.w / 2, hh = pl.h / 2;
-      pl.x = Math.max(hw + 2, Math.min(board.w - hw - 2, pl.x));
-      pl.y = Math.max(hh + 2, Math.min(board.h - hh - 2, pl.y));
-    }
-    // re-clamp screws to (possibly moved) planks
-    for (const [pid, ss] of Object.entries(by)) {
-      const pl = planks.find(p => p.id === pid); if (!pl) continue;
-      for (const s of ss) {
-        s.x = Math.max(pl.x - pl.w / 2 + pad, Math.min(pl.x + pl.w / 2 - pad, s.x));
-        s.y = Math.max(pl.y - pl.h / 2 + pad, Math.min(pl.y + pl.h / 2 - pad, s.y));
-      }
-    }
-    // resolve plank overlaps after grow
-    for (let iter = 0; iter < 40; iter++) {
-      let moved = false;
-      for (let i = 0; i < planks.length; i++) for (let j = i + 1; j < planks.length; j++) {
-        const a = planks[i], b = planks[j];
-        const ax = a.x - a.w / 2, ay = a.y - a.h / 2, bx = b.x - b.w / 2, by = b.y - b.h / 2;
-        if (ax + a.w <= bx || bx + b.w <= ax || ay + a.h <= by || by + b.h <= ay) continue;
-        moved = true;
-        let dx = b.x - a.x || 0.01, dy = b.y - a.y || 0.01, d = Math.hypot(dx, dy) || 0.01;
-        dx /= d; dy /= d;
-        a.x -= dx * 3; a.y -= dy * 3; b.x += dx * 3; b.y += dy * 3;
-        a.x = Math.max(a.w / 2 + 2, Math.min(board.w - a.w / 2 - 2, a.x));
-        a.y = Math.max(a.h / 2 + 2, Math.min(board.h - a.h / 2 - 2, a.y));
-        b.x = Math.max(b.w / 2 + 2, Math.min(board.w - b.w / 2 - 2, b.x));
-        b.y = Math.max(b.h / 2 + 2, Math.min(board.h - b.h / 2 - 2, b.y));
-      }
-      if (!moved) break;
-    }
-    for (const [pid, ss] of Object.entries(by)) {
-      const pl = planks.find(p => p.id === pid); if (!pl) continue;
-      for (const s of ss) {
-        s.x = Math.max(pl.x - pl.w / 2 + pad, Math.min(pl.x + pl.w / 2 - pad, s.x));
-        s.y = Math.max(pl.y - pl.h / 2 + pad, Math.min(pl.y + pl.h / 2 - pad, s.y));
-      }
-    }
-    // Final fill pass: expand layout toward board edges if sparse
-    {
-      let cminX = Infinity, cminY = Infinity, cmaxX = -Infinity, cmaxY = -Infinity;
-      for (const pl of planks) {
-        cminX = Math.min(cminX, pl.x - pl.w / 2);
-        cminY = Math.min(cminY, pl.y - pl.h / 2);
-        cmaxX = Math.max(cmaxX, pl.x + pl.w / 2);
-        cmaxY = Math.max(cmaxY, pl.y + pl.h / 2);
-      }
-      const cw = Math.max(1, cmaxX - cminX), ch = Math.max(1, cmaxY - cminY);
-      const targetW = board.w - 16, targetH = board.h - 16;
-      const fx = Math.max(1, targetW / cw), fy = Math.max(1, targetH / ch);
-      if (fx > 1.02 || fy > 1.02) {
-        const midX = (cminX + cmaxX) / 2, midY = (cminY + cmaxY) / 2;
-        const tx = board.w / 2, ty = board.h / 2;
-        for (const pl of planks) {
-          pl.x = tx + (pl.x - midX) * fx;
-          pl.y = ty + (pl.y - midY) * fy;
-          pl.w = Math.min(board.w - 8, pl.w * Math.min(fx, 1.35));
-          pl.h = Math.min(board.h - 8, pl.h * Math.min(fy, 1.35));
-        }
-        for (const s of screws) {
-          s.x = tx + (s.x - midX) * fx;
-          s.y = ty + (s.y - midY) * fy;
-        }
-        for (const pl of planks) {
-          const hw = pl.w / 2, hh = pl.h / 2;
-          pl.x = Math.max(hw + 2, Math.min(board.w - hw - 2, pl.x));
-          pl.y = Math.max(hh + 2, Math.min(board.h - hh - 2, pl.y));
-        }
-        for (const [pid, ss] of Object.entries(by)) {
-          const pl = planks.find(p => p.id === pid); if (!pl) continue;
-          for (const s of ss) {
-            s.x = Math.max(pl.x - pl.w / 2 + pad, Math.min(pl.x + pl.w / 2 - pad, s.x));
-            s.y = Math.max(pl.y - pl.h / 2 + pad, Math.min(pl.y + pl.h / 2 - pad, s.y));
-          }
-        }
-      }
-    }
-    return { ...def, planks, screws };
-  }
 
   function startLevel(idx) {
     outcomeGen++;
@@ -299,7 +154,7 @@
     removedKeys = new Set();
     const toastEl = $('toast'); if (toastEl) toastEl.style.display = 'none';
     const raw = levels[idx] || levels[0];
-    const def = scaleLevel(raw);
+    const def = rebuildAsJigsaw(raw, idx);
     goalText = def.goal || 'Урони все доски';
     goalBannerT = (def.tut || levelIdx <= 3) ? 3.5 : 2.0;
     levelBands = def.bands || 1;
@@ -333,7 +188,10 @@
         layer: 0, band: pd.band || 0, rot: 0,
         lx: pd.x, ly: pd.y,
         body, alive: true, falling: false, screwIds: [], constraint: null,
-        woodTone: 0.95 + (planks.length % 4) * 0.02
+        woodTone: 0.95 + (planks.length % 4) * 0.02,
+        edges: pd.edges || { t: [0], r: [0], b: [0], l: [0] },
+        tabR: pd.tabR || 12,
+        cells: pd.cells || null
       };
       World.add(world, body);
       planks.push(plank);
@@ -357,49 +215,26 @@
       if (owner) owner.screwIds.push(sc.id);
       screws.push(sc);
     }
-    // final world-space: screws fully inside plank (circle ⊆ plank)
-    (function separateScrews() {
-      const pad = screwR + 12;
-      const minD = screwR * 2.4;
-      const by = {};
-      for (const sc of screws) (by[sc.plankId] = by[sc.plankId] || []).push(sc);
-      for (const [pid, ss] of Object.entries(by)) {
-        const owner = planks.find(p => p.id === pid); if (!owner) continue;
-        const bx = owner.body.position.x, byy = owner.body.position.y;
-        const n = ss.length;
-        const needW = n <= 1 ? pad * 2 + 8 : (n === 2 ? pad * 2 + minD : pad * 2 + minD * 1.25);
-        const needH = n <= 1 ? pad * 2 + 8 : (n === 2 ? pad * 2 + 8 : pad * 2 + minD * 1.15);
-        if (owner.w < needW || owner.h < needH) {
-          const oldW = owner.w, oldH = owner.h;
-          owner.w = Math.max(owner.w, needW);
-          owner.h = Math.max(owner.h, needH);
-          if (oldW > 1 && oldH > 1) Body.scale(owner.body, owner.w / oldW, owner.h / oldH);
-          const hw = owner.w / 2, hh = owner.h / 2;
-          const cx = Math.max(board.x + hw + 2, Math.min(board.x + board.w - hw - 2, owner.body.position.x));
-          const cy = Math.max(board.y + hh + 2, Math.min(board.y + board.h - hh - 2, owner.body.position.y));
-          Body.setPosition(owner.body, { x: cx, y: cy });
-        }
+    // Clamp screws inside body, away from blank indentations — never resize grid pieces
+    (function clampScrewsToJigsaw() {
+      const pad = screwR + 10;
+      for (const owner of planks) {
         const ox = owner.body.position.x, oy = owner.body.position.y;
-        if (n === 1) { ss[0].x = ox; ss[0].y = oy; }
-        else if (n === 2) {
-          if (owner.w >= owner.h) {
-            ss[0].x = ox - minD / 2; ss[0].y = oy;
-            ss[1].x = ox + minD / 2; ss[1].y = oy;
-          } else {
-            ss[0].x = ox; ss[0].y = oy - minD / 2;
-            ss[1].x = ox; ss[1].y = oy + minD / 2;
-          }
-        } else {
-          const R = Math.min(owner.w, owner.h) / 2 - pad;
-          for (let i = 0; i < n; i++) {
-            const a = -Math.PI / 2 + i * Math.PI * 2 / n;
-            ss[i].x = ox + Math.cos(a) * Math.max(minD * 0.58, R * 0.85);
-            ss[i].y = oy + Math.sin(a) * Math.max(minD * 0.58, R * 0.85);
-          }
-        }
-        for (const s of ss) {
-          s.x = Math.max(ox - owner.w / 2 + pad, Math.min(ox + owner.w / 2 - pad, s.x));
-          s.y = Math.max(oy - owner.h / 2 + pad, Math.min(oy + owner.h / 2 - pad, s.y));
+        const e = owner.edges || {};
+        const reach = (owner.tabR || 12) * 1.85;
+        const has = (side) => Array.isArray(e[side]) ? e[side].some(k => k < 0) : e[side] < 0;
+        let x0 = ox - owner.w / 2 + pad, x1 = ox + owner.w / 2 - pad;
+        let y0 = oy - owner.h / 2 + pad, y1 = oy + owner.h / 2 - pad;
+        if (has('t')) y0 += reach * 0.55;
+        if (has('b')) y1 -= reach * 0.55;
+        if (has('l')) x0 += reach * 0.55;
+        if (has('r')) x1 -= reach * 0.55;
+        if (x1 < x0) { const m = (x0 + x1) / 2; x0 = m - 1; x1 = m + 1; }
+        if (y1 < y0) { const m = (y0 + y1) / 2; y0 = m - 1; y1 = m + 1; }
+        for (const id of owner.screwIds) {
+          const s = screws.find(sc => sc.id === id); if (!s) continue;
+          s.x = Math.max(x0, Math.min(x1, s.x));
+          s.y = Math.max(y0, Math.min(y1, s.y));
         }
       }
     })();
@@ -555,184 +390,353 @@
     }
   }
 
+  function makeRng(seed) {
+    let s = (seed >>> 0) || 1;
+    return function () {
+      s = (s + 0x6D2B79F5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /**
+   * Rebuild level as a real assembled jigsaw:
+   * polyominoes (1x1/1x2/2x1/2x2) on a cell grid, shared edges get
+   * complementary knob/blank, outer & empty-facing edges stay flat,
+   * bodies sit flush with a hairline seam (no overlaps).
+   */
+  function rebuildAsJigsaw(raw, levelSeed) {
+    const rng = makeRng((levelSeed + 1) * 9973 + 42);
+    const srcPlanks = raw.planks || [];
+    const srcScrews = raw.screws || [];
+    const by = {};
+    for (const s of srcScrews) (by[s.plankId] = by[s.plankId] || []).push(s);
+
+    const pieces = srcPlanks.map((p, i) => {
+      const ss = by[p.id] || [];
+      const ns = ss.length;
+      let cw = 1, ch = 1;
+      if (ns >= 3) { cw = 2; ch = 2; }
+      else if (ns === 2) {
+        if ((p.w || 1) >= (p.h || 1)) { cw = 2; ch = 1; }
+        else { cw = 1; ch = 2; }
+      } else if (srcPlanks.length <= 2) {
+        // tutorial: keep both pieces same height so they share a full edge
+        cw = 2; ch = 1;
+      } else if (rng() < 0.22) {
+        if ((p.w || 1) >= (p.h || 1)) { cw = 2; ch = 1; }
+        else { cw = 1; ch = 2; }
+      }
+      return { id: p.id, cw, ch, band: p.band || 0, type: p.type || 'barH', screws: ss, i };
+    });
+
+    const margin = 6;
+    const usableW = Math.max(80, board.w - margin * 2);
+    const usableH = Math.max(80, board.h - margin * 2);
+    const minCell = Math.max(58, screwR * 2 + 26);
+
+    let totalCells = pieces.reduce((s, p) => s + p.cw * p.ch, 0);
+    let emptyBoost = pieces.length <= 3 ? 0 : Math.max(1, Math.round(totalCells * 0.12));
+    let cols = Math.max(2, Math.ceil(Math.sqrt(totalCells + emptyBoost)));
+    let rows = Math.max(2, Math.ceil((totalCells + emptyBoost) / cols));
+    // Prefer compact dims that nearly tile
+    if (emptyBoost === 0) {
+      cols = Math.max(2, Math.ceil(Math.sqrt(totalCells)));
+      rows = Math.max(2, Math.ceil(totalCells / cols));
+      while (cols * rows < totalCells) rows++;
+    }
+    // Fit cell size
+    while (cols > 2 && usableW / cols < minCell) cols--;
+    while (rows > 2 && usableH / rows < minCell) rows--;
+    // If still too tight, shrink piece shapes
+    function shrinkToFit() {
+      let cells = pieces.reduce((s, p) => s + p.cw * p.ch, 0);
+      while (cells > cols * rows) {
+        // shrink largest
+        let best = null;
+        for (const p of pieces) {
+          if (p.cw * p.ch <= 1) continue;
+          if (!best || p.cw * p.ch > best.cw * best.ch) best = p;
+        }
+        if (!best) break;
+        if (best.cw >= best.ch && best.cw > 1) best.cw--;
+        else if (best.ch > 1) best.ch--;
+        else break;
+        cells = pieces.reduce((s, p) => s + p.cw * p.ch, 0);
+      }
+    }
+    shrinkToFit();
+
+    const order = pieces.slice().sort((a, b) =>
+      (b.cw * b.ch) - (a.cw * a.ch) || a.band - b.band || a.i - b.i);
+
+    let grid = null, placed = null;
+    function tryPack(C, R) {
+      const g = Array.from({ length: R }, () => Array(C).fill(null));
+      const pl = {};
+      const hasBand1 = pieces.some(p => p.band >= 1);
+      const split = hasBand1 ? Math.max(1, Math.ceil(R / 2)) : R;
+      for (const pc of order) {
+        const minR = pc.band >= 1 ? split : 0;
+        const maxR = pc.band >= 1 ? R : split;
+        const spots = [];
+        for (let r = minR; r <= maxR - pc.ch; r++) {
+          for (let c = 0; c <= C - pc.cw; c++) {
+            let free = true;
+            for (let dr = 0; dr < pc.ch && free; dr++)
+              for (let dc = 0; dc < pc.cw && free; dc++)
+                if (g[r + dr][c + dc]) free = false;
+            if (free) spots.push({ r, c });
+          }
+        }
+        if (!spots.length) return null;
+        spots.sort((A, B) => {
+          const score = (s) => {
+            let n = 0;
+            for (let dr = 0; dr < pc.ch; dr++) for (let dc = 0; dc < pc.cw; dc++) {
+              const rr = s.r + dr, cc = s.c + dc;
+              [[0, 1], [1, 0], [0, -1], [-1, 0]].forEach(([dr2, dc2]) => {
+                const r2 = rr + dr2, c2 = cc + dc2;
+                if (r2 >= 0 && r2 < R && c2 >= 0 && c2 < C && g[r2][c2]) n++;
+              });
+            }
+            return -n * 20 + Math.hypot(s.r + pc.ch / 2 - R / 2, s.c + pc.cw / 2 - C / 2);
+          };
+          return score(A) - score(B);
+        });
+        // slight rng among top 3
+        const pick = spots[Math.min(spots.length - 1, (rng() * Math.min(3, spots.length)) | 0)];
+        for (let dr = 0; dr < pc.ch; dr++)
+          for (let dc = 0; dc < pc.cw; dc++)
+            g[pick.r + dr][pick.c + dc] = pc.id;
+        pl[pc.id] = { r: pick.r, c: pick.c, cw: pc.cw, ch: pc.ch };
+      }
+      return { g, pl, C, R };
+    }
+
+    let pack = tryPack(cols, rows);
+    for (let grow = 0; !pack && grow < 12; grow++) {
+      if (grow % 2 === 0) cols++; else rows++;
+      shrinkToFit();
+      pack = tryPack(cols, rows);
+    }
+    if (!pack) {
+      cols = Math.max(cols, pieces.length); rows = Math.max(rows, 3);
+      for (const p of pieces) { p.cw = 1; p.ch = 1; }
+      pack = tryPack(cols, rows);
+    }
+    grid = pack.g; placed = pack.pl; cols = pack.C; rows = pack.R;
+
+    // Crop empty borders (keep interior holes)
+    let minC = cols, minR = rows, maxC = -1, maxR = -1;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (grid[r][c]) {
+      minC = Math.min(minC, c); maxC = Math.max(maxC, c);
+      minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+    }
+    if (maxC >= minC) {
+      const newCols = maxC - minC + 1, newRows = maxR - minR + 1;
+      const ng = Array.from({ length: newRows }, () => Array(newCols).fill(null));
+      for (let r = 0; r < newRows; r++) for (let c = 0; c < newCols; c++)
+        ng[r][c] = grid[r + minR][c + minC];
+      grid = ng; cols = newCols; rows = newRows;
+      for (const id of Object.keys(placed)) {
+        placed[id].r -= minR; placed[id].c -= minC;
+      }
+    }
+
+    const seam = 1.0;
+    const cellW = usableW / cols;
+    const cellH = usableH / rows;
+    const unit = Math.min(cellW, cellH);
+    const tabR = Math.max(9, Math.min(unit * 0.20, 26));
+
+    function owner(r, c) {
+      if (r < 0 || c < 0 || r >= rows || c >= cols) return null;
+      return grid[r][c];
+    }
+    function tabSign(r, c, horiz) {
+      const h = ((r * 73856093) ^ (c * 19349663) ^ (horiz ? 83492791 : 1) ^ ((levelSeed + 3) * 17)) >>> 0;
+      return (h & 1) ? 1 : -1;
+    }
+
+    playOrigin = { x: board.x + margin, y: board.y + margin, s: 1, sx: 1, sy: 1 };
+
+    const planksOut = [];
+    const screwsOut = [];
+    let sid = 0;
+
+    for (const pc of pieces) {
+      const pl = placed[pc.id];
+      if (!pl) continue;
+      const pw = pl.cw * cellW - seam;
+      const ph = pl.ch * cellH - seam;
+      const px = margin + (pl.c + pl.cw / 2) * cellW;
+      const py = margin + (pl.r + pl.ch / 2) * cellH;
+
+      // Edge kinds in PATH order (one entry per unit cell along that side)
+      const edges = { t: [], r: [], b: [], l: [] };
+      // Top L→R
+      for (let dc = 0; dc < pl.cw; dc++) {
+        const nb = owner(pl.r - 1, pl.c + dc);
+        let k = 0;
+        if (nb && nb !== pc.id) k = -tabSign(pl.r - 1, pl.c + dc, true);
+        edges.t.push(k);
+      }
+      // Right T→B
+      for (let dr = 0; dr < pl.ch; dr++) {
+        const nb = owner(pl.r + dr, pl.c + pl.cw);
+        let k = 0;
+        if (nb && nb !== pc.id) k = -tabSign(pl.r + dr, pl.c + pl.cw - 1, false);
+        edges.r.push(k);
+      }
+      // Bottom R→L
+      for (let dc = pl.cw - 1; dc >= 0; dc--) {
+        const nb = owner(pl.r + pl.ch, pl.c + dc);
+        let k = 0;
+        if (nb && nb !== pc.id) k = tabSign(pl.r + pl.ch - 1, pl.c + dc, true);
+        edges.b.push(k);
+      }
+      // Left B→T
+      for (let dr = pl.ch - 1; dr >= 0; dr--) {
+        const nb = owner(pl.r + dr, pl.c - 1);
+        let k = 0;
+        if (nb && nb !== pc.id) k = tabSign(pl.r + dr, pl.c - 1, false);
+        edges.l.push(k);
+      }
+
+      planksOut.push({
+        id: pc.id, type: pc.type, x: px, y: py, w: pw, h: ph,
+        rot: 0, layer: 0, band: pc.band,
+        edges, tabR, cells: { r: pl.r, c: pl.c, cw: pl.cw, ch: pl.ch }
+      });
+
+      // Screw positions: cell centers, pushed away from blanks
+      const reach = tabR * 1.85;
+      const centers = [];
+      for (let dr = 0; dr < pl.ch; dr++) {
+        for (let dc = 0; dc < pl.cw; dc++) {
+          let cx = margin + (pl.c + dc + 0.5) * cellW;
+          let cy = margin + (pl.r + dr + 0.5) * cellH;
+          // blank insets for this unit cell relative to piece
+          const topBlank = edges.t[dc] < 0 && dr === 0;
+          const botBlank = edges.b[pl.cw - 1 - dc] < 0 && dr === pl.ch - 1;
+          const leftBlank = edges.l[pl.ch - 1 - dr] < 0 && dc === 0;
+          const rightBlank = edges.r[dr] < 0 && dc === pl.cw - 1;
+          const inset = screwR + 8;
+          const blankPad = reach + screwR + 2;
+          let x0 = margin + pl.c * cellW + seam * 0.5 + inset;
+          let x1 = margin + (pl.c + pl.cw) * cellW - seam * 0.5 - inset;
+          let y0 = margin + pl.r * cellH + seam * 0.5 + inset;
+          let y1 = margin + (pl.r + pl.ch) * cellH - seam * 0.5 - inset;
+          if (topBlank) y0 = Math.max(y0, margin + pl.r * cellH + blankPad);
+          if (botBlank) y1 = Math.min(y1, margin + (pl.r + pl.ch) * cellH - blankPad);
+          if (leftBlank) x0 = Math.max(x0, margin + pl.c * cellW + blankPad);
+          if (rightBlank) x1 = Math.min(x1, margin + (pl.c + pl.cw) * cellW - blankPad);
+          cx = Math.max(x0, Math.min(x1, cx));
+          cy = Math.max(y0, Math.min(y1, cy));
+          centers.push({ x: cx, y: cy });
+        }
+      }
+      // Prefer evenly spaced centers for N screws
+      const ss = pc.screws.slice();
+      const n = ss.length;
+      let picks = centers.slice();
+      if (n === 1) picks = [centers[centers.length >> 1] || { x: px, y: py }];
+      else if (n === 2 && centers.length >= 2) {
+        picks = [centers[0], centers[centers.length - 1]];
+      } else if (n > centers.length) {
+        // synthesize along long axis inside safe box
+        picks = [];
+        for (let i = 0; i < n; i++) {
+          const t = n === 1 ? 0.5 : i / (n - 1);
+          if (pw >= ph) picks.push({ x: px - pw * 0.28 + pw * 0.56 * t, y: py });
+          else picks.push({ x: px, y: py - ph * 0.28 + ph * 0.56 * t });
+        }
+      } else {
+        // pick N spread centers
+        picks = [];
+        for (let i = 0; i < n; i++) {
+          const idx = Math.round(i * (centers.length - 1) / Math.max(1, n - 1));
+          picks.push(centers[idx]);
+        }
+      }
+      const safeInset = screwR + 10;
+      const blankExtra = reach * 0.5;
+      function clampScrew(sx, sy) {
+        let x0 = px - pw / 2 + safeInset, x1 = px + pw / 2 - safeInset;
+        let y0 = py - ph / 2 + safeInset, y1 = py + ph / 2 - safeInset;
+        // pad from any blank side of the whole piece
+        if (edges.t.some(k => k < 0)) y0 += blankExtra;
+        if (edges.b.some(k => k < 0)) y1 -= blankExtra;
+        if (edges.l.some(k => k < 0)) x0 += blankExtra;
+        if (edges.r.some(k => k < 0)) x1 -= blankExtra;
+        return {
+          x: Math.max(x0, Math.min(x1, sx)),
+          y: Math.max(y0, Math.min(y1, sy))
+        };
+      }
+      for (let i = 0; i < n; i++) {
+        const src = ss[i];
+        const pt = clampScrew(picks[i].x, picks[i].y);
+        screwsOut.push({
+          ...src,
+          id: src.id || ('s' + (sid++)),
+          x: pt.x, y: pt.y, plankId: pc.id
+        });
+      }
+    }
+
+    return {
+      ...raw,
+      planks: planksOut,
+      screws: screwsOut,
+      _jigsaw: { cols, rows, cellW, cellH, tabR, grid }
+    };
+  }
+
+  function scaleLevel(def) {
+    // v3.5: geometry comes from rebuildAsJigsaw; keep stub for compat
+    return def;
+  }
+
   function knobRadiusFor(edgeLen, w, h) {
-    // head radius ~18–22% of edge, capped so it stays readable
     return Math.max(9, Math.min(edgeLen * 0.20, Math.min(w, h) * 0.22, 28));
   }
 
   function tabReachFor(p) {
-    // tip sticks out ≈ d + R with d≈0.82R → ~1.82R
     const R = p.tabR || 12;
     return R * 1.85;
   }
 
   function assignPuzzleEdges() {
+    // Edges already assigned in rebuildAsJigsaw — ensure every plank has them
     for (const p of planks) {
       if (!p.alive) continue;
-      const edge = Math.min(p.w, p.h);
-      p.tabR = knobRadiusFor(edge, p.w, p.h);
-      p.edges = { t: 0, r: 0, b: 0, l: 0 }; // 0 flat, +1 tab out, -1 blank in
+      if (!p.edges) p.edges = { t: [0], r: [0], b: [0], l: [0] };
+      if (!p.tabR) p.tabR = knobRadiusFor(Math.min(p.w, p.h), p.w, p.h);
     }
-    const alive = planks.filter(p => p.alive && !p.falling);
-    // Pair nearest facing sides as complementary tab/blank
-    const used = new Set();
-    const pairs = [];
-    for (let i = 0; i < alive.length; i++) {
-      for (let j = i + 1; j < alive.length; j++) {
-        const a = alive[i], b = alive[j];
-        const ax = a.body.position.x, ay = a.body.position.y;
-        const bx = b.body.position.x, by = b.body.position.y;
-        const aL = ax - a.w / 2, aR = ax + a.w / 2, aT = ay - a.h / 2, aB = ay + a.h / 2;
-        const bL = bx - b.w / 2, bR = bx + b.w / 2, bT = by - b.h / 2, bB = by + b.h / 2;
-        const overlapY = Math.min(aB, bB) - Math.max(aT, bT);
-        const overlapX = Math.min(aR, bR) - Math.max(aL, bL);
-        if (overlapY > Math.min(a.h, b.h) * 0.3) {
-          const gap = bL - aR;
-          if (Math.abs(gap) < Math.max(a.w, b.w) * 0.55)
-            pairs.push({ a, b, dir: 'h', gap: Math.abs(gap), score: Math.abs(gap) - overlapY * 0.01 });
-        }
-        if (overlapX > Math.min(a.w, b.w) * 0.3) {
-          const gap = bT - aB;
-          if (Math.abs(gap) < Math.max(a.h, b.h) * 0.55)
-            pairs.push({ a, b, dir: 'v', gap: Math.abs(gap), score: Math.abs(gap) - overlapX * 0.01 });
-        }
-      }
-    }
-    pairs.sort((p, q) => p.score - q.score);
-    for (const pr of pairs) {
-      const a = pr.a, b = pr.b;
-      if (pr.dir === 'h') {
-        // ensure A is left of B
-        const aLeft = a.body.position.x <= b.body.position.x ? a : b;
-        const aRight = aLeft === a ? b : a;
-        const k1 = aLeft.id + ':r', k2 = aRight.id + ':l';
-        if (used.has(k1) || used.has(k2)) continue;
-        const tab = Math.random() < 0.5 ? 1 : -1;
-        aLeft.edges.r = tab; aRight.edges.l = -tab;
-        used.add(k1); used.add(k2);
-        pr._left = aLeft; pr._right = aRight; pr._paired = true;
-      } else {
-        const aTop = a.body.position.y <= b.body.position.y ? a : b;
-        const aBot = aTop === a ? b : a;
-        const k1 = aTop.id + ':b', k2 = aBot.id + ':t';
-        if (used.has(k1) || used.has(k2)) continue;
-        const tab = Math.random() < 0.5 ? 1 : -1;
-        aTop.edges.b = tab; aBot.edges.t = -tab;
-        used.add(k1); used.add(k2);
-        pr._top = aTop; pr._bot = aBot; pr._paired = true;
-      }
-    }
-    // Decorative tabs/blanks on remaining free edges
-    for (const p of alive) {
-      for (const k of ['t', 'r', 'b', 'l']) {
-        if (p.edges[k] === 0) p.edges[k] = Math.random() < 0.55 ? 1 : -1;
-      }
-    }
-    // Outer edges facing rim: never tab outward (blank/flat only)
-    for (const p of alive) {
-      const x = p.body.position.x, y = p.body.position.y;
-      const reach = tabReachFor(p) + 4;
-      const nearL = x - p.w / 2 < board.x + reach;
-      const nearR = x + p.w / 2 > board.x + board.w - reach;
-      const nearT = y - p.h / 2 < board.y + reach;
-      const nearB = y + p.h / 2 > board.y + board.h - reach;
-      if (nearL) p.edges.l = -1;
-      if (nearR) p.edges.r = -1;
-      if (nearT) p.edges.t = -1;
-      if (nearB) p.edges.b = -1;
-      // Guarantee a classic look: at least one outward knob if space allows
-      if (![p.edges.t, p.edges.r, p.edges.b, p.edges.l].some(v => v > 0)) {
-        const rooms = {
-          t: y - p.h / 2 - board.y,
-          b: board.y + board.h - (y + p.h / 2),
-          l: x - p.w / 2 - board.x,
-          r: board.x + board.w - (x + p.w / 2)
-        };
-        const best = Object.entries(rooms).sort((a, b) => b[1] - a[1])[0];
-        if (best[1] > tabReachFor(p) + 6) p.edges[best[0]] = 1;
-      }
-    }
-    nestPuzzlePieces(pairs);
   }
 
-  /** Pull complementary neighbours flush so tabs seat into blanks; keep inside board. */
-  function nestPuzzlePieces(pairs) {
-    const alive = planks.filter(p => p.alive && !p.falling);
-    for (let iter = 0; iter < 12; iter++) {
-      for (const pr of pairs) {
-        if (!pr._paired) continue;
-        const seamGap = 0.75; // hairline between bodies; tab still fills blank
-        if (pr.dir === 'h' && pr._left && pr._right) {
-          const L = pr._left, R = pr._right;
-          const target = (L.body.position.x + L.w / 2 + R.body.position.x - R.w / 2) / 2;
-          Body.setPosition(L.body, { x: target - L.w / 2 - seamGap * 0.5, y: L.body.position.y });
-          Body.setPosition(R.body, { x: target + R.w / 2 + seamGap * 0.5, y: R.body.position.y });
-        } else if (pr.dir === 'v' && pr._top && pr._bot) {
-          const T = pr._top, B = pr._bot;
-          const target = (T.body.position.y + T.h / 2 + B.body.position.y - B.h / 2) / 2;
-          Body.setPosition(T.body, { x: T.body.position.x, y: target - T.h / 2 - seamGap * 0.5 });
-          Body.setPosition(B.body, { x: B.body.position.x, y: target + B.h / 2 + seamGap * 0.5 });
-        }
-      }
-      // resolve body overlaps (bodies may not overlap; tabs occupy blanks)
-      for (let i = 0; i < alive.length; i++) for (let j = i + 1; j < alive.length; j++) {
-        const a = alive[i], b = alive[j];
-        const ax = a.body.position.x, ay = a.body.position.y;
-        const bx = b.body.position.x, by = b.body.position.y;
-        const dx = (a.w + b.w) / 2 - Math.abs(bx - ax);
-        const dy = (a.h + b.h) / 2 - Math.abs(by - ay);
-        if (dx > 0.5 && dy > 0.5) {
-          if (dx < dy) {
-            const s = ax < bx ? -1 : 1;
-            Body.setPosition(a.body, { x: ax + s * dx * 0.5, y: ay });
-            Body.setPosition(b.body, { x: bx - s * dx * 0.5, y: by });
-          } else {
-            const s = ay < by ? -1 : 1;
-            Body.setPosition(a.body, { x: ax, y: ay + s * dy * 0.5 });
-            Body.setPosition(b.body, { x: bx, y: by - s * dy * 0.5 });
-          }
-        }
-      }
-    }
-    // Clamp so body + outward tabs stay inside board
-    for (const p of alive) {
-      const reach = tabReachFor(p);
-      const padL = (p.edges.l > 0 ? reach : 2);
-      const padR = (p.edges.r > 0 ? reach : 2);
-      const padT = (p.edges.t > 0 ? reach : 2);
-      const padB = (p.edges.b > 0 ? reach : 2);
-      let x = p.body.position.x, y = p.body.position.y;
-      const minX = board.x + p.w / 2 + padL;
-      const maxX = board.x + board.w - p.w / 2 - padR;
-      const minY = board.y + p.h / 2 + padT;
-      const maxY = board.y + board.h - p.h / 2 - padB;
-      x = Math.max(minX, Math.min(maxX, x));
-      y = Math.max(minY, Math.min(maxY, y));
-      Body.setPosition(p.body, { x, y });
-      // keep screws inside body
-      for (const id of p.screwIds) {
-        const sc = screws.find(s => s.id === id); if (!sc || !sc.alive) continue;
-        const inset = screwR + 10;
-        sc.x = Math.max(x - p.w / 2 + inset, Math.min(x + p.w / 2 - inset, sc.x));
-        sc.y = Math.max(y - p.h / 2 + inset, Math.min(y + p.h / 2 - inset, sc.y));
-      }
-    }
-  }
+  function nestPuzzlePieces() { /* no-op: grid already flush */ }
 
   /**
-   * Classic jigsaw outline (one closed path). Knob = circle intersecting the edge:
-   * neck narrower than head, solid fill includes the tab.
-   * edges: t/r/b/l ∈ {-1,0,1}; outward normals given per side.
+   * Classic jigsaw outline. edges[side] = array of -1|0|1 per unit segment
+   * in path order (t L→R, r T→B, b R→L, l B→T). Knob = circle through edge.
    */
   function jigsawPath(ctx, w, h, edges, tabR) {
     const hw = w / 2, hh = h / 2;
-    function bump(x0, y0, x1, y1, kind, nx, ny) {
+    function normEdge(e) {
+      if (Array.isArray(e)) return e.length ? e : [0];
+      if (typeof e === 'number') return [e];
+      return [0];
+    }
+    function bumpOne(x0, y0, x1, y1, kind, nx, ny) {
       const dx = x1 - x0, dy = y1 - y0;
       const len = Math.hypot(dx, dy) || 1;
       const ux = dx / len, uy = dy / len;
       if (!kind) { ctx.lineTo(x1, y1); return; }
-      const R = Math.max(8, Math.min(tabR || len * 0.2, len * 0.22));
-      // center offset: neck width 2*sqrt(R^2-d^2) ≈ 1.05 R (narrower than 2R head)
+      const R = Math.max(7, Math.min(tabR || len * 0.2, len * 0.28));
       const d = R * 0.82;
       const neckHalf = Math.sqrt(Math.max(R * R - d * d, 1));
       const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
@@ -744,7 +748,6 @@
       ctx.lineTo(ax, ay);
       const a0 = Math.atan2(ay - cy, ax - cx);
       const a1 = Math.atan2(by - cy, bx - cx);
-      // Pick sweep that passes through the tip (outward for tab, inward for blank)
       const tipAng = Math.atan2(ny * s, nx * s);
       const ccw = sweepIncludes(a0, a1, tipAng, true);
       ctx.arc(cx, cy, R, a0, a1, !ccw);
@@ -761,11 +764,23 @@
       if (f >= t) return m <= f && m >= t;
       return m <= f || m >= t;
     }
+    function side(x0, y0, x1, y1, nx, ny, kinds) {
+      const ks = normEdge(kinds);
+      const n = ks.length;
+      for (let i = 0; i < n; i++) {
+        const xa = x0 + (x1 - x0) * i / n;
+        const ya = y0 + (y1 - y0) * i / n;
+        const xb = x0 + (x1 - x0) * (i + 1) / n;
+        const yb = y0 + (y1 - y0) * (i + 1) / n;
+        bumpOne(xa, ya, xb, yb, ks[i] || 0, nx, ny);
+      }
+    }
+    const e = edges || { t: [0], r: [0], b: [0], l: [0] };
     ctx.moveTo(-hw, -hh);
-    bump(-hw, -hh, hw, -hh, edges.t || 0, 0, -1);
-    bump(hw, -hh, hw, hh, edges.r || 0, 1, 0);
-    bump(hw, hh, -hw, hh, edges.b || 0, 0, 1);
-    bump(-hw, hh, -hw, -hh, edges.l || 0, -1, 0);
+    side(-hw, -hh, hw, -hh, 0, -1, e.t);
+    side(hw, -hh, hw, hh, 1, 0, e.r);
+    side(hw, hh, -hw, hh, 0, 1, e.b);
+    side(-hw, hh, -hw, -hh, -1, 0, e.l);
     ctx.closePath();
   }
 
@@ -1317,14 +1332,33 @@ function drawTrayNine() {
       g.appendChild(cell);
     }
   }
-  async function checkOta() {
+  function hardReloadTo(ver) {
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+      }
+      if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
+    } catch (e) {}
+    const u = new URL(location.href);
+    u.searchParams.set('v', ver || VERSION);
+    u.searchParams.set('t', String(Date.now()));
+    location.replace(u.toString());
+  }
+  async function checkOta(silent) {
     try {
       const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
       const j = await r.json();
       if (j.webVersion && j.webVersion !== VERSION) {
-        toast('Доступна ' + j.webVersion); setTimeout(() => location.reload(), 600);
-      } else toast('У вас последняя версия ' + VERSION);
-    } catch (e) { toast('Нет сети для обновления'); }
+        const u = new URL(location.href);
+        // already navigating to this version — avoid reload loop
+        if (u.searchParams.get('v') === j.webVersion) {
+          if (!silent) toast('Кэш ещё старый — зажмите обновление');
+          return;
+        }
+        if (!silent) toast('Обновление ' + j.webVersion + '…');
+        setTimeout(() => hardReloadTo(j.webVersion), silent ? 80 : 400);
+      } else if (!silent) toast('У вас последняя версия ' + VERSION);
+    } catch (e) { if (!silent) toast('Нет сети для обновления'); }
   }
   function loadImg(src) {
     return new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
@@ -1374,7 +1408,7 @@ function drawTrayNine() {
       ['screw_purple', 'assets/sprites/screw_purple.webp'],
       ['screw_orange', 'assets/sprites/screw_orange.webp']
     ];
-    await Promise.all(pairs.map(async ([k, s]) => { imgs[k] = await loadImg(s); }));
+    await Promise.all(pairs.map(async ([k, s]) => { imgs[k] = await loadImg(s + (s.includes('?') ? '&' : '?') + 'v=' + VERSION); }));
     loadAudio('screw', 'assets/audio/sfx_screw.wav');
     loadAudio('clunk', 'assets/audio/sfx_clunk.wav');
     loadAudio('wood', 'assets/audio/sfx_wood.wav');
@@ -1397,7 +1431,7 @@ function drawTrayNine() {
     $('btn-update').onclick = checkOta;
     $('btn-home-update').onclick = checkOta;
     $('b-hint').onclick = useHint; $('b-slot').onclick = useSlot; $('b-hammer').onclick = useHammer;
-    refreshHud(); requestAnimationFrame(loop);
+    refreshHud(); checkOta(true); requestAnimationFrame(loop);
 
     window.__V = {
       VERSION, startLevel, assertNoOverlapRuntime, plankRects, startPlankFall, startPlankShatter, assignPuzzleEdges,

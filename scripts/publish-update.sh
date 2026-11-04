@@ -37,6 +37,8 @@ for rel in ["index.html","www/index.html","game.js","www/game.js"]:
   t=re.sub(r"versionCode:\s*\d+","versionCode: %d"%code,t,count=1)
   t=re.sub(r"webVersion:\s*'[^']*'","webVersion: '%s'"%ver,t,count=1)
   t=re.sub(r">v[0-9.]+<",">v%s<"%ver,t,count=1)
+  t=re.sub(r"const VERSION = '[^']*'","const VERSION = '%s'"%ver,t)
+  t=re.sub(r"(\.(?:js)|\.min\.js)\?v=[0-9.]+",r"\1?v=%s"%ver,t)
   t=re.sub(r"DEFAULT_MANIFEST_URL=localStorage\.getItem\('farm3d_manifest_url'\)\|\|'[^']*'",
            "DEFAULT_MANIFEST_URL=localStorage.getItem('farm3d_manifest_url')||'%s'"%manifest, t)
   path.write_text(t)

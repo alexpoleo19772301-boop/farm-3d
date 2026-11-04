@@ -1,9 +1,9 @@
 {
-  "version": "3.4.1",
-  "versionCode": 34001,
+  "version": "3.5.0",
+  "versionCode": 35000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.4.1",
+  "webVersion": "3.5.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.4.1: классические jigsaw-кнобы (дуга+шея, solid wood fill)\n• Соседи flush — tab входит в blank; tabs не на обод\n• Rim/overlap/screws OK; L1/5/10/42 + break filmstrip"
+  "changelog": "• v3.5.0: доски — собранный jigsaw-пазл (полиомино на сетке)\n• Вкладки только на общих рёбрах, входят в пазы соседей вплотную\n• Внешние края ровные; винты вне blanks; shatter/замки/ряды сохранены\n• OTA: cache-bust game.js + авто-обновление со старых версий"
 }
