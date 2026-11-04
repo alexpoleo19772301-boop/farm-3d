@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="theme-color" content="#c45cff"/>
+<title>Спасти принцессу: Маджонг</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;font-family:"Trebuchet MS",system-ui,Segoe UI,Roboto,sans-serif;background:#1a0f2e;color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#app{position:relative;width:100%;height:100%;max-width:520px;margin:0 auto;overflow:hidden;background:#12081f}
+canvas#game{display:block;width:100%;height:100%;touch-action:none}
+.overlay{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;padding-top:max(20px,env(safe-area-inset-top));padding-bottom:max(20px,env(safe-area-inset-bottom));background:radial-gradient(ellipse at 50% 18%,#6b3fa0,#12081f 72%);text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:24px;font-weight:900;margin:8px 0;text-shadow:0 3px 0 #4a1a7a,0 0 24px rgba(255,120,220,.5);line-height:1.2}
+.overlay p{font-size:13px;opacity:.92;line-height:1.45;max-width:340px;margin:0 auto 12px}
+.btn{border:none;border-radius:16px;padding:12px 22px;font-size:16px;font-weight:900;cursor:pointer;background:linear-gradient(180deg,#ff7ad9,#e040a0);color:#fff;border:3px solid #fff6;box-shadow:0 4px 0 #9a2068,0 8px 20px rgba(0,0,0,.35);margin:6px}
+.btn:active{transform:translateY(2px);box-shadow:0 2px 0 #9a2068}
+.btn.gold{background:linear-gradient(180deg,#ffe082,#ffb300);color:#4a2a00;border-color:#fff8;box-shadow:0 4px 0 #c67c00,0 8px 20px rgba(0,0,0,.35)}
+.btn.ghost{background:linear-gradient(180deg,#7e57c2,#5e35b1);box-shadow:0 4px 0 #311b92,0 8px 20px rgba(0,0,0,.35)}
+.btn.small{font-size:13px;padding:8px 14px;border-radius:12px}
+.hud{position:absolute;left:0;right:0;top:0;z-index:15;display:flex;flex-direction:column;gap:6px;padding:8px;padding-top:max(8px,env(safe-area-inset-top));pointer-events:none}
+.hud-row{display:flex;gap:6px;align-items:center}
+.hud-row>*{pointer-events:auto}
+.pill{background:rgba(20,8,40,.78);border:2px solid #e1bee7;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800;backdrop-filter:blur(6px)}
+.pill.btnish{cursor:pointer;background:linear-gradient(180deg,#7e57c2,#5e35b1)}
+.pill.warn{border-color:#ff8a80;background:rgba(80,10,30,.85);animation:pulseRed .7s ease-in-out infinite}
+@keyframes pulseRed{0%,100%{box-shadow:0 0 0 0 rgba(255,80,80,.55)}50%{box-shadow:0 0 0 6px rgba(255,80,80,0)}}
+.goal{align-self:center;background:rgba(20,8,40,.85);border:2px solid #ffe082;border-radius:14px;padding:6px 12px;font-size:12px;font-weight:800;color:#ffe082;text-align:center;max-width:94%;pointer-events:none}
+.danger-bar{height:10px;border-radius:999px;background:rgba(0,0,0,.45);border:2px solid #fff4;overflow:hidden;flex:1;min-width:70px}
+.danger-bar>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#ffca28,#ff7043,#e53935);border-radius:999px;transition:width .12s linear}
+.hint-line{position:absolute;left:50%;transform:translateX(-50%);top:112px;z-index:16;background:rgba(30,10,50,.92);border:2px solid #80d8ff;border-radius:12px;padding:8px 12px;font-size:13px;font-weight:800;max-width:90%;text-align:center;pointer-events:none;display:none}
+.hint-line.show{display:block}
+.bottombar{position:absolute;left:0;right:0;bottom:0;z-index:15;display:flex;gap:8px;justify-content:center;align-items:flex-end;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));pointer-events:none}
+.bottombar>*{pointer-events:auto}
+.boost{width:64px;height:64px;border-radius:18px;border:3px solid #fff8;background:linear-gradient(180deg,#ce93d8,#8e24aa);color:#fff;font-weight:900;font-size:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 4px 0 #4a148c;cursor:pointer;position:relative}
+.boost .ico{font-size:22px;line-height:1}
+.boost .cnt{position:absolute;top:-6px;right:-6px;background:#ff4081;border:2px solid #fff;border-radius:999px;min-width:22px;height:22px;font-size:11px;display:flex;align-items:center;justify-content:center}
+.toast{position:absolute;left:50%;top:150px;transform:translateX(-50%);z-index:40;background:rgba(30,10,50,.92);padding:10px 16px;border-radius:14px;font-size:13px;font-weight:700;border:2px solid #ce93d8;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%;text-align:center}
+.toast.show{opacity:1}
+.map-wrap{position:absolute;inset:0;z-index:10;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:16px;padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(80px,env(safe-area-inset-bottom));background:linear-gradient(180deg,#4a148c,#1a0f2e 40%,#311b92);display:none}
+.map-wrap.show{display:block}
+.map-title{text-align:center;font-size:22px;font-weight:900;margin:8px 0 4px;text-shadow:0 2px 0 #0006}
+.map-sub{text-align:center;font-size:12px;opacity:.8;margin-bottom:14px}
+.map-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;max-width:400px;margin:0 auto}
+.lvl{aspect-ratio:1;border-radius:16px;border:3px solid #fff5;background:linear-gradient(180deg,#9575cd,#5e35b1);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 0 #311b92}
+.lvl.lock{opacity:.45;filter:grayscale(.6);cursor:default}
+.lvl.done{background:linear-gradient(180deg,#f8bbd0,#ec407a);border-color:#fff8}
+.lvl .stars{font-size:10px;letter-spacing:1px;margin-top:2px}
+.map-top{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.modal-stars{font-size:28px;margin:8px 0;letter-spacing:4px}
+.princess-hero{width:min(36vw,150px);height:auto;filter:drop-shadow(0 8px 16px rgba(0,0,0,.45));margin-bottom:6px;background:transparent}
+.ver{position:absolute;right:8px;bottom:8px;font-size:10px;opacity:.5;z-index:5;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+  <div class="hud" id="hud" style="display:none">
+    <div class="hud-row">
+      <button class="pill btnish" id="btn-back">← Карта</button>
+      <div class="pill">Ур. <span id="hud-level">1</span></div>
+      <div class="danger-bar" title="До шипов"><i id="danger-fill"></i></div>
+      <div class="pill" id="hud-danger">🛡 <span id="hud-stones">100</span>%</div>
+      <div class="pill">🪙 <span id="hud-coins">0</span></div>
+      <button class="pill btnish" id="btn-mute">🔊</button>
+    </div>
+    <div class="goal" id="hud-goal">Слей гравий — отодвинь доску от шипов!</div>
+  </div>
+  <div class="hint-line" id="hint-line"></div>
+  <div class="bottombar" id="boosts" style="display:none">
+    <button class="boost" id="b-hint"><span class="ico">💡</span>Подсказка<span class="cnt" id="c-hint">3</span></button>
+    <button class="boost" id="b-shuffle"><span class="ico">🔀</span>Микс<span class="cnt" id="c-shuffle">3</span></button>
+  </div>
+  <div class="toast" id="toast"></div>
+  <div class="ver" id="ver-label">v2.4.0</div>
+
+  <div class="overlay" id="screen-intro">
+    <img class="princess-hero" src="assets/sprites/princess.webp" alt=""/>
+    <h1>Спасти принцессу</h1>
+    <p>Тяжёлая <b>доска</b> давит её к <b>шипам</b>! Собери пары плиток — открой ямы, чтобы гравий высыпался и давление упало.</p>
+    <p style="opacity:.7;font-size:12px">v2.4.0 · доска · шипы · без рекламы</p>
+    <button class="btn gold" id="btn-play">Играть</button>
+    <button class="btn ghost small" id="btn-update">⬇ Обновить</button>
+  </div>
+
+  <div class="map-wrap" id="screen-map">
+    <div class="map-top">
+      <button class="btn small ghost" id="map-back">← Меню</button>
+      <div class="pill">🪙 <span id="map-coins">0</span></div>
+      <div class="pill">⭐ <span id="map-stars">0</span></div>
+      <button class="btn small ghost" id="map-update">⬇ Обновить</button>
+    </div>
+    <div class="map-title">Карта уровней</div>
+    <div class="map-sub">36 уровней · отодвинь доску</div>
+    <div class="map-grid" id="map-grid"></div>
+  </div>
+
+  <div class="overlay hidden" id="screen-win">
+    <img class="princess-hero" src="assets/sprites/princess_win.webp" alt=""/>
+    <h1>Спасена!</h1>
+    <div class="modal-stars" id="win-stars">⭐⭐⭐</div>
+    <p id="win-msg">Доска отступила!</p>
+    <button class="btn gold" id="btn-next">Дальше</button>
+    <button class="btn ghost small" id="btn-win-map">Карта</button>
+  </div>
+
+  <div class="overlay hidden" id="screen-lose">
+    <img class="princess-hero" src="assets/sprites/princess_scared.webp" alt=""/>
+    <h1>Ай! Шипы!</h1>
+    <p>Доска прижала принцессу к шипам. Слей гравий быстрее!</p>
+    <button class="btn gold" id="btn-retry">Ещё раз</button>
+    <button class="btn ghost small" id="btn-lose-map">Карта</button>
+  </div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "appId": "com.alex.farm3d",
+  "appName": "Спасти принцессу",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "webContentsDebuggingEnabled": false
+  }
+}

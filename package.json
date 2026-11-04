@@ -1,12 +1,13 @@
 {
-  "name": "princess-mahjong",
-  "version": "2.4.0",
-  "description": "Спасти принцессу: Маджонг",
+  "name": "vintiki",
+  "version": "3.0.0",
+  "description": "\u0412\u0438\u043d\u0442\u0438\u043a\u0438 \u2014 \u0433\u043e\u043b\u043e\u0432\u043e\u043b\u043e\u043c\u043a\u0430 \u0441 \u0432\u0438\u043d\u0442\u0430\u043c\u0438",
   "private": true,
   "dependencies": {
     "@capacitor/android": "^6.2.3",
     "@capacitor/cli": "^6.2.3",
-    "@capacitor/core": "^6.2.3"
+    "@capacitor/core": "^6.2.3",
+    "matter-js": "^0.20.0"
   },
   "devDependencies": {
     "playwright": "^1.48.0"

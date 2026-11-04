@@ -1,96 +1,1143 @@
-/* Спасти принцессу v2.4.0 — press board → spikes, gravel pressure, mahjong drain */
+/* Винтики v3.0.0 — screw puzzle (Wood Nuts style), Matter.js physics */
 (function () {
   'use strict';
-  const VERSION = '2.4.0';
-  const SAVE_KEY = 'princess_mahjong_v24';
-  const TILE_TYPES = ['zhong', 'fa', 'frame'];
-  const N_LEVELS = 36;
-  const DT = 1 / 60;
-  const GRAV = 1350;
-  const DAMP = 0.985;
-  const REST = 0.1;
+  const VERSION = '3.0.0';
+  const COLORS = {
+    red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
+    purple: '#9b4de0', orange: '#f08a2a'
+  };
+  const COLOR_KEYS = Object.keys(COLORS);
+  const SAVE_KEY = 'vintiki_save_v3';
+  const BOX_CAP = 3;
+  const BASE_SLOTS = 5;
 
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
   const $ = (id) => document.getElementById(id);
+  const canvas = $('game');
+  const ctx = canvas.getContext('2d');
+  const wrap = $('wrap');
 
-  let W = 390, H = 780, DPR = 1;
-  let state = 'intro';
+  let W = 390, H = 844, dpr = 1;
+  let state = 'home'; // home|map|play|win|lose
   let levelIdx = 0;
   let save = loadSave();
-  let imgs = {};
-  let audioMuted = !!save.muted;
+  let muted = !!save.muted;
+  let animT = 0;
+  let particles = [];
+  let flyers = [];
+  let confetti = [];
   let toastT = 0;
-
-  let tiles = [];
-  let cols = 8, rows = 8;
-  let tw = 34, th = 40;
-  let tileOriginX = 0, tileOriginY = 0;
-  let spikesRight = 42;
-  let board = { x: 200, w: 48, y0: 100, y1: 500, progress: 0, vel: 0 };
-  let boardStartX = 220, boardKillX = 90;
-  let princess = { x: 120, y: 0, w: 70, h: 140, mood: 'scared' };
-  let pebbles = [];
-  let solids = [];
-  let selected = null;
-  let hintPair = null;
-  let drained = 0, startCount = 0;
-  let winPending = false, losePending = false;
-  let animT = 0, handT = 0, creakT = 0, pourSfxT = 0;
-  let levelTime = 0;
-  let firstMatchDone = false;
   let tutStep = 0;
-  let boosts = { hint: 3, shuffle: 3 };
-  let spat = { cell: 24, map: new Map() };
-  let curDef = null;
-  let loseFlash = 0;
+  let hintScrewId = null;
+  let hammerMode = false;
   let outcomeGen = 0;
-  let sfx = {};
-  let bgm = null;
-  let audioReady = false;
+
+  // board layout
+  let board = { x: 24, y: 200, w: 342, h: 420 };
+  let boxes = []; // {color, count, x,y,w,h, flying, flyT}
+  let waitSlots = []; // screw refs or null
+  let maxSlots = BASE_SLOTS;
+  let planks = [];
+  let screws = [];
+  let engine = null, world = null;
+  let wallBodies = [];
+  let imgs = {};
+  let audio = {};
+  let bgmStarted = false;
+
+  const Matter = window.Matter;
+  const { Engine, World, Bodies, Body, Constraint, Composite, Events } = Matter;
 
   function loadSave() {
     try {
-      return Object.assign({ unlocked: 1, coins: 0, stars: {}, muted: false },
-        JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'));
-    } catch (e) { return { unlocked: 1, coins: 0, stars: {}, muted: false }; }
+      return Object.assign({
+        unlocked: 1, coins: 0, stars: {}, muted: false,
+        boosters: { slot: 2, hammer: 2, hint: 3 }
+      }, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'));
+    } catch (e) { return { unlocked: 1, coins: 0, stars: {}, muted: false, boosters: { slot: 2, hammer: 2, hint: 3 } }; }
   }
   function persist() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
+    save.muted = muted;
+    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
   }
 
-  function levelDef(i) {
-    const colsL = 7 + Math.min(3, (i / 4) | 0); // 7..10
-    const rowsL = 7 + Math.min(3, ((i + 2) / 5) | 0);
-    const types = i < 3 ? 2 : 3;
-    const pebblesN = 380 + Math.min(320, i * 8);
-    const advance = 0.028 + i * 0.0018; // board advance at full pressure (~25-40s idle)
-    const retract = 0.10 + Math.min(0.05, i * 0.0012);
-    const seed = 3000 + i * 77;
-    return { cols: colsL, rows: rowsL, types, pebblesN, advance, retract, seed };
+  function toast(msg) {
+    const el = $('toast');
+    el.textContent = msg; el.style.display = 'block';
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => { el.style.display = 'none'; }, 2200);
   }
 
-  function mulberry32(a) {
-    return function () {
-      let t = a += 0x6D2B79F5;
-      t = Math.imul(t ^ t >>> 15, t | 1);
-      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  function playSfx(name, vol) {
+    if (muted) return;
+    const a = audio[name];
+    if (!a) return;
+    try {
+      const c = a.cloneNode();
+      c.volume = vol == null ? 0.55 : vol;
+      c.play().catch(() => {});
+    } catch (e) {}
+  }
+  function ensureBgm() {
+    if (muted || bgmStarted) return;
+    const a = audio.bgm;
+    if (!a) return;
+    a.loop = true; a.volume = 0.28;
+    a.play().then(() => { bgmStarted = true; }).catch(() => {});
+  }
+
+  // ---------- shapes ----------
+  function shapeVerts(type, w, h) {
+    const hw = w / 2, hh = h / 2;
+    if (type === 'barH') return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+    if (type === 'barV') return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+    if (type === 'square') return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+    if (type === 'L') {
+      const t = Math.min(w, h) * 0.42;
+      return [[-hw, -hh], [hw, -hh], [hw, -hh + t], [-hw + t, -hh + t], [-hw + t, hh], [-hw, hh]];
+    }
+    if (type === 'T') {
+      const t = h * 0.38;
+      return [[-hw, -hh], [hw, -hh], [hw, -hh + t], [hw * 0.35, -hh + t], [hw * 0.35, hh], [-hw * 0.35, hh], [-hw * 0.35, -hh + t], [-hw, -hh + t]];
+    }
+    if (type === 'tri') return [[0, -hh], [hw, hh], [-hw, hh]];
+    if (type === 'Z') {
+      const t = h / 3;
+      return [[-hw, -hh], [hw * 0.2, -hh], [hw * 0.2, -t], [hw, -t], [hw, hh], [-hw * 0.2, hh], [-hw * 0.2, t], [-hw, t]];
+    }
+    return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+  }
+
+  function rotatePts(pts, ang) {
+    const c = Math.cos(ang), s = Math.sin(ang);
+    return pts.map(([x, y]) => [x * c - y * s, x * s + y * c]);
+  }
+  function translatePts(pts, x, y) { return pts.map(([px, py]) => [px + x, py + y]); }
+  function pointInPoly(x, y, poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+      const inter = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi);
+      if (inter) inside = !inside;
+    }
+    return inside;
+  }
+
+  // ---------- levels ----------
+  function makeLevel(n) {
+    // n is 0-based
+    const hand = HAND[n];
+    if (hand) return JSON.parse(JSON.stringify(hand));
+    return proceduralLevel(n);
+  }
+
+  // Handcrafted first levels (board-local coords: 0..board.w / 0..board.h)
+  const HAND = [];
+  (function buildHand() {
+    // Level 1 — tutorial: 2 planks, 3 red screws, obvious
+    HAND.push({
+      name: 'Старт',
+      slots: 5,
+      boxes: ['red'],
+      planks: [
+        { type: 'barH', x: 170, y: 160, w: 220, h: 56, rot: 0, layer: 0 },
+        { type: 'barH', x: 170, y: 260, w: 220, h: 56, rot: 0, layer: 0 }
+      ],
+      screws: [
+        { x: 90, y: 160, color: 'red' },
+        { x: 250, y: 160, color: 'red' },
+        { x: 170, y: 260, color: 'red' }
+      ]
+    });
+    // Level 2 — two colors, slight overlap layer
+    HAND.push({
+      name: 'Два цвета',
+      slots: 5,
+      boxes: ['red', 'yellow'],
+      planks: [
+        { type: 'barH', x: 170, y: 140, w: 240, h: 52, rot: 0, layer: 0 },
+        { type: 'barV', x: 100, y: 250, w: 52, h: 180, rot: 0, layer: 0 },
+        { type: 'barV', x: 240, y: 250, w: 52, h: 180, rot: 0, layer: 1 }
+      ],
+      screws: [
+        { x: 80, y: 140, color: 'red' },
+        { x: 170, y: 140, color: 'yellow' },
+        { x: 260, y: 140, color: 'red' },
+        { x: 100, y: 220, color: 'yellow' },
+        { x: 100, y: 310, color: 'red' },
+        { x: 240, y: 220, color: 'yellow' },
+        { x: 240, y: 310, color: 'red' }
+      ]
+    });
+    // Level 3 — L + square
+    HAND.push({
+      name: 'Уголок',
+      slots: 5,
+      boxes: ['red', 'green'],
+      planks: [
+        { type: 'L', x: 130, y: 180, w: 160, h: 160, rot: 0, layer: 0 },
+        { type: 'square', x: 250, y: 280, w: 100, h: 100, rot: 0, layer: 1 },
+        { type: 'barH', x: 160, y: 340, w: 200, h: 48, rot: 0, layer: 0 }
+      ],
+      screws: [
+        { x: 80, y: 120, color: 'red' },
+        { x: 80, y: 230, color: 'green' },
+        { x: 180, y: 120, color: 'red' },
+        { x: 230, y: 250, color: 'green' },
+        { x: 270, y: 310, color: 'red' },
+        { x: 100, y: 340, color: 'green' },
+        { x: 220, y: 340, color: 'red' }
+      ]
+    });
+    // Level 4
+    HAND.push({
+      name: 'Слои',
+      slots: 5,
+      boxes: ['blue', 'yellow'],
+      planks: [
+        { type: 'barH', x: 170, y: 120, w: 260, h: 48, rot: 0, layer: 0 },
+        { type: 'barH', x: 170, y: 200, w: 260, h: 48, rot: 0, layer: 1 },
+        { type: 'barH', x: 170, y: 280, w: 260, h: 48, rot: 0, layer: 0 },
+        { type: 'barV', x: 170, y: 200, w: 48, h: 220, rot: 0, layer: 2 }
+      ],
+      screws: [
+        { x: 70, y: 120, color: 'blue' }, { x: 270, y: 120, color: 'yellow' },
+        { x: 70, y: 200, color: 'yellow' }, { x: 270, y: 200, color: 'blue' },
+        { x: 70, y: 280, color: 'blue' }, { x: 270, y: 280, color: 'yellow' },
+        { x: 170, y: 140, color: 'blue' }, { x: 170, y: 260, color: 'yellow' }
+      ]
+    });
+    // Level 5
+    HAND.push({
+      name: 'Треугольник',
+      slots: 5,
+      boxes: ['red', 'blue', 'green'],
+      planks: [
+        { type: 'tri', x: 170, y: 150, w: 160, h: 130, rot: 0, layer: 0 },
+        { type: 'barH', x: 170, y: 260, w: 280, h: 50, rot: 0, layer: 1 },
+        { type: 'L', x: 120, y: 340, w: 140, h: 120, rot: Math.PI, layer: 0 },
+        { type: 'square', x: 260, y: 340, w: 90, h: 90, rot: 0, layer: 0 }
+      ],
+      screws: [
+        { x: 170, y: 120, color: 'red' },
+        { x: 130, y: 190, color: 'blue' },
+        { x: 210, y: 190, color: 'green' },
+        { x: 80, y: 260, color: 'red' },
+        { x: 170, y: 260, color: 'blue' },
+        { x: 260, y: 260, color: 'green' },
+        { x: 80, y: 320, color: 'red' },
+        { x: 140, y: 380, color: 'blue' },
+        { x: 260, y: 320, color: 'green' },
+        { x: 260, y: 370, color: 'red' }
+      ]
+    });
+    // Levels 6-12 more handcrafted variants
+    for (let i = 6; i <= 12; i++) {
+      HAND.push(proceduralLevel(i - 1, true));
+    }
+  })();
+
+  function proceduralLevel(n, seedHand) {
+    // deterministic pseudo-random from n
+    let s = (n + 1) * 9973;
+    const rnd = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+    const colorPool = COLOR_KEYS.slice(0, Math.min(2 + Math.floor(n / 5), 5));
+    const plankCount = Math.min(3 + Math.floor(n / 3), 10);
+    const types = ['barH', 'barV', 'square', 'L', 'T', 'tri', 'Z'];
+    const planks = [];
+    const screws = [];
+    for (let i = 0; i < plankCount; i++) {
+      const type = types[Math.floor(rnd() * Math.min(types.length, 3 + Math.floor(n / 4)))];
+      const w = type === 'barV' ? 46 + rnd() * 16 : 90 + rnd() * 140;
+      const h = type === 'barH' ? 46 + rnd() * 14 : (type === 'square' ? 80 + rnd() * 40 : 100 + rnd() * 80);
+      const x = 60 + rnd() * 220;
+      const y = 80 + rnd() * 280;
+      const layer = Math.floor(rnd() * Math.min(3, 1 + Math.floor(n / 6)));
+      const rot = (Math.floor(rnd() * 4) * Math.PI) / 2;
+      planks.push({ type, x, y, w, h, rot, layer });
+      // 1-3 screws on plank
+      const sc = 1 + Math.floor(rnd() * (n < 4 ? 2 : 3));
+      for (let k = 0; k < sc; k++) {
+        const ox = (rnd() - 0.5) * w * 0.55;
+        const oy = (rnd() - 0.5) * h * 0.55;
+        const ca = Math.cos(rot), sa = Math.sin(rot);
+        const sx = x + ox * ca - oy * sa;
+        const sy = y + ox * sa + oy * ca;
+        const color = colorPool[Math.floor(rnd() * colorPool.length)];
+        // avoid near-duplicates
+        if (screws.some(scw => (scw.x - sx) ** 2 + (scw.y - sy) ** 2 < 28 * 28)) continue;
+        screws.push({ x: sx, y: sy, color });
+      }
+    }
+    // ensure at least one screw per color used in boxes
+    const used = [...new Set(screws.map(s => s.color))];
+    const boxes = used.slice(0, Math.min(3, used.length));
+    if (!boxes.length) boxes.push('red');
+    // guarantee solvable-ish: enough box capacity over time by cycling colors; starting boxes match
+    return {
+      name: seedHand ? 'Ур.' + (n + 1) : 'Авто ' + (n + 1),
+      slots: n > 20 ? 4 : 5,
+      boxes,
+      planks,
+      screws
     };
   }
 
+  // Ensure 40+ levels
+  const LEVEL_COUNT = 42;
+
+  // ---------- physics / level load ----------
   function resize() {
-    const r = $('app').getBoundingClientRect();
-    W = Math.max(320, Math.floor(r.width));
-    H = Math.max(520, Math.floor(r.height));
-    DPR = Math.min(2.5, window.devicePixelRatio || 1);
-    canvas.width = Math.floor(W * DPR);
-    canvas.height = Math.floor(H * DPR);
+    const r = wrap.getBoundingClientRect();
+    W = r.width; H = r.height;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
     canvas.style.width = W + 'px';
     canvas.style.height = H + 'px';
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    board.w = Math.min(350, W - 40);
+    board.x = (W - board.w) / 2;
+    board.h = Math.min(board.w * 1.05, H * 0.48);
+    board.y = Math.min(H * 0.26, 210);
   }
 
+  function clearWorld() {
+    if (engine) {
+      World.clear(engine.world, false);
+      Engine.clear(engine);
+    }
+    engine = Engine.create({ enableSleeping: true });
+    world = engine.world;
+    world.gravity.y = 0.95;
+    wallBodies = [];
+    // floor + side walls below board so planks fall away
+    const floor = Bodies.rectangle(W / 2, H + 40, W * 2, 80, { isStatic: true, label: 'floor' });
+    const L = Bodies.rectangle(-40, H / 2, 80, H * 2, { isStatic: true });
+    const R = Bodies.rectangle(W + 40, H / 2, 80, H * 2, { isStatic: true });
+    World.add(world, [floor, L, R]);
+  }
+
+  function plankWorldPoly(p) {
+    const local = shapeVerts(p.type, p.w, p.h);
+    return translatePts(rotatePts(local, p.rot + (p.body ? p.body.angle - p._baseAngle : 0)), 
+      p.body ? p.body.position.x : board.x + p.x,
+      p.body ? p.body.position.y : board.y + p.y);
+  }
+
+  function startLevel(idx) {
+    outcomeGen++;
+    levelIdx = idx;
+    state = 'play';
+    showScreen('play');
+    hammerMode = false;
+    hintScrewId = null;
+    particles = []; flyers = []; confetti = [];
+    tutStep = idx <= 1 ? 1 : 99;
+    maxSlots = BASE_SLOTS + (save.boosters._extraSlots || 0);
+    const def = makeLevel(idx);
+    maxSlots = def.slots || BASE_SLOTS;
+    if (save.boosters._extraSlots) maxSlots += save.boosters._extraSlots;
+
+    clearWorld();
+    planks = [];
+    screws = [];
+    waitSlots = Array(maxSlots).fill(null);
+    boxes = def.boxes.map((c, i) => ({
+      color: c, count: 0, flying: false, flyT: 0, id: 'b' + i
+    }));
+    layoutBoxes();
+
+    // create planks bottom layer first
+    const sorted = def.planks.map((p, i) => Object.assign({ _i: i }, p)).sort((a, b) => a.layer - b.layer);
+    for (const pd of sorted) {
+      const cx = board.x + pd.x;
+      const cy = board.y + pd.y;
+      const verts = rotatePts(shapeVerts(pd.type, pd.w, pd.h), pd.rot);
+      let body;
+      try {
+        body = Bodies.fromVertices(cx, cy, [verts.map(([x, y]) => ({ x, y }))], {
+          isStatic: true,
+          friction: 0.35,
+          restitution: 0.05,
+          density: 0.002,
+          label: 'plank'
+        }, true);
+      } catch (e) {
+        body = Bodies.rectangle(cx, cy, pd.w, pd.h, { isStatic: true, angle: pd.rot, label: 'plank' });
+      }
+      if (!body) body = Bodies.rectangle(cx, cy, pd.w, pd.h, { isStatic: true, angle: pd.rot, label: 'plank' });
+      Body.setAngle(body, pd.rot);
+      const plank = {
+        id: 'p' + pd._i,
+        type: pd.type, w: pd.w, h: pd.h, layer: pd.layer,
+        rot: pd.rot, x: pd.x, y: pd.y,
+        body, _baseAngle: pd.rot,
+        alive: true, falling: false,
+        screwIds: [],
+        constraint: null,
+        woodTone: 0.92 + (pd._i % 5) * 0.03
+      };
+      World.add(world, body);
+      planks.push(plank);
+    }
+
+    def.screws.forEach((sd, i) => {
+      const screw = {
+        id: 's' + i,
+        x: board.x + sd.x,
+        y: board.y + sd.y,
+        color: sd.color,
+        alive: true,
+        removed: false,
+        spin: 0,
+        blocked: false
+      };
+      // attach to planks containing this point
+      for (const p of planks) {
+        const poly = plankWorldPoly(p);
+        if (pointInPoly(screw.x, screw.y, poly)) {
+          p.screwIds.push(screw.id);
+          screw.plankIds = screw.plankIds || [];
+          screw.plankIds.push(p.id);
+        }
+      }
+      screws.push(screw);
+    });
+    // if a screw hit no plank, still show it (design error) — snap to nearest
+    for (const sc of screws) {
+      if (!sc.plankIds || !sc.plankIds.length) {
+        let best = null, bd = 1e9;
+        for (const p of planks) {
+          const d = (p.body.position.x - sc.x) ** 2 + (p.body.position.y - sc.y) ** 2;
+          if (d < bd) { bd = d; best = p; }
+        }
+        if (best) { best.screwIds.push(sc.id); sc.plankIds = [best.id]; }
+      }
+    }
+    updateBlocked();
+    refreshHud();
+    ensureBgm();
+  }
+
+  function layoutBoxes() {
+    const n = boxes.filter(b => !b.flying || b.flyT < 1).length;
+    const bw = 72, gap = 10;
+    const total = boxes.length * bw + (boxes.length - 1) * gap;
+    let x0 = (W - total) / 2;
+    boxes.forEach((b, i) => {
+      b.w = bw; b.h = 56;
+      b.x = x0 + i * (bw + gap);
+      b.y = 72;
+    });
+  }
+
+  function updateBlocked() {
+    for (const sc of screws) {
+      if (!sc.alive) { sc.blocked = false; continue; }
+      sc.blocked = false;
+      const holders = (sc.plankIds || []).map(id => planks.find(p => p.id === id && p.alive)).filter(Boolean);
+      const maxLayer = holders.reduce((m, p) => Math.max(m, p.layer), -1);
+      for (const p of planks) {
+        if (!p.alive || p.falling) continue;
+        if (p.layer <= maxLayer) continue;
+        const poly = plankWorldPoly(p);
+        if (pointInPoly(sc.x, sc.y, poly)) { sc.blocked = true; break; }
+      }
+    }
+  }
+
+  function livingScrewsOnPlank(p) {
+    return p.screwIds.filter(id => {
+      const s = screws.find(x => x.id === id);
+      return s && s.alive;
+    });
+  }
+
+  function refreshPlankPhysics(p) {
+    if (!p.alive || p.falling) return;
+    const live = livingScrewsOnPlank(p);
+    if (live.length >= 2) {
+      // keep static
+      if (!p.body.isStatic) Body.setStatic(p.body, true);
+      if (p.constraint) { World.remove(world, p.constraint); p.constraint = null; }
+    } else if (live.length === 1) {
+      // pivot around remaining screw
+      const sc = screws.find(x => x.id === live[0]);
+      Body.setStatic(p.body, false);
+      if (p.constraint) World.remove(world, p.constraint);
+      const lx = sc.x - p.body.position.x;
+      const ly = sc.y - p.body.position.y;
+      // rotate local offset by -angle
+      const a = -p.body.angle;
+      const ox = lx * Math.cos(a) - ly * Math.sin(a);
+      const oy = lx * Math.sin(a) + ly * Math.cos(a);
+      p.constraint = Constraint.create({
+        bodyA: p.body,
+        pointA: { x: ox, y: oy },
+        pointB: { x: sc.x, y: sc.y },
+        stiffness: 1,
+        length: 0,
+        damping: 0.15
+      });
+      World.add(world, p.constraint);
+      Body.setAngularVelocity(p.body, Math.max(-0.04, Math.min(0.04, p.body.angularVelocity)));
+      p.body.frictionAir = 0.05;
+    } else {
+      // fall free
+      if (p.constraint) { World.remove(world, p.constraint); p.constraint = null; }
+      Body.setStatic(p.body, false);
+      p.falling = true;
+      Body.setAngularVelocity(p.body, (Math.random() - 0.5) * 0.08);
+      playSfx('wood', 0.7);
+      spawnDust(p.body.position.x, p.body.position.y);
+    }
+  }
+
+  function findBoxFor(color) {
+    return boxes.find(b => !b.flying && b.color === color && b.count < BOX_CAP);
+  }
+
+  function nextBoxColorNeeded() {
+    const need = {};
+    for (const sc of screws) if (sc.alive) need[sc.color] = (need[sc.color] || 0) + 1;
+    for (const w of waitSlots) if (w) need[w.color] = (need[w.color] || 0) + 1;
+    // prefer colors still on board not already having an open box
+    const open = new Set(boxes.filter(b => !b.flying).map(b => b.color));
+    const candidates = Object.keys(need).filter(c => !open.has(c) && need[c] > 0);
+    if (candidates.length) return candidates[0];
+    const any = Object.keys(need)[0];
+    return any || COLOR_KEYS[levelIdx % COLOR_KEYS.length];
+  }
+
+  function removeScrew(sc) {
+    if (!sc.alive || sc.blocked) return false;
+    sc.alive = false;
+    sc.removed = true;
+    playSfx('screw', 0.65);
+    // detach from planks
+    for (const pid of (sc.plankIds || [])) {
+      const p = planks.find(x => x.id === pid);
+      if (p) refreshPlankPhysics(p);
+    }
+    updateBlocked();
+
+    const box = findBoxFor(sc.color);
+    if (box) {
+      flyers.push({
+        kind: 'toBox', color: sc.color, x: sc.x, y: sc.y,
+        tx: box.x + box.w / 2, ty: box.y + box.h / 2,
+        t: 0, spin: 0, boxId: box.id
+      });
+    } else {
+      // waiting slot
+      const slot = waitSlots.findIndex(s => !s);
+      if (slot < 0) {
+        // lose
+        flyers.push({ kind: 'toWaitFail', color: sc.color, x: sc.x, y: sc.y, t: 0, spin: 0 });
+        const g = outcomeGen;
+        setTimeout(() => { if (g === outcomeGen) endLose(); }, 500);
+        return true;
+      }
+      const sx = slotPos(slot).x, sy = slotPos(slot).y;
+      waitSlots[slot] = { color: sc.color, id: sc.id };
+      flyers.push({
+        kind: 'toWait', color: sc.color, x: sc.x, y: sc.y,
+        tx: sx, ty: sy, t: 0, spin: 0, slot
+      });
+    }
+    return true;
+  }
+
+  function slotPos(i) {
+    const sw = 40, gap = 8;
+    const total = maxSlots * sw + (maxSlots - 1) * gap;
+    const x0 = (W - total) / 2 + sw / 2;
+    return { x: x0 + i * (sw + gap), y: board.y + board.h + 36 };
+  }
+
+  function onFlyerArrived(f) {
+    if (f.kind === 'toBox') {
+      const box = boxes.find(b => b.id === f.boxId);
+      if (!box) return;
+      box.count++;
+      playSfx('box', 0.5);
+      spawnSpark(box.x + box.w / 2, box.y + box.h / 2, box.color);
+      if (box.count >= BOX_CAP) {
+        box.flying = true; box.flyT = 0;
+        playSfx('box', 0.7);
+        // after fly, replace with new box; try flush wait slots
+      }
+    }
+  }
+
+  function tryFlushWaits() {
+    let moved;
+    do {
+      moved = false;
+      for (let i = 0; i < waitSlots.length; i++) {
+        const w = waitSlots[i];
+        if (!w) continue;
+        const box = findBoxFor(w.color);
+        if (!box) continue;
+        const sp = slotPos(i);
+        flyers.push({
+          kind: 'toBox', color: w.color, x: sp.x, y: sp.y,
+          tx: box.x + box.w / 2, ty: box.y + box.h / 2,
+          t: 0, spin: 0, boxId: box.id
+        });
+        waitSlots[i] = null;
+        moved = true;
+      }
+      // compact? keep holes for simplicity — or compact left
+      const filled = waitSlots.filter(Boolean);
+      waitSlots = filled.concat(Array(maxSlots - filled.length).fill(null));
+    } while (moved);
+  }
+
+  function tickBoxes(dt) {
+    for (const b of boxes) {
+      if (b.flying) {
+        b.flyT += dt * 1.8;
+        if (b.flyT >= 1) {
+          // replace
+          const idx = boxes.indexOf(b);
+          const col = nextBoxColorNeeded();
+          boxes[idx] = { color: col, count: 0, flying: false, flyT: 0, id: 'b' + Date.now() + idx };
+          layoutBoxes();
+          tryFlushWaits();
+        }
+      }
+    }
+  }
+
+  function checkWin() {
+    if (state !== 'play') return;
+    // mark fallen as dead
+    for (const p of planks) {
+      if (p.falling && p.body.position.y > board.y + board.h + 30) {
+        p.alive = false;
+        if (p.constraint) { World.remove(world, p.constraint); p.constraint = null; }
+        try { World.remove(world, p.body); } catch (e) {}
+      }
+    }
+    const remaining = planks.filter(p => p.alive && !p.falling);
+    const screwsLeft = screws.some(s => s.alive);
+    // win when no fixed planks remain (all falling/gone) and no screws left
+    if (!remaining.length && !screwsLeft) {
+      const g = outcomeGen;
+      state = 'play'; // keep
+      if (!checkWin._armed || checkWin._armed !== g) {
+        checkWin._armed = g;
+        setTimeout(() => { if (g === outcomeGen && state === 'play') endWin(); }, 400);
+      }
+    }
+  }
+
+  function endWin() {
+    if (state !== 'play') return;
+    state = 'win';
+    playSfx('win', 0.7);
+    burstConfetti();
+    const stars = 3;
+    save.stars[levelIdx] = Math.max(save.stars[levelIdx] || 0, stars);
+    save.coins += 40 + levelIdx * 2;
+    if (save.unlocked < levelIdx + 2) save.unlocked = levelIdx + 2;
+    persist();
+    $('win-stars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+    $('win-coins').textContent = '+' + (40 + levelIdx * 2) + ' монет';
+    showScreen('win');
+    refreshHud();
+  }
+  function endLose() {
+    if (state !== 'play') return;
+    state = 'lose';
+    playSfx('lose', 0.6);
+    showScreen('lose');
+  }
+
+  // ---------- input ----------
+  function screwAt(x, y) {
+    let best = null, bd = 28 * 28;
+    for (const sc of screws) {
+      if (!sc.alive) continue;
+      const d = (sc.x - x) ** 2 + (sc.y - y) ** 2;
+      if (d < bd) { bd = d; best = sc; }
+    }
+    return best;
+  }
+  function plankAt(x, y) {
+    const ordered = planks.filter(p => p.alive && !p.falling).sort((a, b) => b.layer - a.layer);
+    for (const p of ordered) {
+      if (pointInPoly(x, y, plankWorldPoly(p))) return p;
+    }
+    return null;
+  }
+
+  function onPointer(x, y) {
+    if (state !== 'play') return;
+    ensureBgm();
+    if (hammerMode) {
+      const p = plankAt(x, y);
+      if (p && save.boosters.hammer > 0) {
+        save.boosters.hammer--;
+        persist();
+        // remove all screws on plank then force fall
+        for (const id of [...p.screwIds]) {
+          const sc = screws.find(s => s.id === id && s.alive);
+          if (sc) { sc.alive = false; sc.removed = true; }
+        }
+        p.screwIds = [];
+        refreshPlankPhysics(p);
+        hammerMode = false;
+        updateBlocked();
+        refreshHud();
+        playSfx('wood', 0.8);
+        toast('Доска сломана!');
+      }
+      return;
+    }
+    const sc = screwAt(x, y);
+    if (!sc) return;
+    if (sc.blocked) { toast('Винт перекрыт доской сверху'); playSfx('btn', 0.3); return; }
+    if (tutStep === 1) tutStep = 2;
+    removeScrew(sc);
+    if (hintScrewId === sc.id) hintScrewId = null;
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    const r = canvas.getBoundingClientRect();
+    onPointer(e.clientX - r.left, e.clientY - r.top);
+  });
+
+  // ---------- boosters ----------
+  function useHint() {
+    if (state !== 'play' || save.boosters.hint <= 0) return;
+    updateBlocked();
+    // prefer screw that matches an open box and is free
+    let pick = screws.find(s => s.alive && !s.blocked && findBoxFor(s.color));
+    if (!pick) pick = screws.find(s => s.alive && !s.blocked);
+    if (!pick) { toast('Нет свободных винтов'); return; }
+    save.boosters.hint--;
+    persist();
+    hintScrewId = pick.id;
+    refreshHud();
+    playSfx('btn', 0.5);
+  }
+  function useSlot() {
+    if (state !== 'play' || save.boosters.slot <= 0) return;
+    if (maxSlots >= 8) { toast('Максимум слотов'); return; }
+    save.boosters.slot--;
+    save.boosters._extraSlots = (save.boosters._extraSlots || 0) + 1;
+    maxSlots++;
+    waitSlots.push(null);
+    persist();
+    refreshHud();
+    playSfx('btn', 0.5);
+    toast('+1 слот ожидания');
+  }
+  function useHammer() {
+    if (state !== 'play' || save.boosters.hammer <= 0) return;
+    hammerMode = !hammerMode;
+    toast(hammerMode ? 'Выбери доску для молота' : 'Молот отменён');
+  }
+
+  // ---------- draw ----------
+  function woodFill(ctx, tone) {
+    const g = ctx.createLinearGradient(-50, -30, 50, 40);
+    const t = tone;
+    const r = Math.floor(190 * t), g0 = Math.floor(140 * t), b = Math.floor(75 * t);
+    g.addColorStop(0, `rgb(${r + 30},${g0 + 25},${b + 10})`);
+    g.addColorStop(0.45, `rgb(${r + 10},${g0 + 5},${b})`);
+    g.addColorStop(1, `rgb(${r - 25},${g0 - 20},${b - 15})`);
+    return g;
+  }
+
+  function drawPlank(p) {
+    if (!p.alive && !p.falling) return;
+    if (p.body.position.y > H + 100) return;
+    const poly = plankWorldPoly(p);
+    ctx.save();
+    ctx.beginPath();
+    poly.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+    ctx.closePath();
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+    ctx.fillStyle = woodFill(ctx, p.woodTone);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = 'rgba(90,50,20,0.5)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,230,180,0.28)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    poly.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+    ctx.closePath();
+    ctx.stroke();
+    // grain lines
+    ctx.save();
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(90,50,20,0.12)';
+    ctx.lineWidth = 1;
+    const minx = Math.min(...poly.map(p => p[0]));
+    const maxx = Math.max(...poly.map(p => p[0]));
+    const miny = Math.min(...poly.map(p => p[1]));
+    const maxy = Math.max(...poly.map(p => p[1]));
+    for (let y = miny; y < maxy; y += 6) {
+      ctx.beginPath(); ctx.moveTo(minx, y); ctx.lineTo(maxx, y + 2); ctx.stroke();
+    }
+    ctx.restore();
+    // holes for living screws on this plank
+    for (const id of p.screwIds) {
+      const sc = screws.find(s => s.id === id);
+      if (!sc) continue;
+      // hole position: if screw alive use screw pos else approximate
+      const hx = sc.alive ? sc.x : sc.x;
+      const hy = sc.alive ? sc.y : sc.y;
+      if (pointInPoly(hx, hy, poly) || sc.alive) {
+        ctx.beginPath();
+        ctx.arc(sc.x, sc.y, 11, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(30,15,5,0.55)';
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawScrewHead(x, y, color, spin, scale, blocked) {
+    const r = 15 * (scale || 1);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(spin || 0);
+    if (imgs['screw_' + color]) {
+      const im = imgs['screw_' + color];
+      ctx.drawImage(im, -r, -r, r * 2, r * 2);
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS[color] || '#ccc';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.45, 0); ctx.lineTo(r * 0.45, 0);
+      ctx.moveTo(0, -r * 0.45); ctx.lineTo(0, r * 0.45);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+    if (blocked) {
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🔒', 0, 1);
+    }
+    ctx.restore();
+  }
+
+  function drawBoard() {
+    // tray
+    if (imgs.board_tray) {
+      ctx.drawImage(imgs.board_tray, board.x - 16, board.y - 16, board.w + 32, board.h + 32);
+    } else {
+      ctx.fillStyle = '#6b4423';
+      roundRect(ctx, board.x - 12, board.y - 12, board.w + 24, board.h + 24, 18);
+      ctx.fill();
+      ctx.fillStyle = '#4a2f16';
+      roundRect(ctx, board.x, board.y, board.w, board.h, 12);
+      ctx.fill();
+    }
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawBoxes() {
+    for (const b of boxes) {
+      ctx.save();
+      let y = b.y, a = 1, sc = 1;
+      if (b.flying) {
+        y = b.y - b.flyT * 120;
+        a = 1 - b.flyT;
+        sc = 1 + b.flyT * 0.3;
+      }
+      ctx.globalAlpha = a;
+      ctx.translate(b.x + b.w / 2, y + b.h / 2);
+      ctx.scale(sc, sc);
+      ctx.translate(-(b.x + b.w / 2), -(y + b.h / 2));
+      // crate
+      ctx.fillStyle = '#5a3a1c';
+      roundRect(ctx, b.x, y, b.w, b.h, 10);
+      ctx.fill();
+      ctx.strokeStyle = COLORS[b.color];
+      ctx.lineWidth = 4;
+      roundRect(ctx, b.x + 2, y + 2, b.w - 4, b.h - 4, 8);
+      ctx.stroke();
+      // slots
+      for (let i = 0; i < BOX_CAP; i++) {
+        const cx = b.x + 16 + i * 20;
+        const cy = y + b.h / 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+        if (i < b.count) {
+          ctx.fillStyle = COLORS[b.color];
+          ctx.fill();
+        } else {
+          ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawWaitRow() {
+    for (let i = 0; i < maxSlots; i++) {
+      const p = slotPos(i);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(40,22,10,0.75)';
+      ctx.fill();
+      ctx.strokeStyle = '#c9a06a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      if (waitSlots[i]) {
+        drawScrewHead(p.x, p.y, waitSlots[i].color, 0, 0.95, false);
+      }
+    }
+    ctx.fillStyle = 'rgba(255,232,192,0.7)';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Ожидание', W / 2, slotPos(0).y + 34);
+  }
+
+  function drawTutorial() {
+    if (tutStep > 2 || levelIdx > 1) return;
+    const free = screws.find(s => s.alive && !s.blocked);
+    if (!free) return;
+    ctx.save();
+    // pulse ring
+    const pulse = 1 + Math.sin(animT * 6) * 0.08;
+    ctx.beginPath();
+    ctx.arc(free.x, free.y, 26 * pulse, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,220,80,0.85)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // finger
+    if (imgs.finger) {
+      const fy = free.y + 10 + Math.sin(animT * 5) * 8;
+      ctx.drawImage(imgs.finger, free.x - 10, fy, 64, 64);
+    }
+    // tip
+    ctx.fillStyle = 'rgba(30,15,5,0.85)';
+    roundRect(ctx, W / 2 - 140, board.y - 48, 280, 36, 12);
+    ctx.fill();
+    ctx.fillStyle = '#fff6e0';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const tip = tutStep === 1 ? 'Нажми на винт — он улетит в коробку!' : 'Освободи доску от всех винтов!';
+    ctx.fillText(tip, W / 2, board.y - 30);
+    ctx.restore();
+  }
+
+  function drawParticles(dt) {
+    particles = particles.filter(p => {
+      p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 40 * dt;
+      if (p.t > p.life) return false;
+      ctx.globalAlpha = 1 - p.t / p.life;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      return true;
+    });
+    confetti = confetti.filter(c => {
+      c.t += dt; c.x += c.vx * dt; c.y += c.vy * dt; c.rot += c.vr * dt;
+      if (c.t > 2.5) return false;
+      ctx.save();
+      ctx.translate(c.x, c.y); ctx.rotate(c.rot);
+      ctx.fillStyle = c.color;
+      ctx.fillRect(-4, -3, 8, 6);
+      ctx.restore();
+      return true;
+    });
+  }
+
+  function spawnDust(x, y) {
+    for (let i = 0; i < 10; i++) {
+      particles.push({
+        x, y, vx: (Math.random() - 0.5) * 80, vy: -Math.random() * 60,
+        r: 2 + Math.random() * 3, color: '#c9a06a', t: 0, life: 0.5 + Math.random() * 0.4
+      });
+    }
+  }
+  function spawnSpark(x, y, color) {
+    for (let i = 0; i < 8; i++) {
+      particles.push({
+        x, y, vx: (Math.random() - 0.5) * 120, vy: (Math.random() - 0.5) * 120,
+        r: 2 + Math.random() * 2, color: COLORS[color] || '#fff', t: 0, life: 0.4
+      });
+    }
+  }
+  function burstConfetti() {
+    const cols = Object.values(COLORS);
+    for (let i = 0; i < 60; i++) {
+      confetti.push({
+        x: W * Math.random(), y: -20, vx: (Math.random() - 0.5) * 80,
+        vy: 80 + Math.random() * 120, rot: 0, vr: (Math.random() - 0.5) * 8,
+        color: cols[i % cols.length], t: 0
+      });
+    }
+  }
+
+  function drawFlyers(dt) {
+    flyers = flyers.filter(f => {
+      f.t += dt * 2.2;
+      f.spin += dt * 18;
+      const t = Math.min(1, f.t);
+      const e = 1 - Math.pow(1 - t, 3);
+      if (f.kind === 'toBox' || f.kind === 'toWait') {
+        const x = f.x + (f.tx - f.x) * e;
+        const y = f.y + (f.ty - f.y) * e - Math.sin(e * Math.PI) * 40;
+        drawScrewHead(x, y, f.color, f.spin, 1.05, false);
+        if (t >= 1) { onFlyerArrived(f); return false; }
+        return true;
+      }
+      drawScrewHead(f.x, f.y + t * 20, f.color, f.spin, 1, false);
+      return t < 1;
+    });
+  }
+
+  function drawGoalBanner() {
+    ctx.fillStyle = 'rgba(30,15,5,0.75)';
+    roundRect(ctx, board.x, board.y - 42, board.w, 28, 10);
+    ctx.fill();
+    ctx.fillStyle = '#ffe8c0';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Открути винты · доски должны упасть', board.x + board.w / 2, board.y - 28);
+  }
+
+  function frame(dt) {
+    animT += dt;
+    ctx.clearRect(0, 0, W, H);
+    // bg wood
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#5a3a1e');
+    bg.addColorStop(1, '#2a1a0c');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    if (state === 'play' || state === 'win' || state === 'lose') {
+      if (engine && state === 'play') {
+        Engine.update(engine, Math.min(32, dt * 1000));
+        for (const p of planks) {
+          if (p.constraint && p.body) {
+            const av = p.body.angularVelocity;
+            if (Math.abs(av) > 0.06) Body.setAngularVelocity(p.body, av * 0.85);
+          }
+        }
+      }
+      tickBoxes(dt);
+      drawBoxes();
+      drawGoalBanner();
+      drawBoard();
+      // planks by layer
+      const sorted = [...planks].filter(p => p.alive || p.falling).sort((a, b) => a.layer - b.layer);
+      for (const p of sorted) drawPlank(p);
+      for (const sc of screws) {
+        if (!sc.alive) continue;
+        const hint = hintScrewId === sc.id;
+        if (hint) {
+          ctx.beginPath();
+          ctx.arc(sc.x, sc.y, 22 + Math.sin(animT * 8) * 3, 0, Math.PI * 2);
+          ctx.strokeStyle = '#ffe566';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+        drawScrewHead(sc.x, sc.y, sc.color, 0, 1, sc.blocked);
+      }
+      drawWaitRow();
+      drawFlyers(dt);
+      drawTutorial();
+      drawParticles(dt);
+      if (state === 'play') checkWin();
+      if (hammerMode) {
+        ctx.fillStyle = 'rgba(255,100,50,0.12)';
+        ctx.fillRect(0, 0, W, H);
+      }
+    }
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    frame(dt);
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- UI ----------
+  function showScreen(name) {
+    state = name === 'play' ? 'play' : name;
+    ['home', 'map', 'win', 'lose'].forEach(s => {
+      const el = $('sc-' + s);
+      if (el) el.classList.toggle('on', s === name);
+    });
+    const playing = name === 'play';
+    $('hud').style.display = playing ? 'block' : 'none';
+    $('boosters').style.display = playing ? 'flex' : 'none';
+  }
+
+  function refreshHud() {
+    $('lvl-pill').textContent = 'Ур. ' + (levelIdx + 1);
+    $('coin-pill').textContent = '🪙 ' + (save.coins | 0);
+    $('badge-slot').textContent = save.boosters.slot;
+    $('badge-hammer').textContent = save.boosters.hammer;
+    $('badge-hint').textContent = save.boosters.hint;
+    $('btn-sound').textContent = muted ? '🔇' : '🔊';
+    $('ver').textContent = 'v' + VERSION;
+  }
+
+  function buildMap() {
+    const g = $('mapgrid');
+    g.innerHTML = '';
+    for (let i = 0; i < LEVEL_COUNT; i++) {
+      const cell = document.createElement('div');
+      const unlocked = i < save.unlocked;
+      cell.className = 'mapcell' + (unlocked ? '' : ' lock') + (save.stars[i] ? ' done' : '');
+      cell.innerHTML = (unlocked ? (i + 1) : '🔒') +
+        (save.stars[i] ? '<div class="stars">' + '★'.repeat(save.stars[i]) + '</div>' : '');
+      if (unlocked) cell.onclick = () => { startLevel(i); };
+      g.appendChild(cell);
+    }
+  }
+
+  async function checkOta() {
+    try {
+      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+      const j = await r.json();
+      if (j.webVersion && j.webVersion !== VERSION) {
+        toast('Доступна ' + j.webVersion + ' — перезагрузка…');
+        setTimeout(() => location.reload(), 600);
+      } else toast('У вас последняя версия ' + VERSION);
+    } catch (e) { toast('Не удалось проверить обновление'); }
+  }
+
+  // ---------- assets ----------
   function loadImg(src) {
     return new Promise((res) => {
       const im = new Image();
@@ -99,887 +1146,135 @@
       im.src = src;
     });
   }
-
-  async function loadAll() {
-    const list = {
-      bg: 'assets/sprites/tower_bg.webp',
-      princess: 'assets/sprites/princess_scared.webp',
-      princessWin: 'assets/sprites/princess_win.webp',
-      princessScared: 'assets/sprites/princess_scared.webp',
-      board: 'assets/sprites/board.webp',
-      spikes: 'assets/sprites/spikes.webp',
-      spikesProc: 'assets/sprites/spikes_proc.webp',
-      finger: 'assets/sprites/finger.webp',
-    };
-    TILE_TYPES.forEach(t => { list['t_' + t] = 'assets/sprites/tiles/' + t + '.webp'; });
-    for (let i = 0; i < 8; i++) list['g' + i] = 'assets/sprites/pebbles/g' + i + '.webp';
-    for (let i = 0; i < 6; i++) list['p' + i] = 'assets/sprites/pebbles/p' + i + '.webp';
-    const entries = Object.entries(list);
-    const loaded = await Promise.all(entries.map(([, s]) => loadImg(s)));
-    entries.forEach(([k], i) => { imgs[k] = loaded[i]; });
-    ['match','tap','win','lose','pebbles','pressure','hint','shuffle','drop','pick'].forEach(n => {
-      const a = new Audio('assets/audio/sfx_' + n + '.ogg');
-      a.preload = 'auto';
-      sfx[n] = a;
-    });
-    bgm = new Audio('assets/audio/music_theme.ogg');
-    bgm.loop = true; bgm.volume = 0.32;
+  function loadAudio(name, src) {
+    const a = new Audio(src);
+    a.preload = 'auto';
+    audio[name] = a;
   }
 
-  function toast(msg) {
-    const el = $('toast');
-    el.textContent = msg;
-    el.classList.add('show');
-    clearTimeout(toastT);
-    toastT = setTimeout(() => el.classList.remove('show'), 1800);
-  }
-  function setHint(msg) {
-    const el = $('hint-line');
-    if (!msg) { el.classList.remove('show'); el.textContent = ''; return; }
-    el.textContent = msg;
-    el.classList.add('show');
-  }
-
-  function showScreen(name) {
-    state = name;
-    $('screen-intro').classList.toggle('hidden', name !== 'intro');
-    $('screen-map').classList.toggle('show', name === 'map');
-    $('screen-win').classList.toggle('hidden', name !== 'win');
-    $('screen-lose').classList.toggle('hidden', name !== 'lose');
-    const play = name === 'play';
-    $('hud').style.display = play ? 'flex' : 'none';
-    $('boosts').style.display = play ? 'flex' : 'none';
-    if (!play) setHint('');
-    updateBgm();
-  }
-
-  function totalStars() {
-    return Object.values(save.stars).reduce((a, b) => a + (b | 0), 0);
-  }
-
-  function renderMap() {
-    const grid = $('map-grid');
-    grid.innerHTML = '';
-    $('map-coins').textContent = save.coins | 0;
-    $('map-stars').textContent = totalStars();
-    for (let i = 0; i < N_LEVELS; i++) {
-      const el = document.createElement('div');
-      const locked = i + 1 > save.unlocked;
-      el.className = 'lvl' + (locked ? ' lock' : '') + (save.stars[i] ? ' done' : '');
-      const st = save.stars[i] | 0;
-      el.innerHTML = (i + 1) + '<div class="stars">' + '★'.repeat(st) + '☆'.repeat(3 - st) + '</div>';
-      if (!locked) el.onclick = () => startLevel(i);
-      grid.appendChild(el);
-    }
-  }
-
-  function layoutFromLevel(def) {
-    cols = def.cols; rows = def.rows;
-    const hudPad = 96;
-    const boostPad = 78;
-    spikesRight = Math.max(32, W * 0.08);
-    board.w = Math.max(36, W * 0.10);
-    board.y0 = hudPad + 8;
-    // tile floor under gravel — right ~48% of width so chamber has room
-    const tileAreaBottom = H - boostPad;
-    const tileAreaTop = Math.floor(H * 0.54);
-    const tileSpan = W * 0.48;
-    tw = Math.floor(tileSpan / cols);
-    th = Math.floor(tw * 1.15);
-    if (th * rows > tileAreaBottom - tileAreaTop) {
-      th = Math.floor((tileAreaBottom - tileAreaTop) / rows);
-      tw = Math.floor(th / 1.15);
-    }
-    tileOriginX = W - 8 - tw * cols;
-    tileOriginY = tileAreaBottom - th * rows;
-    board.y1 = tileOriginY - 2;
-
-    // board starts just left of gravel/tiles; travels LEFT toward spikes
-    boardStartX = Math.min(tileOriginX - board.w - 4, W * 0.58);
-    // kill when board left face is almost on spikes (princess crushed)
-    boardKillX = spikesRight + 10;
-    board.x = boardStartX;
-    board.progress = 0;
-    board.vel = 0;
-
-    princess.h = Math.floor(H * 0.20);
-    princess.w = princess.h * 0.50;
-    princess.y = board.y1 - princess.h + 8;
-    princess.x = spikesRight + 20; // home — not crushed at start
-    princess.mood = 'scared';
-
-    solids = [];
-    solids.push({ x: boardStartX, y: board.y0 - 8, w: W, h: 10 });
-    solids.push({ x: W - 10, y: board.y0, w: 14, h: H });
-    // floor under princess chamber (left of tile pit)
-    solids.push({ x: 0, y: board.y1, w: Math.max(boardKillX + 40, tileOriginX - 8), h: H - board.y1 });
-  }
-
-  function tileAABB(t) {
-    return { x: tileOriginX + t.c * tw, y: tileOriginY + t.r * th, w: tw, h: th };
-  }
-
-  function buildTiles(def) {
-    const rnd = mulberry32(def.seed);
-    const types = TILE_TYPES.slice(0, def.types);
-    const cells = cols * rows;
-    let pool = [];
-    while (pool.length < cells) for (const t of types) { pool.push(t); pool.push(t); }
-    pool = pool.slice(0, cells);
-    if (pool.length % 2) pool[pool.length - 1] = pool[0];
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = (rnd() * (i + 1)) | 0;
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    if (levelIdx <= 1) {
-      const t0 = types[0];
-      pool[0] = t0;
-      pool[cols - 1] = t0;
-    }
-    tiles = [];
-    let k = 0;
-    for (let r = 0; r < rows; r++)
-      for (let c = 0; c < cols; c++)
-        tiles.push({ c, r, type: pool[k++], alive: true });
-  }
-
-  function makePebble(x, y, rnd) {
-    const rBase = Math.max(7.5, W * 0.019);
-    const r = rBase + rnd() * Math.max(2.2, W * 0.006);
-    const spr = rnd() < 0.8 ? ('g' + ((rnd() * 8) | 0)) : ('p' + ((rnd() * 6) | 0));
-    return { x, y, ox: x, oy: y, r, spr, sleep: 0 };
-  }
-
-  function spawnPebbles(def) {
-    pebbles = [];
-    drained = 0;
-    const rnd = mulberry32(def.seed + 3);
-    const x0 = board.x + board.w + 8;
-    const x1 = W - 18;
-    const y0 = board.y0 + 10;
-    const y1 = tileOriginY - 4;
-    const rAvg = Math.max(8, W * 0.02);
-    const dx = rAvg * 1.9, dy = rAvg * 1.7;
-    let row = 0;
-    for (let y = y0 + rAvg; y <= y1 - rAvg; y += dy, row++) {
-      const xOff = (row % 2) * dx * 0.5;
-      for (let x = x0 + rAvg + xOff; x <= x1 - rAvg; x += dx) {
-        pebbles.push(makePebble(x + (rnd() - 0.5) * 2, y + (rnd() - 0.5) * 2, rnd));
-      }
-    }
-    let attempts = 0;
-    while (pebbles.length < def.pebblesN && attempts < def.pebblesN * 30) {
-      attempts++;
-      const x = x0 + rAvg + rnd() * Math.max(1, x1 - x0 - 2 * rAvg);
-      const y = y0 + rAvg + rnd() * Math.max(1, y1 - y0 - 2 * rAvg);
-      let ok = true;
-      for (let i = 0; i < pebbles.length; i++) {
-        const p = pebbles[i];
-        const ddx = p.x - x, ddy = p.y - y;
-        if (ddx * ddx + ddy * ddy < (p.r + rAvg) * (p.r + rAvg) * 0.7) { ok = false; break; }
-      }
-      if (ok) pebbles.push(makePebble(x, y, rnd));
-    }
-    // never spawn left of board
-    pebbles = pebbles.filter(p => p.x - p.r >= board.x + board.w - 2);
-    startCount = pebbles.length;
-    spat.cell = rAvg * 2.3;
-  }
-
-  function gravelMass() {
-    let n = 0;
-    const left = board.x + board.w - 4;
-    for (const p of pebbles) if (p.x >= left) n++;
-    return n;
-  }
-
-  function pressure() {
-    return Math.min(1.15, gravelMass() / Math.max(1, startCount));
-  }
-
-  function isFree(ti) {
-    const t = tiles[ti];
-    if (!t || !t.alive) return false;
-    const left = tiles.find(o => o.alive && o.r === t.r && o.c === t.c - 1);
-    const right = tiles.find(o => o.alive && o.r === t.r && o.c === t.c + 1);
-    return !left || !right;
-  }
-
-  function findPair() {
-    const free = [];
-    for (let i = 0; i < tiles.length; i++) if (isFree(i)) free.push(i);
-    free.sort((a, b) => tiles[a].r - tiles[b].r || tiles[b].c - tiles[a].c);
-    for (let i = 0; i < free.length; i++)
-      for (let j = i + 1; j < free.length; j++)
-        if (tiles[free[i]].type === tiles[free[j]].type) return [free[i], free[j]];
-    return null;
-  }
-
-  function removePair(a, b) {
-    tiles[a].alive = false;
-    tiles[b].alive = false;
-    selected = null;
-    hintPair = null;
-    // wake gravel above those cells only (no teleport assist)
-    const boxes = [tileAABB(tiles[a]), tileAABB(tiles[b])];
-    for (const p of pebbles) {
-      for (const box of boxes) {
-        if (p.x + p.r > box.x && p.x - p.r < box.x + box.w &&
-            p.y + p.r > box.y - 80 && p.y < box.y + box.h + 10) {
-          p.sleep = 0;
-        }
-      }
-    }
-    playSfx('match');
-    if (!firstMatchDone) {
-      firstMatchDone = true;
-      playSfx('pebbles');
-      playSfx('drop');
-      if (levelIdx <= 1) {
-        setHint('Гравий сыплется! Слей ещё — доска отойдёт!');
-        tutStep = 2;
-      }
-    }
-  }
-
-  function rebuildSpat() {
-    spat.map.clear();
-    const c = spat.cell;
-    for (let i = 0; i < pebbles.length; i++) {
-      const p = pebbles[i];
-      const key = ((p.x / c) | 0) + ',' + ((p.y / c) | 0);
-      let arr = spat.map.get(key);
-      if (!arr) { arr = []; spat.map.set(key, arr); }
-      arr.push(i);
-    }
-  }
-
-  function collideCircleAABB(p, box) {
-    const cx = Math.max(box.x, Math.min(p.x, box.x + box.w));
-    const cy = Math.max(box.y, Math.min(p.y, box.y + box.h));
-    let dx = p.x - cx, dy = p.y - cy;
-    let d2 = dx * dx + dy * dy;
-    if (d2 >= p.r * p.r) return;
-    if (d2 < 1e-6) {
-      const dl = p.x - box.x, dr = box.x + box.w - p.x;
-      const dt = p.y - box.y, db = box.y + box.h - p.y;
-      const m = Math.min(dl, dr, dt, db);
-      if (m === dl) { p.x = box.x - p.r; p.ox = p.x; }
-      else if (m === dr) { p.x = box.x + box.w + p.r; p.ox = p.x; }
-      else if (m === dt) { p.y = box.y - p.r; p.oy = p.y; }
-      else { p.y = box.y + box.h + p.r; p.oy = p.y; }
-      p.sleep = 0; return;
-    }
-    const d = Math.sqrt(d2);
-    const nx = dx / d, ny = dy / d;
-    const pen = p.r - d;
-    p.x += nx * pen; p.y += ny * pen;
-    const vx = p.x - p.ox, vy = p.y - p.oy;
-    const vn = vx * nx + vy * ny;
-    if (vn < 0) {
-      p.ox = p.x - (vx - (1 + REST) * vn * nx) * 0.9;
-      p.oy = p.y - (vy - (1 + REST) * vn * ny);
-    }
-    p.sleep = 0;
-  }
-
-  function stepBoard(def, dt) {
-    const p = pressure();
-    // acceleration from gravel pressure toward spikes; retract when drained
-    const force = p * def.advance - (1 - Math.min(1, p)) * def.retract;
-    board.vel += force * dt;
-    board.vel *= 0.92;
-    board.progress = Math.max(0, Math.min(1.05, board.progress + board.vel * dt));
-    board.x = boardStartX + (boardKillX - boardStartX) * board.progress;
-
-    // keep princess BODY left of board face (compress if gap small)
-    const homeX = spikesRight + 18;
-    const gap = Math.max(12, board.x - spikesRight - 4);
-    const maxW = Math.min(princess.w, gap * 0.92);
-    princess._drawW = maxW;
-    if (board.x < homeX + princess.w) {
-      princess.x = board.x - maxW - 2;
-      if (princess.x < spikesRight + 2) princess.x = spikesRight + 2;
-    } else {
-      princess.x = homeX;
-      princess._drawW = princess.w;
-    }
-
-    if (Math.abs(board.vel) > 0.08 && creakT <= 0) {
-      playSfx('pressure');
-      creakT = 0.55;
-    }
-    if (creakT > 0) creakT -= dt;
-
-    const span = Math.max(40, boardStartX - boardKillX);
-    const danger = Math.max(0, Math.min(1, board.progress));
-    if (board.progress > 0.7) princess.mood = 'panic';
-    else princess.mood = 'scared';
-
-    updateDangerHud(danger, p);
-
-    if (!winPending && !losePending) {
-      // lose only when board has truly closed most of the gap
-      if (board.progress >= 0.92 || (board.progress > 0.8 && princess.x <= spikesRight + 8)) {
-        losePending = true;
-        loseFlash = 1;
-        const g = outcomeGen;
-        setTimeout(() => { if (g === outcomeGen) endLose(); }, 450);
-      } else if (p < 0.34 && board.progress < 0.22 && drained >= Math.max(25, startCount * 0.18)) {
-        winPending = true;
-        princess.mood = 'happy';
-        const g = outcomeGen;
-        setTimeout(() => { if (g === outcomeGen) endWin(); }, 500);
-      } else if (tiles.every(t => !t.alive) && p < 0.5 && drained >= 20) {
-        winPending = true;
-        princess.mood = 'happy';
-        const g = outcomeGen;
-        setTimeout(() => { if (g === outcomeGen) endWin(); }, 600);
-      }
-    }
-  }
-
-  function updateDangerHud(danger, p) {
-    // show remaining safety % (100 = safe far from spikes)
-    const safe = Math.round((1 - Math.max(danger, board.progress)) * 100);
-    $('hud-stones').textContent = Math.max(0, safe);
-    $('danger-fill').style.width = Math.round(board.progress * 100) + '%';
-    $('hud-danger').classList.toggle('warn', board.progress > 0.45 || safe < 50);
-  }
-
-  function stepPhysics() {
-    if (state !== 'play' || !curDef) return;
-    levelTime += DT;
-    const g = GRAV * DT * DT;
-    const boardBox = { x: board.x, y: board.y0, w: board.w, h: board.y1 - board.y0 };
-
-    rebuildSpat();
-    const csz = spat.cell;
-
-    for (let i = 0; i < pebbles.length; i++) {
-      const p = pebbles[i];
-      if (p.sleep > 28) continue;
-      let vx = (p.x - p.ox) * DAMP;
-      let vy = (p.y - p.oy) * DAMP;
-      p.ox = p.x; p.oy = p.y;
-      p.x += vx;
-      p.y += vy + g;
-    }
-
-    for (let iter = 0; iter < 2; iter++) {
-      rebuildSpat();
-      for (let i = 0; i < pebbles.length; i++) {
-        const a = pebbles[i];
-        if (a.sleep > 28) continue;
-        const kx = (a.x / csz) | 0, ky = (a.y / csz) | 0;
-        for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
-          const arr = spat.map.get((kx + ox) + ',' + (ky + oy));
-          if (!arr) continue;
-          for (const j of arr) {
-            if (j <= i) continue;
-            const b = pebbles[j];
-            let dx = b.x - a.x, dy = b.y - a.y;
-            let d2 = dx * dx + dy * dy;
-            const minD = a.r + b.r;
-            if (d2 >= minD * minD || d2 < 1e-8) continue;
-            const d = Math.sqrt(d2);
-            const nx = dx / d, ny = dy / d;
-            const pen = (minD - d) * 0.5;
-            a.x -= nx * pen; a.y -= ny * pen;
-            b.x += nx * pen; b.y += ny * pen;
-            a.sleep = 0; b.sleep = 0;
-          }
-        }
-      }
-    }
-
-    let movingDrain = 0;
-    const alive = [];
-    for (let i = 0; i < pebbles.length; i++) {
-      const p = pebbles[i];
-      if (p.sleep > 28) { alive.push(p); continue; }
-      // board right face (gravel presses from right)
-      collideCircleAABB(p, boardBox);
-      for (const s of solids) collideCircleAABB(p, s);
-      // tile floor plugs — holes where tiles removed (passive fall)
-      for (let ti = 0; ti < tiles.length; ti++) {
-        if (!tiles[ti].alive) continue;
-        collideCircleAABB(p, tileAABB(tiles[ti]));
-      }
-      // seal under each column while ANY tile in column alive (prevent under-slip until column dug)
-      for (let c = 0; c < cols; c++) {
-        let bottomAlive = false;
-        for (let ti = 0; ti < tiles.length; ti++)
-          if (tiles[ti].alive && tiles[ti].c === c && tiles[ti].r === rows - 1) {
-            bottomAlive = true; break;
-          }
-        if (bottomAlive) {
-          collideCircleAABB(p, {
-            x: tileOriginX + c * tw,
-            y: tileOriginY + rows * th - 2,
-            w: tw,
-            h: 40
-          });
-        }
-      }
-      if (p.x - p.r < board.x + board.w) {
-        // keep gravel behind board
-        if (p.y < board.y1) { p.x = board.x + board.w + p.r; p.ox = p.x; }
-      }
-      if (p.x + p.r > W - 8) { p.x = W - 8 - p.r; p.ox = p.x; }
-
-      if (p.y - p.r > H + 2) { drained++; continue; }
-      const spd = Math.abs(p.x - p.ox) + Math.abs(p.y - p.oy);
-      if (spd < 0.04) p.sleep++; else p.sleep = 0;
-      if (spd > 0.6 && p.y > tileOriginY) movingDrain++;
-      alive.push(p);
-    }
-    pebbles = alive;
-    if (movingDrain > 3 && pourSfxT <= 0) { playSfx('pebbles'); pourSfxT = 0.4; }
-    if (pourSfxT > 0) pourSfxT -= DT;
-
-    stepBoard(curDef, DT);
-  }
-
-  function endWin() {
-    if (state !== 'play') return;
-    const stars = board.progress < 0.2 ? 3 : board.progress < 0.45 ? 2 : 1;
-    const prev = save.stars[levelIdx] | 0;
-    if (stars > prev) save.stars[levelIdx] = stars;
-    save.coins = (save.coins | 0) + 10 * stars;
-    if (save.unlocked < levelIdx + 2) save.unlocked = Math.min(N_LEVELS, levelIdx + 2);
-    persist();
-    $('win-stars').textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
-    $('win-msg').textContent = 'Гравий: −' + Math.round((1 - pressure()) * 100) + '% · доска отступила';
-    $('hud-coins').textContent = save.coins;
-    princess.mood = 'happy';
-    showScreen('win');
-    playSfx('win');
-  }
-
-  function endLose() {
-    if (state !== 'play') return;
-    showScreen('lose');
-    playSfx('lose');
-  }
-
-  function startLevel(i) {
-    levelIdx = i;
-    curDef = levelDef(i);
+  async function boot() {
     resize();
-    layoutFromLevel(curDef);
-    buildTiles(curDef);
-    spawnPebbles(curDef);
-    selected = null; hintPair = null;
-    outcomeGen++;
-    winPending = losePending = false;
-    loseFlash = 0;
-    firstMatchDone = false;
-    levelTime = 0;
-    board.progress = 0;
-    board.vel = 0;
-    board.x = boardStartX;
-    boosts = { hint: 3, shuffle: 3 };
-    $('c-hint').textContent = 3;
-    $('c-shuffle').textContent = 3;
-    $('hud-level').textContent = i + 1;
-    $('hud-coins').textContent = save.coins | 0;
-    showScreen('play');
-    tutStep = i <= 1 ? 1 : 99;
-    if (i <= 1) {
-      hintPair = findPair();
-      setHint('Собери пару плиток — открой яму под гравием!');
-    } else setHint('');
-    for (let s = 0; s < 8; s++) stepPhysics();
-    // ensure no gravel left of board
-    pebbles = pebbles.filter(p => p.x >= board.x + board.w - 4);
-    startCount = Math.max(startCount, gravelMass());
-  }
+    window.addEventListener('resize', resize);
+    $('ver').textContent = 'v' + VERSION;
 
-  function roundRect(c, x, y, w, h, r) {
-    c.beginPath();
-    c.moveTo(x + r, y);
-    c.arcTo(x + w, y, x + w, y + h, r);
-    c.arcTo(x + w, y + h, x, y + h, r);
-    c.arcTo(x, y + h, x, y, r);
-    c.arcTo(x, y, x + w, y, r);
-    c.closePath();
-  }
+    const pairs = [
+      ['board_tray', 'assets/sprites/board_tray.webp'],
+      ['finger', 'assets/sprites/finger.webp'],
+      ['screw_red', 'assets/sprites/screw_red.webp'],
+      ['screw_yellow', 'assets/sprites/screw_yellow.webp'],
+      ['screw_green', 'assets/sprites/screw_green.webp'],
+      ['screw_blue', 'assets/sprites/screw_blue.webp']
+    ];
+    await Promise.all(pairs.map(async ([k, s]) => { imgs[k] = await loadImg(s); }));
+    loadAudio('screw', 'assets/audio/sfx_screw.wav');
+    loadAudio('wood', 'assets/audio/sfx_wood.wav');
+    loadAudio('box', 'assets/audio/sfx_box.wav');
+    loadAudio('win', 'assets/audio/sfx_win.wav');
+    loadAudio('lose', 'assets/audio/sfx_lose_v.wav');
+    loadAudio('btn', 'assets/audio/sfx_btn.ogg');
+    loadAudio('bgm', 'assets/audio/music_vintiki.wav');
 
-  function drawSpikes() {
-    const h = board.y1 - board.y0;
-    const im = imgs.spikesProc || imgs.spikes;
-    // wall plate
-    ctx.fillStyle = '#3a3f4a';
-    ctx.fillRect(0, board.y0, spikesRight, h);
-    ctx.fillStyle = '#2a2e36';
-    ctx.fillRect(0, board.y0, 8, h);
-    if (im) {
-      // tips point toward princess (right)
-      ctx.save();
-      // draw multiple rows of spikes
-      const sh = 36;
-      for (let y = board.y0 + 8; y < board.y1 - 10; y += sh) {
-        ctx.drawImage(im, 2, y, spikesRight + 8, sh);
-      }
-      ctx.restore();
-    } else {
-      // procedural triangles pointing right
-      ctx.fillStyle = '#b0b6c0';
-      for (let y = board.y0 + 12; y < board.y1 - 8; y += 28) {
-        ctx.beginPath();
-        ctx.moveTo(6, y);
-        ctx.lineTo(spikesRight + 6, y + 10);
-        ctx.lineTo(6, y + 20);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }
-    // label
-    ctx.save();
-    ctx.fillStyle = 'rgba(255,100,100,.85)';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.translate(14, (board.y0 + board.y1) / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText('ШИПЫ', 0, 0);
-    ctx.restore();
-  }
+    $('btn-play').onclick = () => startLevel(Math.min(save.unlocked - 1, LEVEL_COUNT - 1));
+    $('btn-home-map').onclick = () => { buildMap(); showScreen('map'); };
+    $('btn-map-back').onclick = () => showScreen('home');
+    $('btn-map').onclick = () => { buildMap(); showScreen('map'); };
+    $('btn-next').onclick = () => startLevel(Math.min(levelIdx + 1, LEVEL_COUNT - 1));
+    $('btn-win-map').onclick = () => { buildMap(); showScreen('map'); };
+    $('btn-retry').onclick = () => startLevel(levelIdx);
+    $('btn-lose-map').onclick = () => { buildMap(); showScreen('map'); };
+    $('btn-sound').onclick = () => {
+      muted = !muted; persist(); refreshHud();
+      if (muted && audio.bgm) audio.bgm.pause();
+      else ensureBgm();
+    };
+    $('btn-update').onclick = checkOta;
+    $('btn-home-update').onclick = checkOta;
+    $('b-hint').onclick = useHint;
+    $('b-slot').onclick = useSlot;
+    $('b-hammer').onclick = useHammer;
 
-  function drawBoard() {
-    const h = board.y1 - board.y0;
-    const im = imgs.board;
-    if (im) ctx.drawImage(im, board.x, board.y0, board.w, h);
-    else {
-      ctx.fillStyle = '#8d6e4a';
-      roundRect(ctx, board.x, board.y0, board.w, h, 6);
-      ctx.fill();
-      ctx.strokeStyle = '#4e342e';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-    // pressure gauge on board face
-    const gx = board.x + board.w * 0.22;
-    const gy = board.y0 + 16;
-    const gw = board.w * 0.56;
-    const gh = h - 32;
-    ctx.fillStyle = 'rgba(0,0,0,.45)';
-    roundRect(ctx, gx, gy, gw, gh, 6);
-    ctx.fill();
-    const fillH = gh * Math.min(1, pressure());
-    ctx.fillStyle = pressure() > 0.6 ? '#e53935' : pressure() > 0.35 ? '#fb8c00' : '#66bb6a';
-    roundRect(ctx, gx + 3, gy + gh - fillH, gw - 6, fillH, 4);
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 10px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(Math.round(pressure() * 100) + '%', board.x + board.w / 2, gy + 14);
-    ctx.textAlign = 'left';
-    // distance arrow to princess
-    const midY = board.y0 + h * 0.2;
-    ctx.strokeStyle = 'rgba(255,230,120,.9)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(board.x - 4, midY);
-    ctx.lineTo(princess.x + princess.w * 0.7, midY);
-    ctx.stroke();
-    const distPx = Math.max(0, (board.x - (princess.x + princess.w * 0.7)) | 0);
-    ctx.fillStyle = '#ffe082';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.fillText(distPx + 'px → шипы', princess.x, board.y0 + 14);
-  }
+    refreshHud();
+    requestAnimationFrame(loop);
 
-  function drawPrincess() {
-    const im = princess.mood === 'happy' ? (imgs.princessWin || imgs.princess)
-      : (imgs.princessScared || imgs.princess);
-    const shake = princess.mood === 'panic' ? Math.sin(animT * 28) * 3 : 0;
-    const bob = Math.sin(animT * 3) * 1.5;
-    const dw = princess._drawW || princess.w;
-    if (im) ctx.drawImage(im, princess.x + shake, princess.y + bob, dw, princess.h);
-    if (princess.mood === 'panic') {
-      ctx.font = '18px sans-serif';
-      ctx.fillText('!', princess.x + princess.w * 0.75, princess.y + 18);
-    }
-    // ouch flash
-    if (loseFlash > 0) {
-      ctx.fillStyle = 'rgba(255,255,255,' + (loseFlash * 0.5) + ')';
-      ctx.fillRect(0, 0, W, H);
-      ctx.font = 'bold 42px sans-serif';
-      ctx.fillStyle = 'rgba(255,80,80,' + loseFlash + ')';
-      ctx.textAlign = 'center';
-      ctx.fillText('АЙ!', W / 2, H * 0.35);
-      ctx.textAlign = 'left';
-      loseFlash = Math.max(0, loseFlash - 0.02);
-    }
-  }
-
-  function drawTiles() {
-    for (let i = 0; i < tiles.length; i++) {
-      const t = tiles[i];
-      if (!t.alive) continue;
-      const box = tileAABB(t);
-      const im = imgs['t_' + t.type];
-      ctx.fillStyle = '#c4a882';
-      roundRect(ctx, box.x + 1, box.y + 4, box.w - 2, box.h - 2, 5);
-      ctx.fill();
-      if (im) ctx.drawImage(im, box.x, box.y - 1, box.w, box.h - 4);
-      else {
-        ctx.fillStyle = '#fffaf0';
-        roundRect(ctx, box.x, box.y - 1, box.w, box.h - 6, 5);
-        ctx.fill();
-      }
-      const hl = selected === i || (hintPair && (hintPair[0] === i || hintPair[1] === i));
-      if (hl) {
-        ctx.strokeStyle = selected === i ? '#ffeb3b' : '#80d8ff';
-        ctx.lineWidth = 3;
-        roundRect(ctx, box.x - 1, box.y - 2, box.w + 2, box.h - 2, 6);
-        ctx.stroke();
-        if (hintPair && tutStep === 1) {
-          ctx.fillStyle = 'rgba(128,216,255,' + (0.18 + 0.14 * Math.sin(animT * 6)) + ')';
-          roundRect(ctx, box.x - 2, box.y - 3, box.w + 4, box.h, 6);
-          ctx.fill();
+    // test hooks
+    window.__V = {
+      VERSION, startLevel, getState: () => ({
+        state, levelIdx, screws: screws.filter(s => s.alive).length,
+        blocked: screws.filter(s => s.alive && s.blocked).length,
+        planks: planks.filter(p => p.alive && !p.falling).length,
+        falling: planks.filter(p => p.falling).length,
+        wait: waitSlots.filter(Boolean).length,
+        maxSlots, boxes: boxes.map(b => ({ c: b.color, n: b.count, fly: b.flying })),
+        tutStep
+      }),
+      tapScrew: (i) => {
+        const alive = screws.filter(s => s.alive && !s.blocked);
+        const sc = alive[i] || alive[0];
+        if (sc) removeScrew(sc);
+        return !!sc;
+      },
+      tapFree: () => {
+        updateBlocked();
+        const sc = screws.find(s => s.alive && !s.blocked && findBoxFor(s.color))
+          || screws.find(s => s.alive && !s.blocked);
+        if (sc) { removeScrew(sc); return sc.id; }
+        return null;
+      },
+      forceLose: () => {
+        waitSlots = waitSlots.map(() => ({ color: 'red', id: 'x' }));
+        endLose();
+      },
+      solveStep: () => {
+        // greedy: remove free screw matching box, else any free
+        return window.__V.tapFree();
+      },
+      idle: (sec) => {
+        const steps = Math.ceil(sec / 0.016);
+        for (let i = 0; i < steps; i++) {
+          if (engine) Engine.update(engine, 16);
+          tickBoxes(0.016);
+          animT += 0.016;
+          // advance flyers quickly
+          for (const f of flyers) { f.t += 0.05; }
+          flyers = flyers.filter(f => {
+            if (f.t >= 1) { onFlyerArrived(f); return false; }
+            return true;
+          });
+          for (const b of boxes) if (b.flying) b.flyT += 0.05;
+          checkWin();
         }
+      },
+      autoSolve: (maxSteps) => {
+        let steps = 0;
+        while (steps < (maxSteps || 80) && state === 'play') {
+          updateBlocked();
+          const id = window.__V.tapFree();
+          window.__V.idle(0.35);
+          steps++;
+          if (!id && !screws.some(s => s.alive)) break;
+          if (!id) {
+            // stuck — try hammer on top plank
+            const top = [...planks].filter(p => p.alive && !p.falling).sort((a, b) => b.layer - a.layer)[0];
+            if (top) {
+              for (const sid of [...top.screwIds]) {
+                const sc = screws.find(s => s.id === sid && s.alive);
+                if (sc) { sc.alive = false; sc.removed = true; }
+              }
+              top.screwIds = [];
+              refreshPlankPhysics(top);
+              updateBlocked();
+              window.__V.idle(0.4);
+            } else break;
+          }
+        }
+        window.__V.idle(1.5);
+        // if all clear but timer not fired in headless, force win
+        const st = window.__V.getState();
+        if (st.state === 'play' && st.planks === 0 && st.screws === 0) endWin();
+        return window.__V.getState();
       }
-    }
-    // pit hint under empty cells
-    ctx.fillStyle = 'rgba(0,0,0,.35)';
-    for (const t of tiles) {
-      if (t.alive) continue;
-      const box = tileAABB(t);
-      ctx.fillRect(box.x + 2, box.y + 2, box.w - 4, box.h - 4);
-    }
+    };
   }
 
-  function drawPebbles() {
-    for (let i = 0; i < pebbles.length; i++) {
-      const p = pebbles[i];
-      const im = imgs[p.spr];
-      const s = p.r * 2.15;
-      if (im) ctx.drawImage(im, p.x - s / 2, p.y - s / 2, s, s);
-      else {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = '#7e57c2';
-        ctx.fill();
-      }
-    }
-  }
-
-  function drawFinger() {
-    if (tutStep !== 1 || !hintPair || state !== 'play') return;
-    const t = tiles[hintPair[0]];
-    if (!t || !t.alive) return;
-    const box = tileAABB(t);
-    const fx = box.x + box.w * 0.55;
-    const fy = box.y + box.h * 0.2 + Math.sin(handT * 4) * 10;
-    const im = imgs.finger;
-    const s = Math.min(110, W * 0.28);
-    if (im) ctx.drawImage(im, fx - s * 0.15, fy, s, s);
-    else {
-      ctx.fillStyle = '#f5c6a5';
-      ctx.beginPath();
-      ctx.ellipse(fx + 20, fy + 40, 18, 28, -0.4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  function drawChamberBg() {
-    // gravel chamber backdrop
-    ctx.fillStyle = 'rgba(40,32,28,.55)';
-    ctx.fillRect(board.x + board.w, board.y0, W - (board.x + board.w), board.y1 - board.y0);
-    // princess chamber
-    ctx.fillStyle = 'rgba(20,24,36,.25)';
-    ctx.fillRect(spikesRight, board.y0, board.x - spikesRight, board.y1 - board.y0);
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-    if (imgs.bg) {
-      const bw = imgs.bg.width, bh = imgs.bg.height;
-      const s = Math.max(W / bw, H / bh);
-      ctx.drawImage(imgs.bg, (W - bw * s) / 2, (H - bh * s) / 2, bw * s, bh * s);
-      ctx.fillStyle = 'rgba(10,12,20,.3)';
-      ctx.fillRect(0, 0, W, H);
-    } else {
-      ctx.fillStyle = '#2a2438';
-      ctx.fillRect(0, 0, W, H);
-    }
-    drawChamberBg();
-    drawSpikes();
-    drawTiles();
-    drawPebbles();
-    drawBoard();
-    drawPrincess();
-    drawFinger();
-    // vignette when close to lose
-    if (state === 'play' && board.progress > 0.5) {
-      ctx.fillStyle = 'rgba(160,20,30,' + ((board.progress - 0.5) * 0.35) + ')';
-      ctx.fillRect(0, board.y0, board.x, board.y1 - board.y0);
-    }
-  }
-
-  function canvasPos(e) {
-    const r = canvas.getBoundingClientRect();
-    const t = e.touches ? e.touches[0] : e;
-    return { x: (t.clientX - r.left) * (W / r.width), y: (t.clientY - r.top) * (H / r.height) };
-  }
-  function hitTile(x, y) {
-    for (let i = tiles.length - 1; i >= 0; i--) {
-      if (!tiles[i].alive) continue;
-      const b = tileAABB(tiles[i]);
-      if (x >= b.x && x <= b.x + b.w && y >= b.y - 2 && y <= b.y + b.h) return i;
-    }
-    return -1;
-  }
-  function onTap(e) {
-    if (state !== 'play') return;
-    e.preventDefault();
-    ensureAudio();
-    const p = canvasPos(e);
-    const ti = hitTile(p.x, p.y);
-    if (ti < 0) { selected = null; return; }
-    if (!isFree(ti)) { toast('Плитка закрыта с боков'); playSfx('tap'); return; }
-    if (selected == null) { selected = ti; playSfx('pick'); return; }
-    if (selected === ti) { selected = null; return; }
-    if (tiles[selected].type === tiles[ti].type) {
-      removePair(selected, ti);
-      if (tutStep === 1) tutStep = 2;
-    } else {
-      toast('Нужна пара одинаковых');
-      selected = ti;
-      playSfx('tap');
-    }
-  }
-  canvas.addEventListener('pointerdown', onTap, { passive: false });
-
-  function ensureAudio() {
-    if (audioReady) return;
-    audioReady = true;
-    updateBgm();
-  }
-  function updateBgm() {
-    if (!bgm) return;
-    if (audioMuted || state !== 'play') { try { bgm.pause(); } catch (e) {} return; }
-    bgm.play().catch(() => {});
-  }
-  function playSfx(kind) {
-    if (audioMuted) return;
-    const a = sfx[kind];
-    if (!a) return;
-    try {
-      const c = a.cloneNode();
-      c.volume = (kind === 'pebbles' || kind === 'pressure') ? 0.5 : 0.7;
-      c.play().catch(() => {});
-    } catch (e) {}
-  }
-
-  $('b-hint').onclick = () => {
-    if (state !== 'play' || boosts.hint <= 0) return;
-    const pair = findPair();
-    if (!pair) { toast('Нет пары — смешай'); return; }
-    boosts.hint--; $('c-hint').textContent = boosts.hint;
-    hintPair = pair; selected = null; playSfx('hint'); toast('Подсказка');
-  };
-  $('b-shuffle').onclick = () => {
-    if (state !== 'play' || boosts.shuffle <= 0) return;
-    boosts.shuffle--; $('c-shuffle').textContent = boosts.shuffle;
-    const alive = tiles.filter(t => t.alive);
-    const types = alive.map(t => t.type);
-    for (let i = types.length - 1; i > 0; i--) {
-      const j = (Math.random() * (i + 1)) | 0;
-      [types[i], types[j]] = [types[j], types[i]];
-    }
-    alive.forEach((t, i) => { t.type = types[i]; });
-    selected = null; hintPair = null; playSfx('shuffle'); toast('Перемешано');
-  };
-
-  $('btn-play').onclick = () => { ensureAudio(); renderMap(); showScreen('map'); };
-  $('map-back').onclick = () => showScreen('intro');
-  $('btn-back').onclick = () => { showScreen('map'); renderMap(); };
-  $('btn-next').onclick = () => {
-    if (levelIdx + 1 < N_LEVELS && levelIdx + 1 < save.unlocked) startLevel(levelIdx + 1);
-    else { renderMap(); showScreen('map'); }
-  };
-  $('btn-win-map').onclick = () => { renderMap(); showScreen('map'); };
-  $('btn-retry').onclick = () => startLevel(levelIdx);
-  $('btn-lose-map').onclick = () => { renderMap(); showScreen('map'); };
-  $('btn-mute').onclick = () => {
-    audioMuted = !audioMuted; save.muted = audioMuted; persist();
-    $('btn-mute').textContent = audioMuted ? '🔇' : '🔊';
-    updateBgm();
-  };
-  async function checkUpdate() {
-    try {
-      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
-      const j = await r.json();
-      if (j.webVersion && j.webVersion !== VERSION) {
-        toast('Доступна ' + j.webVersion); setTimeout(() => location.reload(true), 600);
-      } else toast('У вас последняя версия ' + VERSION);
-    } catch (e) { toast('Нет сети'); }
-  }
-  $('btn-update').onclick = checkUpdate;
-  $('map-update').onclick = checkUpdate;
-
-  let acc = 0, last = performance.now();
-  function frame(now) {
-    const raw = Math.min(0.05, (now - last) / 1000);
-    last = now; acc += raw; animT += raw; handT += raw;
-    let steps = 0;
-    while (acc >= DT && steps < 5) {
-      if (state === 'play') stepPhysics();
-      acc -= DT; steps++;
-    }
-    if (state === 'play' && tutStep === 1 && levelIdx <= 1) {
-      if (!hintPair || !tiles[hintPair[0]]?.alive || !tiles[hintPair[1]]?.alive)
-        hintPair = findPair();
-    }
-    draw();
-    requestAnimationFrame(frame);
-  }
-
-  $('ver-label').textContent = 'v' + VERSION;
-  window.addEventListener('resize', () => { if (state === 'play' && curDef) { resize(); layoutFromLevel(curDef); } else resize(); });
-  resize();
-  loadAll().then(() => { showScreen('intro'); requestAnimationFrame(frame); });
-
-  window.__PM = {
-    startLevel,
-    stepPhysics: (n) => { for (let i = 0; i < (n || 1); i++) stepPhysics(); },
-    idle: (sec) => {
-      const steps = Math.floor(sec / DT);
-      for (let i = 0; i < steps; i++) stepPhysics();
-      if (losePending && state === 'play') endLose();
-      if (winPending && state === 'play') endWin();
-    },
-    setProgress: (v) => {
-      board.progress = Math.max(0, Math.min(1, v));
-      board.x = boardStartX + (boardKillX - boardStartX) * board.progress;
-      const homeX = spikesRight + 18;
-      const gap = Math.max(12, board.x - spikesRight - 4);
-      const maxW = Math.min(princess.w, gap * 0.92);
-      princess._drawW = maxW;
-      if (board.x < homeX + princess.w) {
-        princess.x = Math.max(spikesRight + 2, board.x - maxW - 2);
-      } else { princess.x = homeX; princess._drawW = princess.w; }
-      if (board.progress > 0.7) princess.mood = 'panic';
-      updateDangerHud(board.progress, pressure());
-    },
-    drainMany: (n) => {
-      // remove n pebbles from chamber as if they fell through holes (for win strip)
-      let left = n;
-      pebbles = pebbles.filter(p => {
-        if (left > 0 && p.x > board.x + board.w) { left--; drained++; return false; }
-        return true;
-      });
-      for (let i = 0; i < 30; i++) stepPhysics();
-      if (winPending && state === 'play') endWin();
-    },
-    getState: () => ({
-      state, levelIdx, pebbles: pebbles.length, drained, pressure: pressure(),
-      boardProgress: board.progress, boardX: board.x, princessX: princess.x,
-      spikesRight, tiles: tiles.filter(t => t.alive).length, startCount,
-      levelTime, tutStep, VERSION
-    }),
-    removePairAt: (a, b) => removePair(a, b),
-    findPair, tiles: () => tiles, VERSION
-  };
+  boot();
 })();

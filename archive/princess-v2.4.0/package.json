@@ -1,0 +1,14 @@
+{
+  "name": "princess-mahjong",
+  "version": "2.4.0",
+  "description": "Спасти принцессу: Маджонг",
+  "private": true,
+  "dependencies": {
+    "@capacitor/android": "^6.2.3",
+    "@capacitor/cli": "^6.2.3",
+    "@capacitor/core": "^6.2.3"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}
