@@ -1,7 +1,7 @@
-/* Винтики v3.3.0 — full-bleed tray + juicy plank fall */
+/* Винтики v3.3.1 — fill tray with scaled planks; goal banner fix */
 (function () {
   'use strict';
-  const VERSION = '3.3.0';
+  const VERSION = '3.3.1';
   const COLORS = {
     red: '#e23b3b', yellow: '#f0c41a', green: '#3cb84a', blue: '#3b7aef',
     purple: '#9b4de0', orange: '#f08a2a'
@@ -35,6 +35,7 @@
   let engine = null, world = null;
   let imgs = {}, audio = {}, bgmStarted = false;
   let goalText = 'Урони все доски';
+  let goalBannerT = 0;
   let levelBands = 1;
 
   function loadSave() {
@@ -98,7 +99,9 @@
   }
 
   function layoutTray() {
-    const topUI = 155;
+    // Room for HUD + colour boxes + goal strip, then tray fills the rest
+    const boxY = 78, boxH = 62, goalStrip = 32;
+    const topUI = boxY + boxH + goalStrip + 8; // ~180
     const botUI = 140;
     tray.x = 4;
     tray.w = Math.max(160, W - 8);
@@ -109,7 +112,7 @@
     board.y = tray.y + rim;
     board.w = tray.w - rim * 2;
     board.h = tray.h - rim * 2;
-    screwR = Math.max(19, Math.min(26, Math.min(board.w, board.h) / 16));
+    screwR = Math.max(17, Math.min(22, Math.min(board.w, board.h) / 20));
   }
 
   function resize() {
@@ -134,47 +137,146 @@
   }
 
   function scaleLevel(def) {
-    const margin = 10;
+    // Fit CONTENT bbox into full inner board (planks grow with the enlarged tray)
+    const margin = 14;
     const usableW = Math.max(40, board.w - margin * 2);
     const usableH = Math.max(40, board.h - margin * 2);
-    const S = Math.min(usableW, usableH) / 320;
-    const ox = (board.w - 320 * S) / 2;
-    const oy = (board.h - 320 * S) / 2;
-    playOrigin = { x: board.x + ox, y: board.y + oy, s: S };
-    const planks = (def.planks || []).map(p => ({
-      ...p, x: ox + p.x * S, y: oy + p.y * S, w: p.w * S, h: p.h * S
+    const srcPlanks = def.planks || [];
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of srcPlanks) {
+      minX = Math.min(minX, p.x - p.w / 2);
+      minY = Math.min(minY, p.y - p.h / 2);
+      maxX = Math.max(maxX, p.x + p.w / 2);
+      maxY = Math.max(maxY, p.y + p.h / 2);
+    }
+    if (!srcPlanks.length) { minX = 0; minY = 0; maxX = 320; maxY = 320; }
+    const bw = Math.max(40, maxX - minX);
+    const bh = Math.max(40, maxY - minY);
+    // Anisotropic fill: stretch X and Y independently so layout uses the whole tray
+    const Sx = usableW / bw;
+    const Sy = usableH / bh;
+    const S = Math.min(Sx, Sy); // keep for playOrigin compat
+    const contentW = bw * Sx, contentH = bh * Sy;
+    const ox = margin + (usableW - contentW) / 2 - minX * Sx;
+    const oy = margin + (usableH - contentH) / 2 - minY * Sy;
+    playOrigin = { x: board.x + ox, y: board.y + oy, s: S, sx: Sx, sy: Sy };
+    const planks = srcPlanks.map(p => ({
+      ...p, x: ox + p.x * Sx, y: oy + p.y * Sy, w: p.w * Sx, h: p.h * Sy
     }));
     const screws = (def.screws || []).map(s => ({
-      ...s, x: ox + s.x * S, y: oy + s.y * S
+      ...s, x: ox + s.x * Sx, y: oy + s.y * Sy
     }));
-    const minD = Math.max(screwR * 2.15, MIN_SCREW_DIST * S * 0.92);
+    // enlarge planks that can't hold their screws with full padding
+    const pad = screwR + 12;
+    const minD = screwR * 2.4;
     const by = {};
     for (const s of screws) (by[s.plankId] = by[s.plankId] || []).push(s);
     for (const [pid, ss] of Object.entries(by)) {
-      const pl = planks.find(p => p.id === pid); if (!pl || ss.length < 2) continue;
-      const inset = Math.max(screwR * 0.9, 10 * S);
-      const box = {
-        l: pl.x - pl.w / 2 + inset, r: pl.x + pl.w / 2 - inset,
-        t: pl.y - pl.h / 2 + inset, b: pl.y + pl.h / 2 - inset
-      };
-      for (let iter = 0; iter < 40; iter++) {
-        let moved = false;
-        for (let i = 0; i < ss.length; i++) for (let j = i + 1; j < ss.length; j++) {
-          let dx = ss[j].x - ss[i].x, dy = ss[j].y - ss[i].y;
-          let d = Math.hypot(dx, dy) || 0.01;
-          if (d < minD) {
-            moved = true;
-            const push = (minD - d) / 2 + 0.5;
-            dx /= d; dy /= d;
-            ss[i].x -= dx * push; ss[i].y -= dy * push;
-            ss[j].x += dx * push; ss[j].y += dy * push;
+      const pl = planks.find(p => p.id === pid); if (!pl) continue;
+      const n = ss.length;
+      const needW = n <= 1 ? pad * 2 + 8 : (n === 2 ? pad * 2 + minD : pad * 2 + minD * 1.25);
+      const needH = n <= 1 ? pad * 2 + 8 : (n === 2 ? pad * 2 + 8 : pad * 2 + minD * 1.15);
+      if (pl.w < needW) pl.w = needW;
+      if (pl.h < needH) pl.h = needH;
+      // layout screws fully inside
+      if (n === 1) { ss[0].x = pl.x; ss[0].y = pl.y; }
+      else if (n === 2) {
+        if (pl.w >= pl.h) {
+          ss[0].x = pl.x - minD / 2; ss[0].y = pl.y;
+          ss[1].x = pl.x + minD / 2; ss[1].y = pl.y;
+        } else {
+          ss[0].x = pl.x; ss[0].y = pl.y - minD / 2;
+          ss[1].x = pl.x; ss[1].y = pl.y + minD / 2;
+        }
+      } else {
+        const R = Math.min(pl.w, pl.h) / 2 - pad;
+        for (let i = 0; i < n; i++) {
+          const a = -Math.PI / 2 + i * Math.PI * 2 / n;
+          ss[i].x = pl.x + Math.cos(a) * Math.max(minD * 0.58, R * 0.85);
+          ss[i].y = pl.y + Math.sin(a) * Math.max(minD * 0.58, R * 0.85);
+        }
+      }
+      for (const s of ss) {
+        s.x = Math.max(pl.x - pl.w / 2 + pad, Math.min(pl.x + pl.w / 2 - pad, s.x));
+        s.y = Math.max(pl.y - pl.h / 2 + pad, Math.min(pl.y + pl.h / 2 - pad, s.y));
+      }
+    }
+    // after enlarging, push any plank AABB back inside board (relative coords 0..board)
+    for (const pl of planks) {
+      const hw = pl.w / 2, hh = pl.h / 2;
+      pl.x = Math.max(hw + 2, Math.min(board.w - hw - 2, pl.x));
+      pl.y = Math.max(hh + 2, Math.min(board.h - hh - 2, pl.y));
+    }
+    // re-clamp screws to (possibly moved) planks
+    for (const [pid, ss] of Object.entries(by)) {
+      const pl = planks.find(p => p.id === pid); if (!pl) continue;
+      for (const s of ss) {
+        s.x = Math.max(pl.x - pl.w / 2 + pad, Math.min(pl.x + pl.w / 2 - pad, s.x));
+        s.y = Math.max(pl.y - pl.h / 2 + pad, Math.min(pl.y + pl.h / 2 - pad, s.y));
+      }
+    }
+    // resolve plank overlaps after grow
+    for (let iter = 0; iter < 40; iter++) {
+      let moved = false;
+      for (let i = 0; i < planks.length; i++) for (let j = i + 1; j < planks.length; j++) {
+        const a = planks[i], b = planks[j];
+        const ax = a.x - a.w / 2, ay = a.y - a.h / 2, bx = b.x - b.w / 2, by = b.y - b.h / 2;
+        if (ax + a.w <= bx || bx + b.w <= ax || ay + a.h <= by || by + b.h <= ay) continue;
+        moved = true;
+        let dx = b.x - a.x || 0.01, dy = b.y - a.y || 0.01, d = Math.hypot(dx, dy) || 0.01;
+        dx /= d; dy /= d;
+        a.x -= dx * 3; a.y -= dy * 3; b.x += dx * 3; b.y += dy * 3;
+        a.x = Math.max(a.w / 2 + 2, Math.min(board.w - a.w / 2 - 2, a.x));
+        a.y = Math.max(a.h / 2 + 2, Math.min(board.h - a.h / 2 - 2, a.y));
+        b.x = Math.max(b.w / 2 + 2, Math.min(board.w - b.w / 2 - 2, b.x));
+        b.y = Math.max(b.h / 2 + 2, Math.min(board.h - b.h / 2 - 2, b.y));
+      }
+      if (!moved) break;
+    }
+    for (const [pid, ss] of Object.entries(by)) {
+      const pl = planks.find(p => p.id === pid); if (!pl) continue;
+      for (const s of ss) {
+        s.x = Math.max(pl.x - pl.w / 2 + pad, Math.min(pl.x + pl.w / 2 - pad, s.x));
+        s.y = Math.max(pl.y - pl.h / 2 + pad, Math.min(pl.y + pl.h / 2 - pad, s.y));
+      }
+    }
+    // Final fill pass: expand layout toward board edges if sparse
+    {
+      let cminX = Infinity, cminY = Infinity, cmaxX = -Infinity, cmaxY = -Infinity;
+      for (const pl of planks) {
+        cminX = Math.min(cminX, pl.x - pl.w / 2);
+        cminY = Math.min(cminY, pl.y - pl.h / 2);
+        cmaxX = Math.max(cmaxX, pl.x + pl.w / 2);
+        cmaxY = Math.max(cmaxY, pl.y + pl.h / 2);
+      }
+      const cw = Math.max(1, cmaxX - cminX), ch = Math.max(1, cmaxY - cminY);
+      const targetW = board.w - 16, targetH = board.h - 16;
+      const fx = Math.max(1, targetW / cw), fy = Math.max(1, targetH / ch);
+      if (fx > 1.02 || fy > 1.02) {
+        const midX = (cminX + cmaxX) / 2, midY = (cminY + cmaxY) / 2;
+        const tx = board.w / 2, ty = board.h / 2;
+        for (const pl of planks) {
+          pl.x = tx + (pl.x - midX) * fx;
+          pl.y = ty + (pl.y - midY) * fy;
+          pl.w = Math.min(board.w - 8, pl.w * Math.min(fx, 1.35));
+          pl.h = Math.min(board.h - 8, pl.h * Math.min(fy, 1.35));
+        }
+        for (const s of screws) {
+          s.x = tx + (s.x - midX) * fx;
+          s.y = ty + (s.y - midY) * fy;
+        }
+        for (const pl of planks) {
+          const hw = pl.w / 2, hh = pl.h / 2;
+          pl.x = Math.max(hw + 2, Math.min(board.w - hw - 2, pl.x));
+          pl.y = Math.max(hh + 2, Math.min(board.h - hh - 2, pl.y));
+        }
+        for (const [pid, ss] of Object.entries(by)) {
+          const pl = planks.find(p => p.id === pid); if (!pl) continue;
+          for (const s of ss) {
+            s.x = Math.max(pl.x - pl.w / 2 + pad, Math.min(pl.x + pl.w / 2 - pad, s.x));
+            s.y = Math.max(pl.y - pl.h / 2 + pad, Math.min(pl.y + pl.h / 2 - pad, s.y));
           }
         }
-        for (const s of ss) {
-          s.x = Math.max(box.l, Math.min(box.r, s.x));
-          s.y = Math.max(box.t, Math.min(box.b, s.y));
-        }
-        if (!moved) break;
       }
     }
     return { ...def, planks, screws };
@@ -192,6 +294,7 @@
     const raw = levels[idx] || levels[0];
     const def = scaleLevel(raw);
     goalText = def.goal || 'Урони все доски';
+    goalBannerT = (def.tut || levelIdx <= 3) ? 3.5 : 2.0;
     levelBands = def.bands || 1;
     maxSlots = def.slots || 5;
     if (save.boosters._extraSlots) maxSlots += save.boosters._extraSlots;
@@ -233,7 +336,7 @@
       const owner = planks.find(p => p.id === sd.plankId);
       let sx = board.x + sd.x, sy = board.y + sd.y;
       if (owner) {
-        const inset = Math.max(screwR * 0.75, 8);
+        const inset = screwR + 12;
         const bx = owner.body.position.x, by = owner.body.position.y;
         sx = Math.max(bx - owner.w / 2 + inset, Math.min(bx + owner.w / 2 - inset, sx));
         sy = Math.max(by - owner.h / 2 + inset, Math.min(by + owner.h / 2 - inset, sy));
@@ -247,58 +350,49 @@
       if (owner) owner.screwIds.push(sc.id);
       screws.push(sc);
     }
-    // final world-space screw separation (never overlap on a plank)
+    // final world-space: screws fully inside plank (circle ⊆ plank)
     (function separateScrews() {
-      const minD = screwR * 2.2;
+      const pad = screwR + 12;
+      const minD = screwR * 2.4;
       const by = {};
       for (const sc of screws) (by[sc.plankId] = by[sc.plankId] || []).push(sc);
       for (const [pid, ss] of Object.entries(by)) {
-        const owner = planks.find(p => p.id === pid); if (!owner || ss.length < 2) continue;
-        const inset = Math.max(screwR * 0.7, 6);
+        const owner = planks.find(p => p.id === pid); if (!owner) continue;
         const bx = owner.body.position.x, byy = owner.body.position.y;
-        const box = {
-          l: bx - owner.w / 2 + inset, r: bx + owner.w / 2 - inset,
-          t: byy - owner.h / 2 + inset, b: byy + owner.h / 2 - inset
-        };
-        for (let iter = 0; iter < 50; iter++) {
-          let moved = false;
-          for (let i = 0; i < ss.length; i++) for (let j = i + 1; j < ss.length; j++) {
-            let dx = ss[j].x - ss[i].x, dy = ss[j].y - ss[i].y;
-            let d = Math.hypot(dx, dy) || 0.01;
-            if (d < minD) {
-              moved = true;
-              const push = (minD - d) / 2 + 0.5;
-              dx /= d; dy /= d;
-              ss[i].x -= dx * push; ss[i].y -= dy * push;
-              ss[j].x += dx * push; ss[j].y += dy * push;
-            }
-          }
-          for (const s of ss) {
-            s.x = Math.max(box.l, Math.min(box.r, s.x));
-            s.y = Math.max(box.t, Math.min(box.b, s.y));
-          }
-          if (!moved) break;
-        }
-        // if still cramped, enlarge plank slightly
-        let worst = 999;
-        for (let i = 0; i < ss.length; i++) for (let j = i + 1; j < ss.length; j++)
-          worst = Math.min(worst, Math.hypot(ss[j].x - ss[i].x, ss[j].y - ss[i].y));
-        if (worst < minD - 0.5) {
-          const grow = (minD - worst) + 8;
-          owner.w += grow; owner.h += grow;
-          // keep inside board
-          const halfW = owner.w / 2, halfH = owner.h / 2;
-          let cx = Math.max(board.x + halfW + 2, Math.min(board.x + board.w - halfW - 2, bx));
-          let cy = Math.max(board.y + halfH + 2, Math.min(board.y + board.h - halfH - 2, byy));
+        const n = ss.length;
+        const needW = n <= 1 ? pad * 2 + 8 : (n === 2 ? pad * 2 + minD : pad * 2 + minD * 1.25);
+        const needH = n <= 1 ? pad * 2 + 8 : (n === 2 ? pad * 2 + 8 : pad * 2 + minD * 1.15);
+        if (owner.w < needW || owner.h < needH) {
+          const oldW = owner.w, oldH = owner.h;
+          owner.w = Math.max(owner.w, needW);
+          owner.h = Math.max(owner.h, needH);
+          if (oldW > 1 && oldH > 1) Body.scale(owner.body, owner.w / oldW, owner.h / oldH);
+          const hw = owner.w / 2, hh = owner.h / 2;
+          const cx = Math.max(board.x + hw + 2, Math.min(board.x + board.w - hw - 2, owner.body.position.x));
+          const cy = Math.max(board.y + hh + 2, Math.min(board.y + board.h - hh - 2, owner.body.position.y));
           Body.setPosition(owner.body, { x: cx, y: cy });
-          // re-place on a ring/line
-          const n = ss.length;
-          const R = Math.min(owner.w, owner.h) * 0.28;
+        }
+        const ox = owner.body.position.x, oy = owner.body.position.y;
+        if (n === 1) { ss[0].x = ox; ss[0].y = oy; }
+        else if (n === 2) {
+          if (owner.w >= owner.h) {
+            ss[0].x = ox - minD / 2; ss[0].y = oy;
+            ss[1].x = ox + minD / 2; ss[1].y = oy;
+          } else {
+            ss[0].x = ox; ss[0].y = oy - minD / 2;
+            ss[1].x = ox; ss[1].y = oy + minD / 2;
+          }
+        } else {
+          const R = Math.min(owner.w, owner.h) / 2 - pad;
           for (let i = 0; i < n; i++) {
             const a = -Math.PI / 2 + i * Math.PI * 2 / n;
-            ss[i].x = cx + Math.cos(a) * Math.max(R, minD * 0.58);
-            ss[i].y = cy + Math.sin(a) * Math.max(R, minD * 0.58);
+            ss[i].x = ox + Math.cos(a) * Math.max(minD * 0.58, R * 0.85);
+            ss[i].y = oy + Math.sin(a) * Math.max(minD * 0.58, R * 0.85);
           }
+        }
+        for (const s of ss) {
+          s.x = Math.max(ox - owner.w / 2 + pad, Math.min(ox + owner.w / 2 - pad, s.x));
+          s.y = Math.max(oy - owner.h / 2 + pad, Math.min(oy + owner.h / 2 - pad, s.y));
         }
       }
     })();
@@ -309,10 +403,10 @@
   }
 
   function layoutBoxes() {
-    const bw = 84, gap = 16;
+    const bw = 84, gap = 16, boxY = 78, boxH = 62;
     const total = boxes.length * bw + (boxes.length - 1) * gap;
     const x0 = (W - total) / 2;
-    boxes.forEach((b, i) => { b.w = bw; b.h = 62; b.x = x0 + i * (bw + gap); b.y = 86; });
+    boxes.forEach((b, i) => { b.w = bw; b.h = boxH; b.x = x0 + i * (bw + gap); b.y = boxY; });
   }
 
   function bandCleared(band) {
@@ -632,14 +726,15 @@
     if (!p.falling) {
       for (const id of p.screwIds) {
         const sc = screws.find(s => s.id === id); if (!sc || !sc.alive) continue;
-        ctx.beginPath(); ctx.arc(sc.x, sc.y, screwR * 0.72, 0, Math.PI * 2);
+        ctx.beginPath(); ctx.arc(sc.x, sc.y, screwR * 0.62, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(25,12,5,0.45)'; ctx.fill();
       }
     }
   }
 
   function drawScrewHead(x, y, color, spin, scale, blocked, shaking, isKey) {
-    const r = screwR * (scale || 1);
+    // draw ~15% smaller than layout radius so wood padding is always visible
+    const r = screwR * 0.85 * (scale || 1);
     ctx.save();
     ctx.translate(x + (shaking ? Math.sin(animT * 55) * 3 : 0), y);
     ctx.rotate(spin || 0);
@@ -721,24 +816,27 @@
 
   function drawTutorial() {
     ctx.save();
-    ctx.fillStyle = 'rgba(30,15,5,0.85)';
-    roundRect(ctx, tray.x + 10, tray.y - 36, tray.w - 20, 28, 10); ctx.fill();
-    ctx.fillStyle = '#ffe566';
-    ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(goalText, tray.x + tray.w / 2, tray.y - 22);
-    if (levelIdx <= 3 && tutMsg) {
-      ctx.fillStyle = 'rgba(20,10,5,0.9)';
-      roundRect(ctx, 20, tray.y + tray.h + 52, W - 40, 38, 12); ctx.fill();
-      ctx.fillStyle = '#fff6e0'; ctx.font = 'bold 12px sans-serif';
-      ctx.fillText(tutMsg, W / 2, tray.y + tray.h + 71);
+    const boxBottom = boxes.length ? (boxes[0].y + boxes[0].h) : 140;
+    let gy = boxBottom + 6;
+    if (gy + 28 > tray.y - 2) gy = Math.max(boxBottom + 2, tray.y - 30);
+    // Goal / tutorial strip between boxes and tray — never over boxes or boosters
+    if (goalBannerT > 0 && gy >= boxBottom + 2) {
+      ctx.globalAlpha = Math.min(1, goalBannerT / 0.35);
+      ctx.fillStyle = 'rgba(30,15,5,0.88)';
+      roundRect(ctx, tray.x + 24, gy, tray.w - 48, 26, 10); ctx.fill();
+      ctx.fillStyle = '#ffe566';
+      ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const label = (levelIdx <= 3 && tutMsg) ? tutMsg : goalText;
+      ctx.fillText(label, tray.x + tray.w / 2, gy + 13);
+      ctx.globalAlpha = 1;
     }
     if (levelIdx <= 1) {
       const free = screws.find(s => s.alive && !s.blocked);
       if (free) {
         const pulse = 1 + Math.sin(animT * 6) * 0.08;
-        ctx.beginPath(); ctx.arc(free.x, free.y, 26 * pulse, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(255,220,80,0.9)'; ctx.lineWidth = 3; ctx.stroke();
-        if (imgs.finger) ctx.drawImage(imgs.finger, free.x - 6, free.y + 14 + Math.sin(animT * 5) * 7, 56, 56);
+        ctx.beginPath(); ctx.arc(free.x, free.y, (screwR + 8) * pulse, 0, Math.PI * 2);
+        ctx.strokeStyle = '#ffe566'; ctx.lineWidth = 3; ctx.stroke();
+        if (imgs.finger) ctx.drawImage(imgs.finger, free.x + 10, free.y + 8, 48, 48);
       }
     }
     ctx.restore();
@@ -812,6 +910,7 @@ function drawTrayNine() {
 
   function frame(dt) {
     animT += dt; if (shakeT > 0) shakeT -= dt;
+    if (goalBannerT > 0) goalBannerT -= dt;
     ctx.clearRect(0, 0, W, H);
     if (imgs.workshop_bg) ctx.drawImage(imgs.workshop_bg, 0, 0, W, H);
     else { ctx.fillStyle = '#3a2412'; ctx.fillRect(0, 0, W, H); }
@@ -972,6 +1071,23 @@ function drawTrayNine() {
 
     window.__V = {
       VERSION, startLevel, assertNoOverlapRuntime, plankRects, startPlankFall,
+      assertScrewsInside: () => {
+        const bad = [];
+        for (const sc of screws) {
+          if (!sc.alive) continue;
+          const p = planks.find(x => x.id === sc.plankId && x.alive && !x.falling);
+          if (!p) continue;
+          const bx = p.body.position.x, by = p.body.position.y;
+          const rr = Math.min(14, Math.min(p.w, p.h) * 0.18);
+          const inset = screwR + Math.max(2, rr * 0.35);
+          const l = bx - p.w / 2 + inset, r = bx + p.w / 2 - inset;
+          const t0 = by - p.h / 2 + inset, b0 = by + p.h / 2 - inset;
+          if (sc.x < l - 0.5 || sc.x > r + 0.5 || sc.y < t0 - 0.5 || sc.y > b0 + 0.5)
+            bad.push({ id: sc.id, plankId: sc.plankId, x: sc.x, y: sc.y, inset, plank: { bx, by, w: p.w, h: p.h } });
+        }
+        return { ok: bad.length === 0, bad, screwR };
+      },
+
       getLayout: () => ({ W, H, tray: { ...tray }, board: { ...board }, playOrigin: { ...playOrigin }, uv: { ...TRAY_UV }, screwR }),
       getScrews: () => screws.filter(s => s.alive).map(s => ({ id: s.id, x: s.x, y: s.y, plankId: s.plankId, color: s.color })),
       getFalling: () => planks.filter(p => p.falling).map(p => ({ id: p.id, fall: p.fall && { ...p.fall } })),
@@ -1015,7 +1131,7 @@ forceLose: () => { waitSlots = waitSlots.map(() => ({ color: 'red', id: 'x' }));
         const steps = Math.ceil(sec / 0.016);
         for (let i = 0; i < steps; i++) {
           if (engine) Engine.update(engine, 16);
-          tickFalls(0.016); tickBoxes(0.016); animT += 0.016;
+          tickFalls(0.016); tickBoxes(0.016); animT += 0.016; if (goalBannerT > 0) goalBannerT -= 0.016;
           for (const f of flyers) f.t += 0.05;
           flyers = flyers.filter(f => { if (f.t >= 1) { onFlyerArrived(f); return false; } return true; });
           for (const b of boxes) if (b.flying) b.flyT += 0.05;

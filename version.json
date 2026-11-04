@@ -1,9 +1,9 @@
 {
-  "version": "3.3.0",
-  "versionCode": 33000,
+  "version": "3.3.1",
+  "versionCode": 33001,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.3.0",
+  "webVersion": "3.3.1",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.3.0: анимация падения доски (~1с, поворот+fade+clack)\n• Поле на весь экран (9-slice tray), крупные винты\n• Винты на доске не пересекаются; слоты/коробки с дугой полёта"
+  "changelog": "• v3.3.1: баннер цели под коробками, авто-скрытие ~2с\n• Раскладка на весь лоток (anisotropic fill), винты с padding внутри доски\n• Доски крупнее и разнесены; проверка 390/360/412 × L1/5/10/42"
 }

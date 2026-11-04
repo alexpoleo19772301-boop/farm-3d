@@ -1,0 +1,170 @@
+[
+  {
+    "vp": "390x844",
+    "level": 1,
+    "ok": true,
+    "geom": true,
+    "screws": true,
+    "bannerOk": true,
+    "fill": [
+      0.95,
+      0.97
+    ],
+    "worstPad": 66.3,
+    "screwR": 17
+  },
+  {
+    "vp": "390x844",
+    "level": 5,
+    "ok": true,
+    "geom": true,
+    "screws": true,
+    "bannerOk": true,
+    "fill": [
+      0.98,
+      0.97
+    ],
+    "worstPad": 12,
+    "screwR": 17
+  },
+  {
+    "vp": "390x844",
+    "level": 10,
+    "ok": true,
+    "geom": true,
+    "screws": true,
+    "bannerOk": true,
+    "fill": [
+      0.99,
+      0.97
+    ],
+    "worstPad": 16.8,
+    "screwR": 17
+  },
+  {
+    "vp": "390x844",
+    "level": 42,
+    "ok": true,
+    "geom": true,
+    "screws": true,
+    "bannerOk": true,
+    "fill": [
+      0.95,
+      0.97
+    ],
+    "worstPad": 13.2,
+    "screwR": 17
+  },
+  {
+    "vp": "360x800",
+    "level": 1,
+    "ok": true,
+    "geom": true,
+    "screws": true,
+    "bannerOk": true,
+    "fill": [
+      0.95,
+      0.96
+    ],
+    "worstPad": 58.4,
+    "screwR": 17
+  },
+  {
+    "vp": "360x800",
+    "level": 5,
+    "ok": true,
+    "geom": true,
+    "screws": true,
+    "bannerOk": true,
+    "fill": [
+      0.99,
+      0.96
+    ],
+    "worstPad": 12,
+    "screwR": 17
+  },
+  {
+    "vp": "360x800",
+    "level": 10,
+    "ok": true,
+    "geom": true,
+    "screws": true,
+    "bannerOk": true,
+    "fill": [
+      0.99,
+      0.96
+    ],
+    "worstPad": 16,
+    "screwR": 17
+  },
+  {
+    "vp": "360x800",
+    "level": 42,
+    "ok": true,
+    "geom": true,
+    "screws": true,
+    "bannerOk": true,
+    "fill": [
+      0.95,
+      0.96
+    ],
+    "worstPad": 13.2,
+    "screwR": 17
+  },
+  {
+    "vp": "412x915",
+    "level": 1,
+    "ok": true,
+    "geom": true,
+    "screws": true,
+    "bannerOk": true,
+    "fill": [
+      0.96,
+      0.97
+    ],
+    "worstPad": 78,
+    "screwR": 18
+  },
+  {
+    "vp": "412x915",
+    "level": 5,
+    "ok": true,
+    "geom": true,
+    "screws": true,
+    "bannerOk": true,
+    "fill": [
+      0.98,
+      0.97
+    ],
+    "worstPad": 12,
+    "screwR": 18
+  },
+  {
+    "vp": "412x915",
+    "level": 10,
+    "ok": true,
+    "geom": true,
+    "screws": true,
+    "bannerOk": true,
+    "fill": [
+      0.99,
+      0.97
+    ],
+    "worstPad": 17.3,
+    "screwR": 18
+  },
+  {
+    "vp": "412x915",
+    "level": 42,
+    "ok": true,
+    "geom": true,
+    "screws": true,
+    "bannerOk": true,
+    "fill": [
+      0.96,
+      0.97
+    ],
+    "worstPad": 13,
+    "screwR": 18
+  }
+]
