@@ -1,9 +1,9 @@
 {
-  "version": "3.8.0",
-  "versionCode": 38000,
+  "version": "3.8.1",
+  "versionCode": 38001,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "3.8.0",
+  "webVersion": "3.8.1",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v3.8.0: шляпки винтов крупнее + насыщенный цветной ободок (удобно для дальтоников)\n• Реалистичная металлическая цепь с провисанием и разлётом звеньев\n• Мини-босс-пазл после каждого 5-го уровня (3×3 → 4×5), кусочки сбоку, сборка по центру"
+  "changelog": "• v3.8.1: мини-босс — заголовок под HUD без наложений на 360/390/412; подпись «Кусочки (свайп)»\n• v3.8.0: крупные шляпки, металлическая цепь, мини-босс-пазл"
 }

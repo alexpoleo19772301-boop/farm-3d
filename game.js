@@ -1,7 +1,7 @@
-/* Винтики v3.8.0 — bigger screws, metal chain, mini-boss jigsaw */
+/* Винтики v3.8.1 — boss HUD layout fix */
 (function () {
   'use strict';
-  const VERSION = '3.8.0';
+  const VERSION = '3.8.1';
   const COLORS = {
     // colour-blind friendly, high-chroma palette (Okabe–Ito inspired)
     red: '#D55E00', yellow: '#F0E442', green: '#009E73', blue: '#0072B2',
@@ -646,6 +646,7 @@
   function startLevel(idx) {
     outcomeGen++;
     levelIdx = idx;
+    boss = null; bossDrag = null; // leave mini-boss cleanly
     state = 'play';
     showScreen('play');
     hammerMode = false; hintScrewId = null; shakeScrewId = null;
@@ -2233,7 +2234,8 @@ function drawTrayNine() {
     if (hg) hg.style.display = (name === 'home' || name === 'settings' || name === 'daily') ? 'block' : 'none';
     if (bossing) {
       const lp = $('lvl-pill');
-      if (lp && boss) lp.textContent = '🧩 ' + (boss.title || 'Пазл');
+      // keep pill short so it never fights the canvas title row
+      if (lp) lp.textContent = '🧩 Босс';
     }
   }
   function refreshHud() {
@@ -2719,13 +2721,14 @@ forceLose: () => { waitSlots = waitSlots.map(() => ({ color: 'red', id: 'x' }));
     img.onload = () => {
       const narrow = W < 420;
       const stripH = narrow ? Math.min(150, H * 0.22) : Math.min(130, H * 0.18);
-      const topBar = 56;
+      // HUD pills ~52–58px + title row ~44px — keep board below both on 360/390/412
+      const topBar = Math.max(108, Math.round(H * 0.13));
       const boardPad = 12;
       const availW = W - boardPad * 2;
       const availH = H - topBar - stripH - 24;
       const side = Math.min(availW, availH);
       const bx = (W - side) / 2;
-      const by = topBar + Math.max(8, (availH - side) / 2);
+      const by = topBar + Math.max(6, (availH - side) / 2);
       const pw = side / cols;
       const ph = side / rows;
       const tab = Math.min(pw, ph) * 0.22;
@@ -2775,6 +2778,7 @@ forceLose: () => { waitSlots = waitSlots.map(() => ({ color: 'red', id: 'x' }));
     img.onerror = () => {
       toast('Не удалось загрузить картинку босса');
       pendingBossAfterWin = false;
+      boss = null; bossDrag = null;
       startLevel(Math.min(levelIdx + 1, levels.length - 1));
     };
     img.src = src + '?v=' + VERSION;
@@ -2930,14 +2934,17 @@ forceLose: () => { waitSlots = waitSlots.map(() => ({ color: 'red', id: 'x' }));
       ctx.drawImage(imgs.workshop_bg, 0, 0, W, H);
       ctx.globalAlpha = 1;
     }
-    // title
+    // Title row sits BELOW the HTML HUD (pills ~ top 52–58px), never underneath it
+    const titleY = 72; // CSS px below HUD row on 360–412 widths
     ctx.fillStyle = '#fff6e0';
-    ctx.font = 'bold 18px sans-serif';
+    ctx.font = 'bold 17px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('🧩 Мини-босс: ' + boss.title, W / 2, 34);
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Мини-босс: ' + boss.title, W / 2, titleY);
     ctx.font = '12px sans-serif';
-    ctx.fillStyle = 'rgba(255,232,192,0.75)';
-    ctx.fillText(boss.cols + '×' + boss.rows + ' · перетащи кусочки на картинку', W / 2, 52);
+    ctx.fillStyle = 'rgba(255,232,192,0.8)';
+    ctx.fillText(boss.cols + '×' + boss.rows + ' · перетащи кусочки на картинку', W / 2, titleY + 20);
+    ctx.textBaseline = 'alphabetic';
 
     const b = boss.board;
     // board frame
@@ -2987,7 +2994,7 @@ forceLose: () => { waitSlots = waitSlots.map(() => ({ color: 'red', id: 'x' }));
     ctx.beginPath(); ctx.moveTo(0, boss.strip.y - 4); ctx.lineTo(W, boss.strip.y - 4); ctx.stroke();
     ctx.fillStyle = 'rgba(255,232,192,0.7)';
     ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText('Кусочки ↓ (свайп)', 12, boss.strip.y + 12);
+    ctx.fillText('Кусочки (свайп)', 12, boss.strip.y + 12);
 
     // unplaced (not dragging last)
     for (const p of boss.pieces) {
