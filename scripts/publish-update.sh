@@ -73,6 +73,18 @@ git add -A
 git commit -m "Release v${VER}" || echo "nothing to commit"
 git push origin HEAD:main
 
+# GitHub Pages is served from gh-pages (not docs/ on main)
+git fetch origin gh-pages
+WT=$(mktemp -d)
+git worktree add "$WT" origin/gh-pages
+cp -a www/. "$WT"/
+touch "$WT"/.nojekyll
+cp -f version.json "$WT"/version.json
+git -C "$WT" add -A
+git -C "$WT" commit -m "Pages v${VER}" || echo "pages: nothing to commit"
+git -C "$WT" push origin HEAD:gh-pages
+git worktree remove "$WT" --force
+
 TAG="v${VER}"
 NOTES="v${VER}
 
