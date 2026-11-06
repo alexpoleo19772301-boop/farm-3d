@@ -1,8 +1,8 @@
-/* Краски v4.1.1 — thawable frozen flasks */
+/* Краски v4.1.2 — restart button + collector vessel levels */
 (function () {
   'use strict';
-  const VERSION = '4.1.1';
-  const APP_VERSION = { version: '4.1.1', versionCode: 41001, webVersion: '4.1.1' };
+  const VERSION = '4.1.2';
+  const APP_VERSION = { version: '4.1.2', versionCode: 41002, webVersion: '4.1.2' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -13,6 +13,7 @@
   };
   function flaskCap(f) { return (f && f.cap) ? f.cap : CAP; }
   function mixResult(a, b) { return MIX[a + '|' + b] || null; }
+  function colorName(c) { return t('color_' + c) || c; }
   const SAVE_KEY = 'vintiki_save_v40';
   const LEGACY_KEY = 'vintiki_save_v32';
   const $ = (id) => document.getElementById(id);
@@ -66,6 +67,8 @@
   let moves = 0, runPar = 0, runMoveLimit = 0, runSolutionLen = 0;
   let runUsedBooster = false, runUsedHint = false;
   let runTimeLimit = 0, runTimeLeft = 0, timerPaused = false, loseReason = '';
+  let runCollector = false, runCollectorColor = null, runCollectorNeed = 0;
+  let confirmReturn = 'play';
   let MOVE_BOOST_COST = 40, TIME_BOOST_COST = 50;
   let history = [];
   let pourAnim = null; // {from,to,color,amt,t,duration, streamY...}
@@ -530,6 +533,7 @@
   function flaskComplete(f) {
     if (f.corked) return true;
     if (f.frozen) return false; // ice blocks completion until thawed
+    if (f.collector) return false; // collector is fill-goal, not cork target
     if (!f.layers.length) return false;
     if (f.mixer) return false; // mixer never corks — pour result out
     const cap = flaskCap(f);
@@ -542,12 +546,21 @@
     if (!src || !dst || src === dst) return 0;
     if (src.frozen || src.locked || dst.frozen || dst.locked) return 0;
     if (src.corked || dst.corked) return 0;
+    if (src.collector) return 0; // cannot pour OUT of collector
     if (!src.layers.length) return 0;
     const top = src.layers[src.layers.length - 1];
     if (top.hidden) return 0;
     const { color, n } = topRun(src.layers);
     if (!n) return 0;
     const dcap = flaskCap(dst);
+
+    // Collector destination: only target color
+    if (dst.collector) {
+      if (color !== (dst.collectorColor || runCollectorColor)) return 0;
+      const space = dcap - dst.layers.length;
+      if (space <= 0) return 0;
+      return Math.min(n, space);
+    }
 
     // Mixing flask destination
     if (dst.mixer) {
@@ -571,6 +584,7 @@
       layers: f.layers.map(l => ({ color: l.color, hidden: !!l.hidden })),
       frozen: !!f.frozen, locked: !!f.locked, corked: !!f.corked,
       cap: flaskCap(f), lockColor: f.lockColor || null, mixer: !!f.mixer,
+      collector: !!f.collector, collectorColor: f.collectorColor || null,
       thawLeft: f.thawLeft | 0, thawMax: f.thawMax | 0,
       unlockAnim: 0, thawAnim: 0, lift: 0, wobble: 0
     }));
@@ -642,10 +656,25 @@
     tickThawFromComplete();
   }
 
+  function collectorFilled() {
+    if (!runCollector) return false;
+    const c = flasks.find(f => f.collector);
+    if (!c) return false;
+    const need = runCollectorNeed || flaskCap(c);
+    const want = c.collectorColor || runCollectorColor;
+    return c.layers.length >= need && c.layers.every(l => l.color === want);
+  }
   function checkWin() {
     if (state !== 'play' || pourAnim) return;
+    if (runCollector) {
+      if (collectorFilled()) {
+        const g = outcomeGen;
+        toast(t('toast_collector_full'));
+        setTimeout(() => { if (g === outcomeGen && state === 'play') endWin(); }, 450);
+      }
+      return;
+    }
     if (flasks.every(f => !f.layers.length || f.corked || flaskComplete(f))) {
-      // cork any remaining complete
       flasks.forEach((f, i) => { if (!f.corked && flaskComplete(f)) tryCompleteFlask(f, i); });
       if (flasks.every(f => !f.layers.length || f.corked)) {
         const g = outcomeGen;
@@ -655,7 +684,22 @@
   }
 
   function startPour(fromIdx, toIdx) {
-    const amt = canPour(flasks[fromIdx], flasks[toIdx]);
+    const src = flasks[fromIdx], dst = flasks[toIdx];
+    if (src && src.collector) {
+      toast(t('toast_collector_locked')); playSfx('error', 0.35); return false;
+    }
+    if (dst && dst.collector && src && src.layers.length) {
+      const top = src.layers[src.layers.length - 1];
+      const want = dst.collectorColor || runCollectorColor;
+      if (top && !top.hidden && top.color !== want) {
+        // Wrong color into collector: reject WITHOUT spending a move
+        toast(t('toast_collector_wrong', { color: colorName(want) }));
+        playSfx('error', 0.35);
+        selected = -1;
+        return false;
+      }
+    }
+    const amt = canPour(src, dst);
     if (amt <= 0) { playSfx('error', 0.35); return false; }
     pushHistory();
     const color = flasks[fromIdx].layers[flasks[fromIdx].layers.length - 1].color;
@@ -718,7 +762,30 @@
     const topY = 100;
     const bottomY = H - 110;
     const areaH = bottomY - topY;
-    // rows
+    const ci = flasks.findIndex(f => f && f.collector);
+    if (ci >= 0 && runCollector) {
+      // Tall central collector + side flasks in a ring/rows around it
+      if (i === ci) {
+        const h = Math.min(260, areaH * 0.72);
+        return { cx: W * 0.5, cy: topY + areaH * 0.48, w: Math.min(70, W * 0.18), h: h, cellW: 80, cellH: h, tall: true };
+      }
+      const sides = [];
+      for (let k = 0; k < n; k++) if (k !== ci) sides.push(k);
+      const si = sides.indexOf(i);
+      const sn = sides.length;
+      // two columns left / right of center
+      const leftN = Math.ceil(sn / 2);
+      const onLeft = si < leftN;
+      const local = onLeft ? si : si - leftN;
+      const colN = onLeft ? leftN : (sn - leftN);
+      const cellH = Math.min(150, (areaH - 20) / Math.max(1, colN));
+      const flaskH = Math.min(130, cellH * 0.82);
+      const flaskW = Math.min(48, W * 0.12);
+      const cx = onLeft ? W * 0.18 : W * 0.82;
+      const y0 = topY + (areaH - colN * cellH) / 2;
+      const cy = y0 + local * cellH + cellH / 2;
+      return { cx, cy, w: flaskW, h: flaskH, cellW: flaskW * 1.4, cellH, tall: false };
+    }
     let cols = n <= 5 ? n : (n <= 8 ? Math.ceil(n / 2) : (n <= 12 ? Math.ceil(n / 2) : Math.ceil(n / 3)));
     if (n <= 6) cols = Math.min(n, 6);
     if (n > 6 && n <= 10) cols = Math.ceil(n / 2);
@@ -736,7 +803,7 @@
     const y0 = topY + (areaH - rows * cellH) / 2;
     const cx = x0 + col * cellW + cellW / 2;
     const cy = y0 + row * cellH + cellH / 2 + 10;
-    return { cx, cy, w: flaskW, h: flaskH, cellW, cellH };
+    return { cx, cy, w: flaskW, h: flaskH, cellW, cellH, tall: false };
   }
 
   function flaskAt(x, y) {
@@ -1102,8 +1169,30 @@
       ctx.fillStyle = '#ffd76a';
       ctx.fillText('🧪', -w * 0.42, -h * 0.42);
     }
+    if (f.collector) {
+      // gold rim + target swatch + progress
+      ctx.strokeStyle = '#ffd76a';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      const want = f.collectorColor || runCollectorColor;
+      const pal = PAINT[want] || PAINT.red;
+      const need = runCollectorNeed || flaskCap(f);
+      const filled = f.layers.length;
+      // swatch
+      ctx.beginPath();
+      ctx.arc(0, -h * 0.48, 14, 0, Math.PI * 2);
+      ctx.fillStyle = pal.fill; ctx.fill();
+      ctx.strokeStyle = '#fff6ff'; ctx.lineWidth = 2; ctx.stroke();
+      if (colorBlindMode) drawColorPattern(ctx, 28, -h * 0.48 - 10, 20, pal.pat);
+      ctx.fillStyle = '#ffd76a';
+      ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(filled + '/' + need, 0, h * 0.48 + 4);
+      ctx.font = '11px sans-serif';
+      ctx.fillStyle = '#ffe8ff';
+      ctx.fillText(colorName(want), 0, -h * 0.48 - 20);
+    }
     // capacity badge for non-default sizes
-    if (flaskCap(f) !== CAP) {
+    if (!f.collector && flaskCap(f) !== CAP) {
       ctx.fillStyle = 'rgba(30,14,40,0.85)';
       ctx.beginPath(); ctx.arc(w * 0.42, -h * 0.42, 11, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#ffe8ff'; ctx.font = 'bold 11px sans-serif';
@@ -1180,6 +1269,9 @@
     const N = flasks.length;
     const caps = flasks.map(flaskCap);
     const mixer = flasks.map(f => !!f.mixer);
+    const collector = flasks.map(f => !!f.collector);
+    const collColor = runCollectorColor;
+    const collNeed = runCollectorNeed;
     const lockCol = flasks.map(f => f.lockColor || null);
     let locked0 = flasks.map(f => !!f.locked);
     const corked0 = flasks.map(f => !!f.corked);
@@ -1190,9 +1282,16 @@
         + '@' + th.join(',') + '!' + ck.map(x => x ? 1 : 0).join('');
     }
     function won(st, lk, th, ck) {
+      if (runCollector) {
+        for (let i = 0; i < N; i++) {
+          if (!collector[i]) continue;
+          return st[i].length >= collNeed && st[i].every(c => c === collColor);
+        }
+        return false;
+      }
       for (let i = 0; i < N; i++) {
         if (lk[i] || th[i] > 0) return false;
-        if (ck[i]) continue;
+        if (ck[i] || collector[i]) continue;
         if (mixer[i]) { if (st[i].length) return false; continue; }
         if (!st[i].length) continue;
         if (st[i].length !== caps[i]) return false;
@@ -1208,8 +1307,15 @@
     }
     function can(st, lk, th, ck, i, j) {
       if (lk[i] || lk[j] || th[i] > 0 || th[j] > 0 || ck[i] || ck[j]) return 0;
+      if (collector[i]) return 0;
       if (!st[i].length) return 0;
       const [c, n] = topR(st[i]);
+      if (collector[j]) {
+        if (c !== collColor) return 0;
+        const space = caps[j] - st[j].length;
+        if (space <= 0) return 0;
+        return Math.min(n, space);
+      }
       if (mixer[j]) {
         if (!st[j].length) return Math.min(n, 1);
         if (st[j].length >= 2) return 0;
@@ -1234,7 +1340,7 @@
         for (let k = 0; k < amt; k++) nf[j].push(nf[i].pop());
       }
       for (let fi = 0; fi < N; fi++) {
-        if (mixer[fi] || nc[fi]) continue;
+        if (mixer[fi] || collector[fi] || nc[fi]) continue;
         if (nf[fi].length === caps[fi] && nf[fi].every(c => c === nf[fi][0])) {
           nc[fi] = true;
           const kc = nf[fi][0];
@@ -1286,24 +1392,34 @@
     runTimeLeft = runTimeLimit;
     timerPaused = false;
     const thawArr = def.thawAfter || def.thaw || [];
+    runCollector = !!(def.collector && def.collector.some(Boolean));
+    runCollectorColor = def.collectorColor || null;
+    runCollectorNeed = def.collectorNeed || 0;
     flasks = def.flasks.map((arr, fi) => {
       const hidden = (def.hidden && def.hidden[fi]) || [];
       const caps = def.caps || [];
       const thawN = (thawArr[fi] | 0);
       const isFrozen = thawN > 0 || !!(def.frozen && def.frozen[fi]);
+      const isColl = !!(def.collector && def.collector[fi]);
       return {
         layers: arr.map((c, li) => ({ color: c, hidden: !!hidden[li] })),
-        frozen: isFrozen,
-        thawLeft: isFrozen ? Math.max(1, thawN || 1) : 0,
-        thawMax: isFrozen ? Math.max(1, thawN || 1) : 0,
-        locked: !!(def.locked && def.locked[fi]),
+        frozen: isFrozen && !isColl,
+        thawLeft: (isFrozen && !isColl) ? Math.max(1, thawN || 1) : 0,
+        thawMax: (isFrozen && !isColl) ? Math.max(1, thawN || 1) : 0,
+        locked: !!(def.locked && def.locked[fi]) && !isColl,
         lockColor: (def.lockColor && def.lockColor[fi]) || null,
         mixer: !!(def.mixer && def.mixer[fi]),
-        cap: caps[fi] || CAP,
+        collector: isColl,
+        collectorColor: isColl ? (def.collectorColor || null) : null,
+        cap: isColl ? (def.collectorNeed || caps[fi] || 6) : (caps[fi] || CAP),
         unlockAnim: 0, thawAnim: 0,
         corked: false, lift: 0, wobble: 0
       };
     });
+    if (runCollector && runCollectorNeed) {
+      const c = flasks.find(f => f.collector);
+      if (c) { c.cap = runCollectorNeed; c.collectorColor = runCollectorColor; }
+    }
     // Cork flasks already full-mono at start WITHOUT counting toward thaw
     // (deliberate: pre-solved flasks don't crack ice).
     flasks.forEach((f) => {
@@ -1339,6 +1455,9 @@
     } else if (def.mixer && def.mixer.some(Boolean) && !save.seenTut.mixing) {
       showTut(t('tut_mixing_t'), t('tut_mixing_b'));
       save.seenTut.mixing = 1; persist();
+    } else if (runCollector && !save.seenTut.collector) {
+      showTut(t('tut_collector_t'), t('tut_collector_b'));
+      save.seenTut.collector = 1; persist();
     } else if ((def.thawAfter || def.frozen) && flasks.some(f => f.frozen) && !save.seenTut.frozen) {
       const n = Math.max(...flasks.map(f => f.thawLeft | 0), 1);
       showTut(t('tut_frozen_t'), t('tut_frozen_b', { n: n }));
@@ -1418,7 +1537,7 @@
 
   function showScreen(name) {
     state = name === 'play' ? 'play' : name;
-    ['home', 'map', 'win', 'lose', 'settings', 'daily', 'tut'].forEach(s => {
+    ['home', 'map', 'win', 'lose', 'settings', 'daily', 'tut', 'confirm'].forEach(s => {
       const el = $('sc-' + s); if (el) el.classList.toggle('on', s === name);
     });
     const playing = name === 'play';
@@ -1451,6 +1570,22 @@
         tp.style.display = 'none';
       }
     }
+    const ch = $('collector-hud');
+    const cp = $('collector-pill');
+    if (ch && cp) {
+      if (runCollector && state === 'play') {
+        ch.style.display = 'flex';
+        const c = flasks.find(f => f.collector);
+        const n = c ? c.layers.length : 0;
+        const need = runCollectorNeed || (c ? flaskCap(c) : 0);
+        const want = runCollectorColor || (c && c.collectorColor);
+        cp.textContent = t('collector_goal', { color: colorName(want), n: n, need: need });
+      } else {
+        ch.style.display = 'none';
+      }
+    }
+    const br = $('btn-restart');
+    if (br) br.style.display = (state === 'play' || state === 'boss') ? 'inline-flex' : 'none';
     $('badge-undo').textContent = save.boosters.undo;
     $('badge-flask').textContent = save.boosters.flask;
     $('badge-hint').textContent = save.boosters.hint;
@@ -1812,6 +1947,52 @@
   }
 
   /* ---------- settings / OTA ---------- */
+
+  function requestRestart() {
+    if (state === 'boss') {
+      timerPaused = true;
+      confirmReturn = 'boss';
+      $('confirm-title').textContent = t('restart_boss_t');
+      $('confirm-body').textContent = t('restart_boss_b');
+      showScreen('confirm');
+      return;
+    }
+    if (state !== 'play') return;
+    if (pourAnim) return; // avoid race mid-pour
+    // confirm if any progress made
+    if ((moves | 0) > 0 || history.length > 0 || (runTimeLimit > 0 && runTimeLeft < runTimeLimit - 0.5)) {
+      timerPaused = true;
+      confirmReturn = 'play';
+      $('confirm-title').textContent = t('restart_confirm_t');
+      $('confirm-body').textContent = t('restart_confirm_b');
+      showScreen('confirm');
+      return;
+    }
+    doRestart();
+  }
+  function doRestart() {
+    timerPaused = false;
+    if (confirmReturn === 'boss' || state === 'boss') {
+      const bn = Math.floor((levelIdx + 1) / 5) - 1;
+      startBoss(Math.max(0, bn));
+      return;
+    }
+    // Full attempt reset — startLevel bumps outcomeGen (blocks late win rewards)
+    startLevel(levelIdx);
+  }
+  function cancelRestart() {
+    timerPaused = false;
+    if (confirmReturn === 'boss') {
+      state = 'boss';
+      ['home', 'map', 'win', 'lose', 'settings', 'daily', 'tut', 'confirm'].forEach(s => {
+        const el = $('sc-' + s); if (el) el.classList.remove('on');
+      });
+      $('hud').style.display = 'block';
+      $('boosters').style.display = 'none';
+      refreshHud();
+    } else showScreen('play');
+  }
+
   function openSettings() {
     settingsReturn = (state === 'play') ? 'play' : (state === 'map' ? 'map' : 'home');
     if (state === 'play') timerPaused = true;
@@ -2039,6 +2220,9 @@
     $('btn-retry').onclick = () => startLevel(levelIdx);
     $('btn-lose-map').onclick = () => { showScreen('map'); buildMap(); };
     const ble = $('btn-lose-extra'); if (ble) ble.onclick = buyLoseBoost;
+    const brs = $('btn-restart'); if (brs) brs.onclick = requestRestart;
+    const by = $('btn-confirm-yes'); if (by) by.onclick = doRestart;
+    const bn = $('btn-confirm-no'); if (bn) bn.onclick = cancelRestart;
     $('btn-settings').onclick = openSettings;
     $('btn-home-settings').onclick = openSettings;
     $('btn-home-sound').onclick = openSettings;
@@ -2111,7 +2295,7 @@
     window.__V = {
       VERSION, startLevel, startBoss, endLose, buyLoseBoost, getBoss: () => boss && ({ done: boss.done, total: boss.pieces.length, placed: boss.pieces.filter(p => p.placed).length }),
       placeBossN: (n) => { if (!boss) return 0; let k = 0; for (const p of boss.pieces) { if (p.placed) continue; p.x = p.correctX; p.y = p.correctY; p.placed = true; p.inTray = false; k++; if (k >= n) break; } layoutBossTray(); if (boss.pieces.every(q => q.placed)) completeBoss(); return k; },
-      getState: () => ({ state, levelIdx, moves, moveLimit: runMoveLimit, timeLeft: runTimeLeft, selected, flasks: flasks.map(f => ({ n: f.layers.length, cap: flaskCap(f), corked: f.corked, frozen: f.frozen, thawLeft: f.thawLeft|0, locked: f.locked, lockColor: f.lockColor, mixer: !!f.mixer, top: f.layers.length ? f.layers[f.layers.length-1].color : null })), pour: !!pourAnim }),
+      getState: () => ({ state, levelIdx, moves, moveLimit: runMoveLimit, timeLeft: runTimeLeft, collector: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed, selected, flasks: flasks.map(f => ({ n: f.layers.length, cap: flaskCap(f), corked: f.corked, frozen: f.frozen, thawLeft: f.thawLeft|0, locked: f.locked, lockColor: f.lockColor, mixer: !!f.mixer, collector: !!f.collector, top: f.layers.length ? f.layers[f.layers.length-1].color : null })), pour: !!pourAnim, collectorMode: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed }),
       forceThawTick: () => tickThawFromComplete(),
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },

@@ -1,0 +1,89 @@
+[
+  {
+    "restartConfirmShown": true,
+    "movesBefore": 1
+  },
+  {
+    "afterRestartMoves": 0,
+    "state": "play"
+  },
+  {
+    "L12": {
+      "collectorIdx": 5,
+      "need": 6,
+      "color": "green",
+      "layout": [
+        {
+          "n": 1,
+          "coll": false
+        },
+        {
+          "n": 3,
+          "coll": false
+        },
+        {
+          "n": 1,
+          "coll": false
+        },
+        {
+          "n": 0,
+          "coll": false
+        },
+        {
+          "n": 2,
+          "coll": false
+        },
+        {
+          "n": 0,
+          "coll": true
+        }
+      ]
+    }
+  },
+  {
+    "wrongColor": {
+      "skipped": true
+    }
+  },
+  {
+    "midFill": 3,
+    "need": 6
+  },
+  {
+    "collectorWin": "win",
+    "moves": 4,
+    "filled": 6
+  },
+  {
+    "noDrain": {
+      "before": 1,
+      "after": 1,
+      "pourOk": false
+    }
+  },
+  {
+    "L92": {
+      "state": "win",
+      "moves": 6,
+      "limit": 8,
+      "need": 8
+    }
+  },
+  {
+    "thawed": true,
+    "thawLeft": 0
+  },
+  {
+    "afterRestartThaw": {
+      "frozen": true,
+      "thawLeft": 1
+    }
+  },
+  {
+    "collectorTut": {
+      "on": true,
+      "title": "Сосуд-цель",
+      "body": "В центре — высокий сосуд. Налей в него только нужный цвет (смотри метку). Цель уровня — заполнить сосуд. Из него вылить нельзя!"
+    }
+  }
+]

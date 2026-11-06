@@ -1,0 +1,922 @@
+{
+  "count": 100,
+  "ok": 100,
+  "fail": 0,
+  "approx": 0,
+  "method": "bfs_exact",
+  "collector_ids": [
+    12,
+    22,
+    32,
+    42,
+    52,
+    62,
+    72,
+    82,
+    92
+  ],
+  "limits_ok": true,
+  "elapsed_s": 250.2,
+  "levels": [
+    {
+      "id": 1,
+      "ok": true,
+      "sol": 3,
+      "lim": 11,
+      "collector": false,
+      "validated": "bfs",
+      "states": 141
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "sol": 4,
+      "lim": 12,
+      "collector": false,
+      "validated": "bfs",
+      "states": 228
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "sol": 4,
+      "lim": 12,
+      "collector": false,
+      "validated": "bfs",
+      "states": 473
+    },
+    {
+      "id": 4,
+      "ok": true,
+      "sol": 6,
+      "lim": 15,
+      "collector": false,
+      "validated": "bfs",
+      "states": 811
+    },
+    {
+      "id": 5,
+      "ok": true,
+      "sol": 4,
+      "lim": 12,
+      "collector": false,
+      "validated": "bfs",
+      "states": 269
+    },
+    {
+      "id": 6,
+      "ok": true,
+      "sol": 3,
+      "lim": 11,
+      "collector": false,
+      "validated": "bfs",
+      "states": 183
+    },
+    {
+      "id": 7,
+      "ok": true,
+      "sol": 6,
+      "lim": 15,
+      "collector": false,
+      "validated": "bfs",
+      "states": 463
+    },
+    {
+      "id": 8,
+      "ok": true,
+      "sol": 5,
+      "lim": 13,
+      "collector": false,
+      "validated": "bfs",
+      "states": 371
+    },
+    {
+      "id": 9,
+      "ok": true,
+      "sol": 9,
+      "lim": 21,
+      "collector": false,
+      "validated": "bfs",
+      "states": 14003
+    },
+    {
+      "id": 10,
+      "ok": true,
+      "sol": 8,
+      "lim": 19,
+      "collector": false,
+      "validated": "bfs",
+      "states": 10890
+    },
+    {
+      "id": 11,
+      "ok": true,
+      "sol": 8,
+      "lim": 15,
+      "collector": false,
+      "validated": "bfs",
+      "states": 8046
+    },
+    {
+      "id": 12,
+      "ok": true,
+      "sol": 4,
+      "lim": 10,
+      "collector": true,
+      "validated": "bfs",
+      "states": 1429
+    },
+    {
+      "id": 13,
+      "ok": true,
+      "sol": 6,
+      "lim": 12,
+      "collector": false,
+      "validated": "bfs",
+      "states": 3844
+    },
+    {
+      "id": 14,
+      "ok": true,
+      "sol": 7,
+      "lim": 13,
+      "collector": false,
+      "validated": "bfs",
+      "states": 4406
+    },
+    {
+      "id": 15,
+      "ok": true,
+      "sol": 6,
+      "lim": 12,
+      "collector": false,
+      "validated": "bfs",
+      "states": 4066
+    },
+    {
+      "id": 16,
+      "ok": true,
+      "sol": 9,
+      "lim": 16,
+      "collector": false,
+      "validated": "bfs",
+      "states": 43514
+    },
+    {
+      "id": 17,
+      "ok": true,
+      "sol": 9,
+      "lim": 16,
+      "collector": false,
+      "validated": "bfs",
+      "states": 33127
+    },
+    {
+      "id": 18,
+      "ok": true,
+      "sol": 7,
+      "lim": 13,
+      "collector": false,
+      "validated": "bfs",
+      "states": 2027
+    },
+    {
+      "id": 19,
+      "ok": true,
+      "sol": 8,
+      "lim": 15,
+      "collector": false,
+      "validated": "bfs",
+      "states": 15826
+    },
+    {
+      "id": 20,
+      "ok": true,
+      "sol": 8,
+      "lim": 15,
+      "collector": false,
+      "validated": "bfs",
+      "states": 713
+    },
+    {
+      "id": 21,
+      "ok": true,
+      "sol": 10,
+      "lim": 18,
+      "collector": false,
+      "validated": "bfs",
+      "states": 6604
+    },
+    {
+      "id": 22,
+      "ok": true,
+      "sol": 4,
+      "lim": 10,
+      "collector": true,
+      "validated": "bfs",
+      "states": 1257
+    },
+    {
+      "id": 23,
+      "ok": true,
+      "sol": 9,
+      "lim": 16,
+      "collector": false,
+      "validated": "bfs",
+      "states": 6513
+    },
+    {
+      "id": 24,
+      "ok": true,
+      "sol": 13,
+      "lim": 23,
+      "collector": false,
+      "validated": "bfs",
+      "states": 61653
+    },
+    {
+      "id": 25,
+      "ok": true,
+      "sol": 12,
+      "lim": 21,
+      "collector": false,
+      "validated": "bfs",
+      "states": 23584
+    },
+    {
+      "id": 26,
+      "ok": true,
+      "sol": 8,
+      "lim": 13,
+      "collector": false,
+      "validated": "bfs",
+      "states": 977
+    },
+    {
+      "id": 27,
+      "ok": true,
+      "sol": 8,
+      "lim": 13,
+      "collector": false,
+      "validated": "bfs",
+      "states": 16535
+    },
+    {
+      "id": 28,
+      "ok": true,
+      "sol": 12,
+      "lim": 18,
+      "collector": false,
+      "validated": "bfs",
+      "states": 13196
+    },
+    {
+      "id": 29,
+      "ok": true,
+      "sol": 10,
+      "lim": 16,
+      "collector": false,
+      "validated": "bfs",
+      "states": 24955
+    },
+    {
+      "id": 30,
+      "ok": true,
+      "sol": 12,
+      "lim": 18,
+      "collector": false,
+      "validated": "bfs",
+      "states": 100723
+    },
+    {
+      "id": 31,
+      "ok": true,
+      "sol": 8,
+      "lim": 13,
+      "collector": false,
+      "validated": "bfs",
+      "states": 39200
+    },
+    {
+      "id": 32,
+      "ok": true,
+      "sol": 3,
+      "lim": 7,
+      "collector": true,
+      "validated": "bfs",
+      "states": 543
+    },
+    {
+      "id": 33,
+      "ok": true,
+      "sol": 9,
+      "lim": 14,
+      "collector": false,
+      "validated": "bfs",
+      "states": 50517
+    },
+    {
+      "id": 34,
+      "ok": true,
+      "sol": 7,
+      "lim": 11,
+      "collector": false,
+      "validated": "bfs",
+      "states": 7389
+    },
+    {
+      "id": 35,
+      "ok": true,
+      "sol": 11,
+      "lim": 17,
+      "collector": false,
+      "validated": "bfs",
+      "states": 151911
+    },
+    {
+      "id": 36,
+      "ok": true,
+      "sol": 11,
+      "lim": 17,
+      "collector": false,
+      "validated": "bfs",
+      "states": 34885
+    },
+    {
+      "id": 37,
+      "ok": true,
+      "sol": 11,
+      "lim": 17,
+      "collector": false,
+      "validated": "bfs",
+      "states": 107693
+    },
+    {
+      "id": 38,
+      "ok": true,
+      "sol": 13,
+      "lim": 20,
+      "collector": false,
+      "validated": "bfs",
+      "states": 151700
+    },
+    {
+      "id": 39,
+      "ok": true,
+      "sol": 9,
+      "lim": 14,
+      "collector": false,
+      "validated": "bfs",
+      "states": 23343
+    },
+    {
+      "id": 40,
+      "ok": true,
+      "sol": 4,
+      "lim": 8,
+      "collector": false,
+      "validated": "bfs",
+      "states": 211
+    },
+    {
+      "id": 41,
+      "ok": true,
+      "sol": 9,
+      "lim": 14,
+      "collector": false,
+      "validated": "bfs",
+      "states": 86757
+    },
+    {
+      "id": 42,
+      "ok": true,
+      "sol": 3,
+      "lim": 7,
+      "collector": true,
+      "validated": "bfs",
+      "states": 690
+    },
+    {
+      "id": 43,
+      "ok": true,
+      "sol": 10,
+      "lim": 16,
+      "collector": false,
+      "validated": "bfs",
+      "states": 127832
+    },
+    {
+      "id": 44,
+      "ok": true,
+      "sol": 10,
+      "lim": 16,
+      "collector": false,
+      "validated": "bfs",
+      "states": 24633
+    },
+    {
+      "id": 45,
+      "ok": true,
+      "sol": 8,
+      "lim": 13,
+      "collector": false,
+      "validated": "bfs",
+      "states": 57380
+    },
+    {
+      "id": 46,
+      "ok": true,
+      "sol": 9,
+      "lim": 14,
+      "collector": false,
+      "validated": "bfs",
+      "states": 113017
+    },
+    {
+      "id": 47,
+      "ok": true,
+      "sol": 5,
+      "lim": 9,
+      "collector": false,
+      "validated": "bfs",
+      "states": 234
+    },
+    {
+      "id": 48,
+      "ok": true,
+      "sol": 6,
+      "lim": 10,
+      "collector": false,
+      "validated": "bfs",
+      "states": 22828
+    },
+    {
+      "id": 49,
+      "ok": true,
+      "sol": 8,
+      "lim": 13,
+      "collector": false,
+      "validated": "bfs",
+      "states": 52850
+    },
+    {
+      "id": 50,
+      "ok": true,
+      "sol": 10,
+      "lim": 16,
+      "collector": false,
+      "validated": "bfs",
+      "states": 62129
+    },
+    {
+      "id": 51,
+      "ok": true,
+      "sol": 14,
+      "lim": 20,
+      "collector": false,
+      "validated": "bfs",
+      "states": 24186
+    },
+    {
+      "id": 52,
+      "ok": true,
+      "sol": 4,
+      "lim": 7,
+      "collector": true,
+      "validated": "bfs",
+      "states": 8788
+    },
+    {
+      "id": 53,
+      "ok": true,
+      "sol": 8,
+      "lim": 12,
+      "collector": false,
+      "validated": "bfs",
+      "states": 50046
+    },
+    {
+      "id": 54,
+      "ok": true,
+      "sol": 4,
+      "lim": 7,
+      "collector": false,
+      "validated": "bfs",
+      "states": 213
+    },
+    {
+      "id": 55,
+      "ok": true,
+      "sol": 9,
+      "lim": 13,
+      "collector": false,
+      "validated": "bfs",
+      "states": 11986
+    },
+    {
+      "id": 56,
+      "ok": true,
+      "sol": 10,
+      "lim": 15,
+      "collector": false,
+      "validated": "bfs",
+      "states": 14895
+    },
+    {
+      "id": 57,
+      "ok": true,
+      "sol": 11,
+      "lim": 16,
+      "collector": false,
+      "validated": "bfs",
+      "states": 120487
+    },
+    {
+      "id": 58,
+      "ok": true,
+      "sol": 11,
+      "lim": 16,
+      "collector": false,
+      "validated": "bfs",
+      "states": 21337
+    },
+    {
+      "id": 59,
+      "ok": true,
+      "sol": 6,
+      "lim": 9,
+      "collector": false,
+      "validated": "bfs",
+      "states": 3174
+    },
+    {
+      "id": 60,
+      "ok": true,
+      "sol": 8,
+      "lim": 12,
+      "collector": false,
+      "validated": "bfs",
+      "states": 24456
+    },
+    {
+      "id": 61,
+      "ok": true,
+      "sol": 5,
+      "lim": 8,
+      "collector": false,
+      "validated": "bfs",
+      "states": 222
+    },
+    {
+      "id": 62,
+      "ok": true,
+      "sol": 5,
+      "lim": 8,
+      "collector": true,
+      "validated": "bfs",
+      "states": 13370
+    },
+    {
+      "id": 63,
+      "ok": true,
+      "sol": 10,
+      "lim": 15,
+      "collector": false,
+      "validated": "bfs",
+      "states": 55821
+    },
+    {
+      "id": 64,
+      "ok": true,
+      "sol": 9,
+      "lim": 13,
+      "collector": false,
+      "validated": "bfs",
+      "states": 66407
+    },
+    {
+      "id": 65,
+      "ok": true,
+      "sol": 9,
+      "lim": 13,
+      "collector": false,
+      "validated": "bfs",
+      "states": 179963
+    },
+    {
+      "id": 66,
+      "ok": true,
+      "sol": 11,
+      "lim": 16,
+      "collector": false,
+      "validated": "bfs",
+      "states": 130515
+    },
+    {
+      "id": 67,
+      "ok": true,
+      "sol": 12,
+      "lim": 17,
+      "collector": false,
+      "validated": "bfs",
+      "states": 67647
+    },
+    {
+      "id": 68,
+      "ok": true,
+      "sol": 4,
+      "lim": 7,
+      "collector": false,
+      "validated": "bfs",
+      "states": 206
+    },
+    {
+      "id": 69,
+      "ok": true,
+      "sol": 7,
+      "lim": 11,
+      "collector": false,
+      "validated": "bfs",
+      "states": 40114
+    },
+    {
+      "id": 70,
+      "ok": true,
+      "sol": 6,
+      "lim": 9,
+      "collector": false,
+      "validated": "bfs",
+      "states": 15167
+    },
+    {
+      "id": 71,
+      "ok": true,
+      "sol": 7,
+      "lim": 11,
+      "collector": false,
+      "validated": "bfs",
+      "states": 246556
+    },
+    {
+      "id": 72,
+      "ok": true,
+      "sol": 4,
+      "lim": 7,
+      "collector": true,
+      "validated": "bfs",
+      "states": 1293
+    },
+    {
+      "id": 73,
+      "ok": true,
+      "sol": 8,
+      "lim": 12,
+      "collector": false,
+      "validated": "bfs",
+      "states": 109683
+    },
+    {
+      "id": 74,
+      "ok": true,
+      "sol": 7,
+      "lim": 11,
+      "collector": false,
+      "validated": "bfs",
+      "states": 74642
+    },
+    {
+      "id": 75,
+      "ok": true,
+      "sol": 4,
+      "lim": 7,
+      "collector": false,
+      "validated": "bfs",
+      "states": 211
+    },
+    {
+      "id": 76,
+      "ok": true,
+      "sol": 13,
+      "lim": 16,
+      "collector": false,
+      "validated": "bfs",
+      "states": 51646
+    },
+    {
+      "id": 77,
+      "ok": true,
+      "sol": 9,
+      "lim": 11,
+      "collector": false,
+      "validated": "bfs",
+      "states": 188615
+    },
+    {
+      "id": 78,
+      "ok": true,
+      "sol": 11,
+      "lim": 14,
+      "collector": false,
+      "validated": "bfs",
+      "states": 212554
+    },
+    {
+      "id": 79,
+      "ok": true,
+      "sol": 8,
+      "lim": 10,
+      "collector": false,
+      "validated": "bfs",
+      "states": 143224
+    },
+    {
+      "id": 80,
+      "ok": true,
+      "sol": 7,
+      "lim": 9,
+      "collector": false,
+      "validated": "bfs",
+      "states": 85896
+    },
+    {
+      "id": 81,
+      "ok": true,
+      "sol": 11,
+      "lim": 14,
+      "collector": false,
+      "validated": "bfs",
+      "states": 41986
+    },
+    {
+      "id": 82,
+      "ok": true,
+      "sol": 7,
+      "lim": 9,
+      "collector": true,
+      "validated": "bfs",
+      "states": 8195
+    },
+    {
+      "id": 83,
+      "ok": true,
+      "sol": 12,
+      "lim": 15,
+      "collector": false,
+      "validated": "bfs",
+      "states": 230133
+    },
+    {
+      "id": 84,
+      "ok": true,
+      "sol": 21,
+      "lim": 26,
+      "collector": false,
+      "validated": "bfs",
+      "states": 56495
+    },
+    {
+      "id": 85,
+      "ok": true,
+      "sol": 9,
+      "lim": 11,
+      "collector": false,
+      "validated": "bfs",
+      "states": 56920
+    },
+    {
+      "id": 86,
+      "ok": true,
+      "sol": 10,
+      "lim": 13,
+      "collector": false,
+      "validated": "bfs",
+      "states": 237427
+    },
+    {
+      "id": 87,
+      "ok": true,
+      "sol": 9,
+      "lim": 11,
+      "collector": false,
+      "validated": "bfs",
+      "states": 243488
+    },
+    {
+      "id": 88,
+      "ok": true,
+      "sol": 11,
+      "lim": 14,
+      "collector": false,
+      "validated": "bfs",
+      "states": 175881
+    },
+    {
+      "id": 89,
+      "ok": true,
+      "sol": 5,
+      "lim": 7,
+      "collector": false,
+      "validated": "bfs",
+      "states": 239
+    },
+    {
+      "id": 90,
+      "ok": true,
+      "sol": 9,
+      "lim": 11,
+      "collector": false,
+      "validated": "bfs",
+      "states": 150662
+    },
+    {
+      "id": 91,
+      "ok": true,
+      "sol": 8,
+      "lim": 10,
+      "collector": false,
+      "validated": "bfs",
+      "states": 228146
+    },
+    {
+      "id": 92,
+      "ok": true,
+      "sol": 6,
+      "lim": 8,
+      "collector": true,
+      "validated": "bfs",
+      "states": 47563
+    },
+    {
+      "id": 93,
+      "ok": true,
+      "sol": 9,
+      "lim": 11,
+      "collector": false,
+      "validated": "bfs",
+      "states": 173636
+    },
+    {
+      "id": 94,
+      "ok": true,
+      "sol": 11,
+      "lim": 14,
+      "collector": false,
+      "validated": "bfs",
+      "states": 255840
+    },
+    {
+      "id": 95,
+      "ok": true,
+      "sol": 6,
+      "lim": 8,
+      "collector": false,
+      "validated": "bfs",
+      "states": 15839
+    },
+    {
+      "id": 96,
+      "ok": true,
+      "sol": 4,
+      "lim": 6,
+      "collector": false,
+      "validated": "bfs",
+      "states": 220
+    },
+    {
+      "id": 97,
+      "ok": true,
+      "sol": 7,
+      "lim": 9,
+      "collector": false,
+      "validated": "bfs",
+      "states": 43877
+    },
+    {
+      "id": 98,
+      "ok": true,
+      "sol": 12,
+      "lim": 15,
+      "collector": false,
+      "validated": "bfs",
+      "states": 141500
+    },
+    {
+      "id": 99,
+      "ok": true,
+      "sol": 13,
+      "lim": 16,
+      "collector": false,
+      "validated": "bfs",
+      "states": 97273
+    },
+    {
+      "id": 100,
+      "ok": true,
+      "sol": 7,
+      "lim": 9,
+      "collector": false,
+      "validated": "bfs",
+      "states": 102882
+    }
+  ]
+}

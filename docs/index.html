@@ -74,6 +74,9 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
 .win-stars-anim{font-size:36px;letter-spacing:4px;color:#ffd76a;text-shadow:0 2px 0 #5a2060;animation:starPop .6s ease}
 @keyframes starPop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
 #star-pill{margin-left:4px}
+
+.restart-btn{min-width:44px;min-height:44px;padding:8px 12px;font-size:13px;font-weight:800;white-space:nowrap}
+#collector-pill{border-color:#ffd76a;color:#ffe8a8}
 </style>
 </head>
 <body>
@@ -90,7 +93,11 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <span class="pill" id="timer-pill" style="display:none">⏱ 0:00</span>
       <span style="flex:1"></span>
       <button class="iconbtn" id="btn-settings" title="Звук">⚙️</button>
-      <button class="iconbtn" id="btn-update" title="Обновить">↻</button>
+      <button class="iconbtn restart-btn" id="btn-restart" data-i18n="restart_btn" title="Заново">🔄 Заново</button>
+      <button class="iconbtn" id="btn-update" title="Обновить" data-i18n-title="update">↻</button>
+    </div>
+    <div class="row" id="collector-hud" style="display:none;margin-top:6px">
+      <span class="pill" id="collector-pill">🎯 —</span>
     </div>
   </div>
   <div id="boosters" style="display:none">
@@ -186,6 +193,16 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <button class="btn ghost" id="btn-daily-back" style="width:100%;margin-top:10px" data-i18n="back">Назад</button>
     </div>
   </div>
+  
+  <div class="screen" id="sc-confirm">
+    <div class="card">
+      <h1 id="confirm-title" data-i18n="restart_confirm_t">Начать заново?</h1>
+      <p id="confirm-body" data-i18n="restart_confirm_b">Прогресс этой попытки сбросится. Монеты и прохождения сохранятся.</p>
+      <button class="btn green" id="btn-confirm-yes" data-i18n="restart_yes">Да, заново</button>
+      <button class="btn ghost" id="btn-confirm-no" data-i18n="restart_no">Отмена</button>
+    </div>
+  </div>
+
   <div class="screen" id="sc-tut">
     <div class="card">
       <h1 id="tut-title">Подсказка</h1>
@@ -194,9 +211,9 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     </div>
   </div>
   <div id="toast"></div>
-  <div id="ver">v4.1.1</div>
+  <div id="ver">v4.1.2</div>
 </div>
-<script src="i18n.js?v=4.1.1"></script>
-<script src="game.js?v=4.1.1"></script>
+<script src="i18n.js?v=4.1.2"></script>
+<script src="game.js?v=4.1.2"></script>
 </body>
 </html>

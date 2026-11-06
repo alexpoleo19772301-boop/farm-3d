@@ -1,0 +1,89 @@
+{
+  "count": 9,
+  "ids": [
+    12,
+    22,
+    32,
+    42,
+    52,
+    62,
+    72,
+    82,
+    92
+  ],
+  "levels": [
+    {
+      "id": 12,
+      "sol": 4,
+      "lim": 10,
+      "color": "green",
+      "need": 6,
+      "states": 727
+    },
+    {
+      "id": 22,
+      "sol": 4,
+      "lim": 10,
+      "color": "orange",
+      "need": 6,
+      "states": 710
+    },
+    {
+      "id": 32,
+      "sol": 3,
+      "lim": 7,
+      "color": "coral",
+      "need": 6,
+      "states": 214
+    },
+    {
+      "id": 42,
+      "sol": 3,
+      "lim": 7,
+      "color": "lime",
+      "need": 6,
+      "states": 351
+    },
+    {
+      "id": 52,
+      "sol": 4,
+      "lim": 7,
+      "color": "pink",
+      "need": 8,
+      "states": 2387
+    },
+    {
+      "id": 62,
+      "sol": 5,
+      "lim": 8,
+      "color": "blue",
+      "need": 8,
+      "states": 2553
+    },
+    {
+      "id": 72,
+      "sol": 4,
+      "lim": 7,
+      "color": "green",
+      "need": 6,
+      "states": 726
+    },
+    {
+      "id": 82,
+      "sol": 7,
+      "lim": 9,
+      "color": "orange",
+      "need": 6,
+      "states": 2314
+    },
+    {
+      "id": 92,
+      "sol": 6,
+      "lim": 8,
+      "color": "coral",
+      "need": 8,
+      "states": 4780
+    }
+  ],
+  "elapsed_s": 0.42
+}
