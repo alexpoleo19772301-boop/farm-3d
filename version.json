@@ -1,9 +1,9 @@
 {
-  "version": "4.1.9",
-  "versionCode": 41009,
+  "version": "4.2.0",
+  "versionCode": 42000,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "4.1.9",
+  "webVersion": "4.2.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v4.1.9: ColorFlow branding — new game icon + app name\n• Android launcher/adaptive icons + localized app_name ColorFlow\n• Web favicons / apple-touch / manifest\n• Package com.alex.farm3d unchanged (in-place update; progress kept)\n• Install APK to refresh home-screen launcher icon"
+  "changelog": "• v4.2.0 ColorFlow: larger icon flasks\n• Distinct scarlet red vs dark chocolate brown\n• New color-filter flasks (funnel) + denser hidden «?» layers\n• Harder late levels 56–100 (mixed, no pre-solved)\n• Package com.alex.farm3d unchanged; progress kept\n• APK needed for launcher icon"
 }
