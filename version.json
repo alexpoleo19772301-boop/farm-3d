@@ -1,9 +1,9 @@
 {
-  "version": "4.1.3",
-  "versionCode": 41003,
+  "version": "4.1.4",
+  "versionCode": 41004,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "4.1.3",
+  "webVersion": "4.1.4",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• Fix: L1 tip text no longer overlaps HUD on narrow screens (360/390/412); tip lays out under measured HUD bounds with gap; flasks stay below tip (ru/uk/en)"
+  "changelog": "• Fix L25: corking no longer strands leftover paint when a color needs a larger flask (e.g. 5 teal / size-4 cork left 1 stranded)\n• Safe-cork also keeps collector target color pourable (L62)\n• Fix mini-boss crash after levels 5/10/15/… (BOSS_TITLES → BOSS_TITLE_KEYS)\n• Progress/coins/settings preserved; restart L25 after update if stuck mid-level"
 }
