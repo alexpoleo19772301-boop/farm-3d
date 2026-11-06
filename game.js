@@ -1,8 +1,8 @@
-/* ColorFlow v4.2.0 — big icon, distinct brown/red, filters+harder pack */
+/* ColorFlow v4.2.1 — big icon, distinct brown/red, filters+harder pack */
 (function () {
   'use strict';
-  const VERSION = '4.2.0';
-  const APP_VERSION = { version: '4.2.0', versionCode: 42000, webVersion: '4.2.0' };
+  const VERSION = '4.2.1';
+  const APP_VERSION = { version: '4.2.1', versionCode: 42001, webVersion: '4.2.1' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -1789,8 +1789,8 @@
     $('ver').textContent = 'v' + VERSION;
     try {
       const seen = localStorage.getItem('farm3d_cap4_notice');
-      if (seen !== '4.2.0') {
-        localStorage.setItem('farm3d_cap4_notice', '4.2.0');
+      if (seen !== '4.2.1') {
+        localStorage.setItem('farm3d_cap4_notice', '4.2.1');
         setTimeout(() => toast(t('toast_cap4_migrate')), 900);
       }
     } catch (e) {}
