@@ -1,9 +1,9 @@
 {
-  "version": "4.1.8",
-  "versionCode": 41008,
+  "version": "4.1.9",
+  "versionCode": 41009,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "4.1.8",
+  "webVersion": "4.1.9",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v4.1.8: «Начать игру сначала» in Settings (with confirmation)\n• Resets campaign/coins/boosters/stars/quests to first-launch defaults\n• Keeps language, music, SFX, pour sound, vibration, colorblind\n• HUD «Заново» still restarts only the current level\n• Your progress is NOT auto-reset by this update"
+  "changelog": "• v4.1.9: ColorFlow branding — new game icon + app name\n• Android launcher/adaptive icons + localized app_name ColorFlow\n• Web favicons / apple-touch / manifest\n• Package com.alex.farm3d unchanged (in-place update; progress kept)\n• Install APK to refresh home-screen launcher icon"
 }

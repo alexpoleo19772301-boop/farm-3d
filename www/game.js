@@ -1,8 +1,8 @@
-/* Краски v4.1.8 — new-game reset (campaign) */
+/* ColorFlow v4.1.9 — branding ColorFlow icon */
 (function () {
   'use strict';
-  const VERSION = '4.1.8';
-  const APP_VERSION = { version: '4.1.8', versionCode: 41008, webVersion: '4.1.8' };
+  const VERSION = '4.1.9';
+  const APP_VERSION = { version: '4.1.9', versionCode: 41009, webVersion: '4.1.9' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -1769,8 +1769,8 @@
     $('ver').textContent = 'v' + VERSION;
     try {
       const seen = localStorage.getItem('farm3d_cap4_notice');
-      if (seen !== '4.1.8') {
-        localStorage.setItem('farm3d_cap4_notice', '4.1.8');
+      if (seen !== '4.1.9') {
+        localStorage.setItem('farm3d_cap4_notice', '4.1.9');
         setTimeout(() => toast(t('toast_cap4_migrate')), 900);
       }
     } catch (e) {}

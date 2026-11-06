@@ -3,7 +3,7 @@
   'use strict';
   const DICT = {
     ru: {
-      app_title: 'Краски',
+      app_title: 'ColorFlow',
       home_sub: 'Переливай · сортируй · освобождай колбы',
       home_blurb: 'Нажми колбу с краской, затем другую — перелей верхний цвет. Собери одинаковые цвета!',
       play: 'Играть',
@@ -176,7 +176,7 @@
       gift_coins: '🪙 {n}'
     },
     uk: {
-      app_title: 'Фарби',
+      app_title: 'ColorFlow',
       home_sub: 'Переливай · сортуй · звільняй колби',
       home_blurb: 'Натисни колбу з фарбою, потім іншу — перелий верхній колір. Збери однакові кольори!',
       play: 'Грати',
@@ -341,7 +341,7 @@
       gift_coins: '🪙 {n}'
     },
     en: {
-      app_title: 'Paints',
+      app_title: 'ColorFlow',
       home_sub: 'Pour · sort · free the flasks',
       home_blurb: 'Tap a paint flask, then another — pour the top color. Match identical colors!',
       play: 'Play',
