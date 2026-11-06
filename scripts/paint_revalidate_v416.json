@@ -1,0 +1,968 @@
+{
+  "ok": 100,
+  "method": "bfs_witness_replay_cap4",
+  "elapsed_s": 26.7,
+  "levels": [
+    {
+      "id": 1,
+      "sol": 1,
+      "lim": 20,
+      "tags": [],
+      "tries": 1
+    },
+    {
+      "id": 2,
+      "sol": 0,
+      "lim": 20,
+      "tags": [],
+      "tries": 1
+    },
+    {
+      "id": 3,
+      "sol": 1,
+      "lim": 20,
+      "tags": [],
+      "tries": 1
+    },
+    {
+      "id": 4,
+      "sol": 1,
+      "lim": 20,
+      "tags": [],
+      "tries": 1
+    },
+    {
+      "id": 5,
+      "sol": 0,
+      "lim": 20,
+      "tags": [],
+      "tries": 1
+    },
+    {
+      "id": 6,
+      "sol": 1,
+      "lim": 20,
+      "tags": [],
+      "tries": 1
+    },
+    {
+      "id": 7,
+      "sol": 1,
+      "lim": 20,
+      "tags": [],
+      "tries": 1
+    },
+    {
+      "id": 8,
+      "sol": 3,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 9,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 10,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 11,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 12,
+      "sol": 6,
+      "lim": 16,
+      "tags": [
+        "collector"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 13,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 14,
+      "sol": 5,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 15,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 16,
+      "sol": 4,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 17,
+      "sol": 5,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 18,
+      "sol": 2,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 19,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 20,
+      "sol": 3,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 21,
+      "sol": 3,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 22,
+      "sol": 5,
+      "lim": 16,
+      "tags": [
+        "collector"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 23,
+      "sol": 2,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 24,
+      "sol": 2,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 25,
+      "sol": 5,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 26,
+      "sol": 4,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 27,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 28,
+      "sol": 3,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 29,
+      "sol": 5,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 30,
+      "sol": 2,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 31,
+      "sol": 8,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 32,
+      "sol": 4,
+      "lim": 16,
+      "tags": [
+        "collector"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 33,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 34,
+      "sol": 5,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 35,
+      "sol": 5,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "timer"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 36,
+      "sol": 8,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 37,
+      "sol": 9,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 38,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 39,
+      "sol": 4,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 40,
+      "sol": 3,
+      "lim": 18,
+      "tags": [
+        "mixing"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 41,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 42,
+      "sol": 6,
+      "lim": 16,
+      "tags": [
+        "collector"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 43,
+      "sol": 9,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 44,
+      "sol": 9,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 2
+    },
+    {
+      "id": 45,
+      "sol": 4,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 46,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 47,
+      "sol": 3,
+      "lim": 18,
+      "tags": [
+        "mixing"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 48,
+      "sol": 0,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 49,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 50,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked",
+        "timer"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 51,
+      "sol": 2,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 52,
+      "sol": 9,
+      "lim": 16,
+      "tags": [
+        "collector"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 53,
+      "sol": 5,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 54,
+      "sol": 3,
+      "lim": 18,
+      "tags": [
+        "mixing"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 55,
+      "sol": 9,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 56,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 57,
+      "sol": 4,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 58,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 2
+    },
+    {
+      "id": 59,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 2
+    },
+    {
+      "id": 60,
+      "sol": 4,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 61,
+      "sol": 3,
+      "lim": 18,
+      "tags": [
+        "mixing"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 62,
+      "sol": 5,
+      "lim": 16,
+      "tags": [
+        "collector"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 63,
+      "sol": 0,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 64,
+      "sol": 3,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 65,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "timer"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 66,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 67,
+      "sol": 4,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 68,
+      "sol": 3,
+      "lim": 18,
+      "tags": [
+        "mixing"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 69,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 70,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 71,
+      "sol": 9,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 72,
+      "sol": 6,
+      "lim": 16,
+      "tags": [
+        "collector"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 73,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 74,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 75,
+      "sol": 3,
+      "lim": 18,
+      "tags": [
+        "mixing"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 76,
+      "sol": 4,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 2
+    },
+    {
+      "id": 77,
+      "sol": 8,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 78,
+      "sol": 10,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 79,
+      "sol": 8,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 80,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked",
+        "timer"
+      ],
+      "tries": 2
+    },
+    {
+      "id": 81,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 82,
+      "sol": 9,
+      "lim": 16,
+      "tags": [
+        "collector"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 83,
+      "sol": 4,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 84,
+      "sol": 9,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 85,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 86,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 87,
+      "sol": 10,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 88,
+      "sol": 8,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 89,
+      "sol": 3,
+      "lim": 18,
+      "tags": [
+        "mixing"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 90,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 91,
+      "sol": 10,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 92,
+      "sol": 8,
+      "lim": 16,
+      "tags": [
+        "collector"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 93,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 94,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 95,
+      "sol": 5,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "timer"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 96,
+      "sol": 3,
+      "lim": 18,
+      "tags": [
+        "mixing"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 97,
+      "sol": 7,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 98,
+      "sol": 10,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 99,
+      "sol": 6,
+      "lim": 20,
+      "tags": [
+        "hidden"
+      ],
+      "tries": 1
+    },
+    {
+      "id": 100,
+      "sol": 5,
+      "lim": 20,
+      "tags": [
+        "hidden",
+        "frozen",
+        "locked"
+      ],
+      "tries": 1
+    }
+  ]
+}
