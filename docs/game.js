@@ -1,8 +1,8 @@
-/* Краски v4.1.3 — HUD tip overlap fix on narrow screens */
+/* Краски v4.1.4 — safe cork: no stranding leftover paint in smaller flasks */
 (function () {
   'use strict';
-  const VERSION = '4.1.3';
-  const APP_VERSION = { version: '4.1.3', versionCode: 41003, webVersion: '4.1.3' };
+  const VERSION = '4.1.4';
+  const APP_VERSION = { version: '4.1.4', versionCode: 41004, webVersion: '4.1.4' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -542,6 +542,44 @@
     const c = f.layers[0].color;
     return f.layers.every(l => l.color === c);
   }
+  /** Subset-sum: can `need` be formed as sum of distinct capsAvail entries? */
+  function canPartitionCaps(need, capsAvail) {
+    if (need === 0) return true;
+    if (need < 0) return false;
+    const dp = new Uint8Array(need + 1);
+    dp[0] = 1;
+    for (const c of capsAvail) {
+      for (let s = need; s >= c; s--) if (dp[s - c]) dp[s] = 1;
+    }
+    return !!dp[need];
+  }
+  /**
+   * Corking is irreversible. Refuse to cork a full mono flask when leftover units
+   * of that color cannot fill other open flasks to exact capacity (prevents
+   * stranding e.g. 5 teal when a size-4 is corked with 4 and 1 remains).
+   */
+  function canSafelyCork(f) {
+    if (!flaskComplete(f) || f.corked) return false;
+    if (f.frozen || f.mixer || f.collector) return false;
+    const color = f.layers[0].color;
+    // Collector levels: never cork the target color in side flasks — those units must reach the vessel
+    if (runCollector && color === runCollectorColor) return false;
+    const k = flaskCap(f);
+    let total = 0;
+    for (const o of flasks) {
+      for (const l of o.layers) if (l.color === color) total++;
+    }
+    const rem = total - k;
+    if (rem === 0) return true;
+    if (rem < 0) return false;
+    const capsAvail = [];
+    for (const o of flasks) {
+      if (o === f || o.corked || o.mixer || o.collector) continue;
+      capsAvail.push(flaskCap(o));
+    }
+    return canPartitionCaps(rem, capsAvail);
+  }
+
   function canPour(src, dst) {
     if (!src || !dst || src === dst) return 0;
     if (src.frozen || src.locked || dst.frozen || dst.locked) return 0;
@@ -640,6 +678,7 @@
   function tryCompleteFlask(f, idx) {
     if (f.corked || f.frozen) return;
     if (!flaskComplete(f)) return;
+    if (!canSafelyCork(f)) return; // keep pourable — leftover color would be stranded
     f.corked = true;
     playSfx('cork', 0.5); playSfx('star', 0.28); buzz(18);
     spawnSparkles(flaskLayout(idx).cx, flaskLayout(idx).cy - 40);
@@ -1389,8 +1428,25 @@
       for (let fi = 0; fi < N; fi++) {
         if (mixer[fi] || collector[fi] || nc[fi]) continue;
         if (nf[fi].length === caps[fi] && nf[fi].every(c => c === nf[fi][0])) {
-          nc[fi] = true;
+          // Safe-cork check against remaining color units vs other open caps
           const kc = nf[fi][0];
+          if (runCollector && kc === runCollectorColor) continue; // keep target color pourable into vessel
+          let total = 0;
+          for (let a = 0; a < N; a++) for (const c of nf[a]) if (c === kc) total++;
+          const rem = total - caps[fi];
+          let safe = (rem === 0);
+          if (!safe && rem > 0) {
+            const avail = [];
+            for (let a = 0; a < N; a++) {
+              if (a === fi || nc[a] || mixer[a] || collector[a]) continue;
+              avail.push(caps[a]);
+            }
+            const dp = new Uint8Array(rem + 1); dp[0] = 1;
+            for (const c of avail) for (let s = rem; s >= c; s--) if (dp[s - c]) dp[s] = 1;
+            safe = !!dp[rem];
+          }
+          if (!safe) continue;
+          nc[fi] = true;
           for (let k = 0; k < N; k++) if (nl[k] && lockCol[k] === kc) nl[k] = false;
           for (let k = 0; k < N; k++) if (nt[k] > 0) nt[k]--;
         }
@@ -1467,13 +1523,18 @@
       const c = flasks.find(f => f.collector);
       if (c) { c.cap = runCollectorNeed; c.collectorColor = runCollectorColor; }
     }
-    // Cork flasks already full-mono at start WITHOUT counting toward thaw
-    // (deliberate: pre-solved flasks don't crack ice).
-    flasks.forEach((f) => {
-      if (f.frozen || f.mixer || f.corked) return;
-      const cap = flaskCap(f);
-      if (f.layers.length === cap && f.layers.every(l => l.color === f.layers[0].color) && !f.layers.some(l => l.hidden)) {
-        f.corked = true;
+    // Cork flasks already full-mono at start WITHOUT counting toward thaw,
+    // but only when leftover color units remain placeable (canSafelyCork).
+    flasks.forEach((f, idx) => {
+      if (f.frozen || f.mixer || f.corked || f.collector) return;
+      if (!canSafelyCork(f)) return;
+      f.corked = true;
+      // Unlock matching locks for pre-corked colors (paint already sorted)
+      const keyColor = f.layers[0] && f.layers[0].color;
+      for (const o of flasks) {
+        if (o.locked && o.lockColor && o.lockColor === keyColor) {
+          o.locked = false; o.unlockAnim = 1;
+        }
       }
     });
     state = 'play';
@@ -1788,7 +1849,7 @@
   function startBoss(bossN) {
     bossN = Math.max(0, bossN | 0);
     const [cols, rows] = bossGridFor(bossN);
-    const title = bossTitleAt(bossN % BOSS_TITLES.length);
+    const title = bossTitleAt(bossN % BOSS_TITLE_KEYS.length);
     const img = new Image();
     img.onload = () => {
       const stripH = Math.min(140, H * 0.2);
@@ -2340,9 +2401,9 @@
     setTimeout(() => checkOta(true), 1200);
     // debug API
     window.__V = {
-      VERSION, startLevel, startBoss, endLose, buyLoseBoost, getBoss: () => boss && ({ done: boss.done, total: boss.pieces.length, placed: boss.pieces.filter(p => p.placed).length }),
+      VERSION, startLevel, startBoss, endLose, buyLoseBoost, canSafelyCork, flaskComplete, getBoss: () => boss && ({ done: boss.done, total: boss.pieces.length, placed: boss.pieces.filter(p => p.placed).length }),
       placeBossN: (n) => { if (!boss) return 0; let k = 0; for (const p of boss.pieces) { if (p.placed) continue; p.x = p.correctX; p.y = p.correctY; p.placed = true; p.inTray = false; k++; if (k >= n) break; } layoutBossTray(); if (boss.pieces.every(q => q.placed)) completeBoss(); return k; },
-      getState: () => ({ state, levelIdx, moves, moveLimit: runMoveLimit, timeLeft: runTimeLeft, collector: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed, selected, flasks: flasks.map(f => ({ n: f.layers.length, cap: flaskCap(f), corked: f.corked, frozen: f.frozen, thawLeft: f.thawLeft|0, locked: f.locked, lockColor: f.lockColor, mixer: !!f.mixer, collector: !!f.collector, top: f.layers.length ? f.layers[f.layers.length-1].color : null })), pour: !!pourAnim, collectorMode: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed }),
+      getState: () => ({ state, levelIdx, moves, moveLimit: runMoveLimit, timeLeft: runTimeLeft, collector: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed, selected, flasks: flasks.map(f => ({ n: f.layers.length, cap: flaskCap(f), corked: f.corked, frozen: f.frozen, thawLeft: f.thawLeft|0, locked: f.locked, lockColor: f.lockColor, mixer: !!f.mixer, collector: !!f.collector, top: f.layers.length ? f.layers[f.layers.length-1].color : null, colors: f.layers.map(l => l.color) })), pour: !!pourAnim, collectorMode: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed }),
       forceThawTick: () => tickThawFromComplete(),
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },

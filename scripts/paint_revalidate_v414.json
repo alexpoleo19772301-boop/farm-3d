@@ -1,0 +1,103 @@
+{
+  "count": 8,
+  "ok": 8,
+  "fail": 0,
+  "timeout": [],
+  "approx": 0,
+  "method": "bfs_engine_faithful+replay_safe_cork",
+  "all_replay_ok": true,
+  "limits_ok": true,
+  "elapsed_s": 2.0,
+  "levels": [
+    {
+      "id": 1,
+      "ok": true,
+      "sol": 3,
+      "lim": 11,
+      "replay": true,
+      "tags": [],
+      "states": 60
+    },
+    {
+      "id": 5,
+      "ok": true,
+      "sol": 4,
+      "lim": 12,
+      "replay": true,
+      "tags": [],
+      "states": 200
+    },
+    {
+      "id": 12,
+      "ok": true,
+      "sol": 4,
+      "lim": 10,
+      "replay": true,
+      "tags": [
+        "collector"
+      ],
+      "states": 727
+    },
+    {
+      "id": 22,
+      "ok": true,
+      "sol": 4,
+      "lim": 10,
+      "replay": true,
+      "tags": [
+        "collector"
+      ],
+      "states": 710
+    },
+    {
+      "id": 25,
+      "ok": true,
+      "sol": 14,
+      "lim": 21,
+      "replay": true,
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "states": 9543
+    },
+    {
+      "id": 26,
+      "ok": true,
+      "sol": 15,
+      "lim": 23,
+      "replay": true,
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "states": 20621
+    },
+    {
+      "id": 30,
+      "ok": true,
+      "sol": 13,
+      "lim": 18,
+      "replay": true,
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "states": 2377
+    },
+    {
+      "id": 92,
+      "ok": true,
+      "sol": 6,
+      "lim": 8,
+      "replay": true,
+      "tags": [
+        "collector"
+      ],
+      "states": 4773
+    }
+  ]
+}

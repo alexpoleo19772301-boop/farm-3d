@@ -1,0 +1,29 @@
+Краски v4.1.4 — L25 surplus-paint bug investigation
+====================================================
+Cause (reproduced):
+  L25 totals: red=4, teal=5, yellow=4, orange=4, green=4
+  caps: [4,4,4,4,5,4,4]  — only flask index 4 has capacity 5
+  Under v4.1.3, any full mono flask auto-corks. Filling a size-4 with
+  4 teal corks irreversibly while 1 teal remains → cannot form a
+  flaskComplete of size 5 → level unfinishable (Alex report).
+
+Rule mismatch proof:
+  canPartition(rem=1, avail caps ≥3) = False
+  canSafelyCork(4-teal in size-4 | total teal=5) = False  (v4.1.4)
+  Runtime path [(0,6,2),(0,6,2),(1,4,1),(5,0,1),(5,1,1),(4,5,2)]
+  reaches flask5 = [teal×4] uncorked, rem teal=1 elsewhere.
+  v4.1.4 leaves it pourable; v4.1.3 would cork and strand.
+
+Fix:
+  canSafelyCork + canPartitionCaps before tryCompleteFlask / pre-cork /
+  hint-solver cork. Also refuse corking collectorColor while collector
+  active (L62 was pre-corking 4 blue away from the vessel).
+  BOSS_TITLES → BOSS_TITLE_KEYS (startBoss ReferenceError on L25 mini-boss).
+
+Win replay (engine + Playwright):
+  solution 14 moves (BFS faithful, 9543 states), replay ok
+  final: orange/yellow/green/red corked size-4; teal corked size-5 (5 units)
+  win → Мини-босс → boss bakery 4×4 → placeBossN complete
+
+Extra flask: adds cap=4; rem=1 still cannot false-win.
+Restart: layout matches initial; no unit create/destroy.
