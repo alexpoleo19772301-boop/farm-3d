@@ -1,8 +1,8 @@
-/* Краски v4.1.4 — safe cork: no stranding leftover paint in smaller flasks */
+/* Краски v4.1.5 — proportional flask sizes by capacity + clearer lock hints */
 (function () {
   'use strict';
-  const VERSION = '4.1.4';
-  const APP_VERSION = { version: '4.1.4', versionCode: 41004, webVersion: '4.1.4' };
+  const VERSION = '4.1.5';
+  const APP_VERSION = { version: '4.1.5', versionCode: 41005, webVersion: '4.1.5' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -12,6 +12,26 @@
     'red|blue': 'purple', 'blue|red': 'purple'
   };
   function flaskCap(f) { return (f && f.cap) ? f.cap : CAP; }
+  /** Max/min capacity among non-collector flasks — drives shared unit height. */
+  function levelCapsInfo() {
+    let maxC = 1, minC = 99, seen = 0, first = 0;
+    let hasVar = false;
+    for (const f of flasks) {
+      if (!f || f.collector) continue;
+      const c = flaskCap(f);
+      if (!seen) { first = c; seen = 1; }
+      else if (c !== first) hasVar = true;
+      if (c > maxC) maxC = c;
+      if (c < minC) minC = c;
+    }
+    if (!seen) { maxC = CAP; minC = CAP; }
+    return { maxC, minC, hasVar: hasVar || (maxC !== minC) };
+  }
+  function colorUnitCount(color) {
+    let n = 0;
+    for (const f of flasks) for (const l of f.layers) if (l.color === color) n++;
+    return n;
+  }
   function mixResult(a, b) { return MIX[a + '|' + b] || null; }
   function colorName(c) { return t('color_' + c) || c; }
   const SAVE_KEY = 'vintiki_save_v40';
@@ -848,29 +868,39 @@
     const topY = Math.max(playfieldTopY(), hudBottomInCanvas() + 12);
     const bottomY = H - 110;
     const areaH = bottomY - topY;
+    const info = levelCapsInfo();
+    const maxC = info.maxC;
+    const BODY_FRAC = 0.74; // bodyTop(-0.32h) .. bodyBot(+0.42h)
     const ci = flasks.findIndex(f => f && f.collector);
     if (ci >= 0 && runCollector) {
-      // Tall central collector + side flasks in a ring/rows around it
+      // Tall central collector + side flasks; sides share unit height from max side cap
       if (i === ci) {
         const h = Math.min(260, areaH * 0.72);
-        return { cx: W * 0.5, cy: topY + areaH * 0.48, w: Math.min(70, W * 0.18), h: h, cellW: 80, cellH: h, tall: true };
+        const need = runCollectorNeed || flaskCap(flasks[ci]);
+        const unitH = Math.max(7, (h * BODY_FRAC - 6) / Math.max(1, need));
+        return { cx: W * 0.5, cy: topY + areaH * 0.48, w: Math.min(70, W * 0.18), h: h, cellW: 80, cellH: h, tall: true, unitH, cap: need, maxC: need };
       }
       const sides = [];
       for (let k = 0; k < n; k++) if (k !== ci) sides.push(k);
       const si = sides.indexOf(i);
       const sn = sides.length;
-      // two columns left / right of center
       const leftN = Math.ceil(sn / 2);
       const onLeft = si < leftN;
       const local = onLeft ? si : si - leftN;
       const colN = onLeft ? leftN : (sn - leftN);
       const cellH = Math.min(150, (areaH - 20) / Math.max(1, colN));
-      const flaskH = Math.min(130, cellH * 0.82);
+      const maxFlaskH = Math.min(130, cellH * 0.82);
       const flaskW = Math.min(48, W * 0.12);
+      let sideMax = 1;
+      for (const k of sides) sideMax = Math.max(sideMax, flaskCap(flasks[k]));
+      const unitH = Math.max(7, (maxFlaskH * BODY_FRAC - 6) / sideMax);
+      const cap = flaskCap(flasks[i]);
+      const flaskH = Math.min(maxFlaskH, Math.max(maxFlaskH * 0.42, (unitH * cap + 6) / BODY_FRAC));
       const cx = onLeft ? W * 0.18 : W * 0.82;
       const y0 = topY + (areaH - colN * cellH) / 2;
-      const cy = y0 + local * cellH + cellH / 2;
-      return { cx, cy, w: flaskW, h: flaskH, cellW: flaskW * 1.4, cellH, tall: false };
+      const baseline = y0 + (local + 1) * cellH - 4;
+      const cy = baseline - flaskH * 0.48;
+      return { cx, cy, w: flaskW, h: flaskH, cellW: flaskW * 1.4, cellH, tall: false, unitH, cap, maxC: sideMax };
     }
     let cols = n <= 5 ? n : (n <= 8 ? Math.ceil(n / 2) : (n <= 12 ? Math.ceil(n / 2) : Math.ceil(n / 3)));
     if (n <= 6) cols = Math.min(n, 6);
@@ -880,7 +910,10 @@
     const cellW = Math.min(78, (W - 24) / cols);
     const cellH = Math.min(areaH / rows, 210);
     const flaskW = Math.min(52, cellW * 0.72);
-    const flaskH = Math.min(160, cellH * 0.85);
+    const maxFlaskH = Math.min(168, cellH * 0.88);
+    const unitH = Math.max(7, (maxFlaskH * BODY_FRAC - 6) / maxC);
+    const cap = flasks[i] ? flaskCap(flasks[i]) : CAP;
+    const flaskH = Math.min(maxFlaskH, Math.max(maxFlaskH * 0.40, (unitH * cap + 6) / BODY_FRAC));
     const row = (i / cols) | 0;
     const col = i % cols;
     const rowCount = Math.min(cols, n - row * cols);
@@ -888,8 +921,9 @@
     const x0 = (W - rowWidth) / 2;
     const y0 = topY + (areaH - rows * cellH) / 2;
     const cx = x0 + col * cellW + cellW / 2;
-    const cy = y0 + row * cellH + cellH / 2 + 10;
-    return { cx, cy, w: flaskW, h: flaskH, cellW, cellH, tall: false };
+    const baseline = y0 + (row + 1) * cellH - 2;
+    const cy = baseline - flaskH * 0.48;
+    return { cx, cy, w: flaskW, h: flaskH, cellW, cellH, tall: false, unitH, cap, maxC };
   }
 
   function flaskAt(x, y) {
@@ -1099,8 +1133,19 @@
     // clip liquids inside body
     ctx.save();
     ctx.clip();
-    const layerH = (bodyBot - bodyTop - 6) / flaskCap(f);
+    const capN = flaskCap(f);
+    const layerH = (L.unitH != null) ? L.unitH : ((bodyBot - bodyTop - 6) / capN);
     const baseY = bodyBot - 4;
+    // capacity ticks (same unit height) — empty slots stay visible
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 1;
+    for (let ti = 1; ti <= capN; ti++) {
+      const ty = baseY - ti * layerH;
+      ctx.beginPath();
+      ctx.moveTo(-w * 0.44, ty);
+      ctx.lineTo(-w * 0.30, ty);
+      ctx.stroke();
+    }
     // during pour, visually reduce src / raise dst
     let visCount = f.layers.length;
     let pendingAdd = 0;
@@ -1225,14 +1270,22 @@
       ctx.fillStyle = 'rgba(20,10,30,0.5)';
       roundRect(ctx, -w * 0.5, -h * 0.5, w, h, 10); ctx.fill();
       const lc = f.lockColor && PAINT[f.lockColor];
+      const needN = f.lockColor ? colorUnitCount(f.lockColor) : 0;
       if (lc) {
         ctx.beginPath();
-        ctx.arc(0, -6, 16, 0, Math.PI * 2);
+        ctx.arc(0, -14, 15, 0, Math.PI * 2);
         ctx.fillStyle = lc.fill; ctx.fill();
         ctx.strokeStyle = '#fff6ff'; ctx.lineWidth = 2; ctx.stroke();
       }
-      ctx.font = '20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('🔒', 0, -6);
+      ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('🔒', 0, -14);
+      ctx.fillStyle = '#ffe8ff';
+      ctx.font = 'bold 11px sans-serif';
+      if (f.lockColor) {
+        ctx.fillText(colorName(f.lockColor), 0, 10);
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('×' + needN, 0, 24);
+      }
     }
     if (f.unlockAnim && f.unlockAnim > 0) {
       const a = f.unlockAnim;
@@ -1277,10 +1330,11 @@
       ctx.fillStyle = '#ffe8ff';
       ctx.fillText(colorName(want), 0, -h * 0.48 - 20);
     }
-    // capacity badge for non-default sizes
-    if (!f.collector && flaskCap(f) !== CAP) {
+    // capacity badge — always when level has mixed sizes, else for non-default
+    if (!f.collector && (levelCapsInfo().hasVar || flaskCap(f) !== CAP)) {
       ctx.fillStyle = 'rgba(30,14,40,0.85)';
       ctx.beginPath(); ctx.arc(w * 0.42, -h * 0.42, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(232,184,240,0.9)'; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.fillStyle = '#ffe8ff'; ctx.font = 'bold 11px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(flaskCap(f)), w * 0.42, -h * 0.42);
@@ -1734,7 +1788,12 @@
       }
       return;
     }
-    if (f.locked) { toast(t('toast_need_color')); playSfx('error', 0.35); return; }
+    if (f.locked) {
+      const key = f.lockColor;
+      const need = key ? colorUnitCount(key) : 0;
+      toast(t('toast_need_color', { color: colorName(key || 'red'), n: need }));
+      playSfx('error', 0.35); return;
+    }
     if (f.corked) { toast(t('toast_done')); return; }
     if (selected < 0) {
       if (!f.layers.length) { playSfx('error', 0.28); return; }

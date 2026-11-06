@@ -1,0 +1,6 @@
+v4.1.5 lock audit (cheap invariants, no hour BFS)
+- 43 lock levels; 0 key-only-inside-lock / missing key / cannot-partition outside self
+- 8 levels key initially only in ice (27,29,34,64,70,88,94,95): by design — cork another color to thaw, then cork key
+- L27 witness: 15 moves, replay ok; red cork thaws orange; orange×5 cork unlocks; win (moveLimit bumped 13→21)
+- L25 safe-cork preserved (14-move win)
+- User lock confusion: paint is NOT under the lock; look other flasks / thaw ice first
