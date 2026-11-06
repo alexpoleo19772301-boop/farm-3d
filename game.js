@@ -1,8 +1,8 @@
-/* Краски v4.1.5 — proportional flask sizes by capacity + clearer lock hints */
+/* Краски v4.1.6 — all ordinary flasks cap=4; only collector is tall */
 (function () {
   'use strict';
-  const VERSION = '4.1.5';
-  const APP_VERSION = { version: '4.1.5', versionCode: 41005, webVersion: '4.1.5' };
+  const VERSION = '4.1.6';
+  const APP_VERSION = { version: '4.1.6', versionCode: 41006, webVersion: '4.1.6' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -891,16 +891,14 @@
       const cellH = Math.min(150, (areaH - 20) / Math.max(1, colN));
       const maxFlaskH = Math.min(130, cellH * 0.82);
       const flaskW = Math.min(48, W * 0.12);
-      let sideMax = 1;
-      for (const k of sides) sideMax = Math.max(sideMax, flaskCap(flasks[k]));
-      const unitH = Math.max(7, (maxFlaskH * BODY_FRAC - 6) / sideMax);
-      const cap = flaskCap(flasks[i]);
+      const unitH = Math.max(7, (maxFlaskH * BODY_FRAC - 6) / CAP);
+      const cap = CAP;
       const flaskH = Math.min(maxFlaskH, Math.max(maxFlaskH * 0.42, (unitH * cap + 6) / BODY_FRAC));
       const cx = onLeft ? W * 0.18 : W * 0.82;
       const y0 = topY + (areaH - colN * cellH) / 2;
       const baseline = y0 + (local + 1) * cellH - 4;
       const cy = baseline - flaskH * 0.48;
-      return { cx, cy, w: flaskW, h: flaskH, cellW: flaskW * 1.4, cellH, tall: false, unitH, cap, maxC: sideMax };
+      return { cx, cy, w: flaskW, h: flaskH, cellW: flaskW * 1.4, cellH, tall: false, unitH, cap, maxC: CAP };
     }
     let cols = n <= 5 ? n : (n <= 8 ? Math.ceil(n / 2) : (n <= 12 ? Math.ceil(n / 2) : Math.ceil(n / 3)));
     if (n <= 6) cols = Math.min(n, 6);
@@ -911,8 +909,8 @@
     const cellH = Math.min(areaH / rows, 210);
     const flaskW = Math.min(52, cellW * 0.72);
     const maxFlaskH = Math.min(168, cellH * 0.88);
-    const unitH = Math.max(7, (maxFlaskH * BODY_FRAC - 6) / maxC);
-    const cap = flasks[i] ? flaskCap(flasks[i]) : CAP;
+    const unitH = Math.max(7, (maxFlaskH * BODY_FRAC - 6) / CAP);
+    const cap = CAP; // all ordinary flasks identical
     const flaskH = Math.min(maxFlaskH, Math.max(maxFlaskH * 0.40, (unitH * cap + 6) / BODY_FRAC));
     const row = (i / cols) | 0;
     const col = i % cols;
@@ -1330,14 +1328,15 @@
       ctx.fillStyle = '#ffe8ff';
       ctx.fillText(colorName(want), 0, -h * 0.48 - 20);
     }
-    // capacity badge — always when level has mixed sizes, else for non-default
-    if (!f.collector && (levelCapsInfo().hasVar || flaskCap(f) !== CAP)) {
+    // capacity badge only on tall collector (ordinary flasks are all the same size)
+    if (f.collector) {
+      const need = runCollectorNeed || flaskCap(f);
       ctx.fillStyle = 'rgba(30,14,40,0.85)';
-      ctx.beginPath(); ctx.arc(w * 0.42, -h * 0.42, 11, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(232,184,240,0.9)'; ctx.lineWidth = 1.5; ctx.stroke();
-      ctx.fillStyle = '#ffe8ff'; ctx.font = 'bold 11px sans-serif';
+      ctx.beginPath(); ctx.arc(w * 0.42, -h * 0.42, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#ffd76a'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = '#ffd76a'; ctx.font = 'bold 11px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(flaskCap(f)), w * 0.42, -h * 0.42);
+      ctx.fillText(String(need), w * 0.42, -h * 0.42);
     }
 
     // selection glow
@@ -1568,7 +1567,7 @@
         mixer: !!(def.mixer && def.mixer[fi]),
         collector: isColl,
         collectorColor: isColl ? (def.collectorColor || null) : null,
-        cap: isColl ? (def.collectorNeed || caps[fi] || 6) : (caps[fi] || CAP),
+        cap: isColl ? (def.collectorNeed || caps[fi] || 6) : CAP,
         unlockAnim: 0, thawAnim: 0,
         corked: false, lift: 0, wobble: 0
       };
@@ -1611,9 +1610,6 @@
     } else if (runTimeLimit > 0 && !save.seenTut.timer) {
       showTut(t('tut_timer_t'), t('tut_timer_b'));
       save.seenTut.timer = 1; persist();
-    } else if (def.caps && def.caps.some(c => c !== CAP) && !save.seenTut.varcap) {
-      showTut(t('tut_varcap_t'), t('tut_varcap_b'));
-      save.seenTut.varcap = 1; persist();
     } else if (def.mixer && def.mixer.some(Boolean) && !save.seenTut.mixing) {
       showTut(t('tut_mixing_t'), t('tut_mixing_b'));
       save.seenTut.mixing = 1; persist();
@@ -1752,6 +1748,13 @@
     $('badge-flask').textContent = save.boosters.flask;
     $('badge-hint').textContent = save.boosters.hint;
     $('ver').textContent = 'v' + VERSION;
+    try {
+      const seen = localStorage.getItem('farm3d_cap4_notice');
+      if (seen !== '4.1.6') {
+        localStorage.setItem('farm3d_cap4_notice', '4.1.6');
+        setTimeout(() => toast(t('toast_cap4_migrate')), 900);
+      }
+    } catch (e) {}
     updateQuestBadge();
   }
 
