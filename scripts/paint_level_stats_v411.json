@@ -1,0 +1,2250 @@
+{
+  "count": 100,
+  "all_bfs": true,
+  "bfs": 100,
+  "approx": 0,
+  "with_frozen": 69,
+  "with_timer": 6,
+  "limits_ok": true,
+  "levels": [
+    {
+      "id": 1,
+      "sol": 3,
+      "limit": 11,
+      "par": 7,
+      "states": 141,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 2,
+      "sol": 4,
+      "limit": 12,
+      "par": 8,
+      "states": 228,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 3,
+      "sol": 4,
+      "limit": 12,
+      "par": 8,
+      "states": 473,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 4,
+      "sol": 6,
+      "limit": 15,
+      "par": 10,
+      "states": 811,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 5,
+      "sol": 4,
+      "limit": 12,
+      "par": 8,
+      "states": 269,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 6,
+      "sol": 3,
+      "limit": 11,
+      "par": 7,
+      "states": 183,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 7,
+      "sol": 6,
+      "limit": 15,
+      "par": 10,
+      "states": 463,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 8,
+      "sol": 5,
+      "limit": 13,
+      "par": 9,
+      "states": 371,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 9,
+      "sol": 9,
+      "limit": 21,
+      "par": 15,
+      "states": 14003,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 10,
+      "sol": 8,
+      "limit": 19,
+      "par": 13,
+      "states": 10890,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 11,
+      "sol": 8,
+      "limit": 15,
+      "par": 11,
+      "states": 8046,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 12,
+      "sol": 7,
+      "limit": 13,
+      "par": 10,
+      "states": 5745,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 13,
+      "sol": 6,
+      "limit": 12,
+      "par": 9,
+      "states": 3844,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 14,
+      "sol": 7,
+      "limit": 13,
+      "par": 10,
+      "states": 4406,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 15,
+      "sol": 6,
+      "limit": 12,
+      "par": 9,
+      "states": 4066,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 16,
+      "sol": 9,
+      "limit": 16,
+      "par": 12,
+      "states": 43514,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 17,
+      "sol": 9,
+      "limit": 16,
+      "par": 12,
+      "states": 33127,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 18,
+      "sol": 7,
+      "limit": 13,
+      "par": 10,
+      "states": 2027,
+      "validated": "bfs",
+      "tags": [
+        "locked"
+      ],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 19,
+      "sol": 8,
+      "limit": 15,
+      "par": 11,
+      "states": 15826,
+      "validated": "bfs",
+      "tags": [],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 20,
+      "sol": 8,
+      "limit": 15,
+      "par": 11,
+      "states": 713,
+      "validated": "bfs",
+      "tags": [
+        "timer",
+        "locked"
+      ],
+      "time": 162,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 21,
+      "sol": 10,
+      "limit": 18,
+      "par": 14,
+      "states": 6604,
+      "validated": "bfs",
+      "tags": [
+        "locked"
+      ],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 22,
+      "sol": 8,
+      "limit": 15,
+      "par": 11,
+      "states": 13693,
+      "validated": "bfs",
+      "tags": [
+        "locked"
+      ],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 23,
+      "sol": 9,
+      "limit": 16,
+      "par": 12,
+      "states": 6513,
+      "validated": "bfs",
+      "tags": [
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "frozen": true
+    },
+    {
+      "id": 24,
+      "sol": 13,
+      "limit": 23,
+      "par": 18,
+      "states": 61653,
+      "validated": "bfs",
+      "tags": [
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 25,
+      "sol": 12,
+      "limit": 21,
+      "par": 16,
+      "states": 23584,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 26,
+      "sol": 8,
+      "limit": 13,
+      "par": 10,
+      "states": 977,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 27,
+      "sol": 8,
+      "limit": 13,
+      "par": 10,
+      "states": 16535,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 28,
+      "sol": 12,
+      "limit": 18,
+      "par": 15,
+      "states": 13196,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 29,
+      "sol": 10,
+      "limit": 16,
+      "par": 13,
+      "states": 24955,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 30,
+      "sol": 12,
+      "limit": 18,
+      "par": 15,
+      "states": 100723,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 31,
+      "sol": 8,
+      "limit": 13,
+      "par": 10,
+      "states": 39200,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 32,
+      "sol": 11,
+      "limit": 17,
+      "par": 14,
+      "states": 39401,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 33,
+      "sol": 9,
+      "limit": 14,
+      "par": 11,
+      "states": 50517,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "frozen": true
+    },
+    {
+      "id": 34,
+      "sol": 7,
+      "limit": 11,
+      "par": 9,
+      "states": 7389,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 35,
+      "sol": 11,
+      "limit": 17,
+      "par": 14,
+      "states": 151911,
+      "validated": "bfs",
+      "tags": [
+        "timer",
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": 195,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 36,
+      "sol": 11,
+      "limit": 17,
+      "par": 14,
+      "states": 34885,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 37,
+      "sol": 11,
+      "limit": 17,
+      "par": 14,
+      "states": 107693,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 38,
+      "sol": 13,
+      "limit": 20,
+      "par": 16,
+      "states": 151700,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 39,
+      "sol": 9,
+      "limit": 14,
+      "par": 11,
+      "states": 23343,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 40,
+      "sol": 4,
+      "limit": 8,
+      "par": 6,
+      "states": 211,
+      "validated": "bfs",
+      "tags": [
+        "mixing",
+        "varcap"
+      ],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 41,
+      "sol": 9,
+      "limit": 14,
+      "par": 11,
+      "states": 86757,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 42,
+      "sol": 8,
+      "limit": 13,
+      "par": 10,
+      "states": 26738,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 43,
+      "sol": 10,
+      "limit": 16,
+      "par": 13,
+      "states": 127832,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2
+      ],
+      "frozen": true
+    },
+    {
+      "id": 44,
+      "sol": 10,
+      "limit": 16,
+      "par": 13,
+      "states": 24633,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 45,
+      "sol": 8,
+      "limit": 13,
+      "par": 10,
+      "states": 57380,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 46,
+      "sol": 9,
+      "limit": 14,
+      "par": 11,
+      "states": 113017,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 47,
+      "sol": 5,
+      "limit": 9,
+      "par": 7,
+      "states": 234,
+      "validated": "bfs",
+      "tags": [
+        "mixing",
+        "varcap"
+      ],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 48,
+      "sol": 6,
+      "limit": 10,
+      "par": 8,
+      "states": 22828,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 49,
+      "sol": 8,
+      "limit": 13,
+      "par": 10,
+      "states": 52850,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 50,
+      "sol": 10,
+      "limit": 16,
+      "par": 13,
+      "states": 62129,
+      "validated": "bfs",
+      "tags": [
+        "timer",
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": 183,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 51,
+      "sol": 14,
+      "limit": 20,
+      "par": 17,
+      "states": 24186,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 52,
+      "sol": 13,
+      "limit": 18,
+      "par": 15,
+      "states": 274593,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 53,
+      "sol": 8,
+      "limit": 12,
+      "par": 10,
+      "states": 50046,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 54,
+      "sol": 4,
+      "limit": 7,
+      "par": 5,
+      "states": 213,
+      "validated": "bfs",
+      "tags": [
+        "mixing",
+        "varcap"
+      ],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 55,
+      "sol": 9,
+      "limit": 13,
+      "par": 11,
+      "states": 11986,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 56,
+      "sol": 10,
+      "limit": 15,
+      "par": 12,
+      "states": 14895,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 57,
+      "sol": 11,
+      "limit": 16,
+      "par": 13,
+      "states": 120487,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 58,
+      "sol": 11,
+      "limit": 16,
+      "par": 13,
+      "states": 21337,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 59,
+      "sol": 6,
+      "limit": 9,
+      "par": 7,
+      "states": 3174,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 60,
+      "sol": 8,
+      "limit": 12,
+      "par": 10,
+      "states": 24456,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 61,
+      "sol": 5,
+      "limit": 8,
+      "par": 6,
+      "states": 222,
+      "validated": "bfs",
+      "tags": [
+        "mixing",
+        "varcap"
+      ],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 62,
+      "sol": 7,
+      "limit": 11,
+      "par": 9,
+      "states": 2300,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 63,
+      "sol": 10,
+      "limit": 15,
+      "par": 12,
+      "states": 55821,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 64,
+      "sol": 9,
+      "limit": 13,
+      "par": 11,
+      "states": 66407,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 65,
+      "sol": 9,
+      "limit": 13,
+      "par": 11,
+      "states": 179963,
+      "validated": "bfs",
+      "tags": [
+        "timer",
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": 165,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 66,
+      "sol": 11,
+      "limit": 16,
+      "par": 13,
+      "states": 130515,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 67,
+      "sol": 12,
+      "limit": 17,
+      "par": 14,
+      "states": 67647,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 68,
+      "sol": 4,
+      "limit": 7,
+      "par": 5,
+      "states": 206,
+      "validated": "bfs",
+      "tags": [
+        "mixing",
+        "varcap"
+      ],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 69,
+      "sol": 7,
+      "limit": 11,
+      "par": 9,
+      "states": 40114,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 70,
+      "sol": 6,
+      "limit": 9,
+      "par": 7,
+      "states": 15167,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 71,
+      "sol": 7,
+      "limit": 11,
+      "par": 9,
+      "states": 246556,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 72,
+      "sol": 10,
+      "limit": 15,
+      "par": 12,
+      "states": 162466,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 73,
+      "sol": 8,
+      "limit": 12,
+      "par": 10,
+      "states": 109683,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 74,
+      "sol": 7,
+      "limit": 11,
+      "par": 9,
+      "states": 74642,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 75,
+      "sol": 4,
+      "limit": 7,
+      "par": 5,
+      "states": 211,
+      "validated": "bfs",
+      "tags": [
+        "mixing",
+        "varcap"
+      ],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 76,
+      "sol": 13,
+      "limit": 16,
+      "par": 14,
+      "states": 51646,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 77,
+      "sol": 9,
+      "limit": 11,
+      "par": 10,
+      "states": 188615,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 78,
+      "sol": 11,
+      "limit": 14,
+      "par": 12,
+      "states": 212554,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 79,
+      "sol": 8,
+      "limit": 10,
+      "par": 9,
+      "states": 143224,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 80,
+      "sol": 7,
+      "limit": 9,
+      "par": 8,
+      "states": 85896,
+      "validated": "bfs",
+      "tags": [
+        "timer",
+        "varcap",
+        "frozen"
+      ],
+      "time": 135,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 81,
+      "sol": 11,
+      "limit": 14,
+      "par": 12,
+      "states": 41986,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 82,
+      "sol": 4,
+      "limit": 6,
+      "par": 5,
+      "states": 258,
+      "validated": "bfs",
+      "tags": [
+        "mixing",
+        "varcap"
+      ],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 83,
+      "sol": 12,
+      "limit": 15,
+      "par": 13,
+      "states": 230133,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 84,
+      "sol": 21,
+      "limit": 26,
+      "par": 23,
+      "states": 56495,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2
+      ],
+      "frozen": true
+    },
+    {
+      "id": 85,
+      "sol": 9,
+      "limit": 11,
+      "par": 10,
+      "states": 56920,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 86,
+      "sol": 10,
+      "limit": 13,
+      "par": 11,
+      "states": 237427,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 87,
+      "sol": 9,
+      "limit": 11,
+      "par": 10,
+      "states": 243488,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 88,
+      "sol": 11,
+      "limit": 14,
+      "par": 12,
+      "states": 175881,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 89,
+      "sol": 5,
+      "limit": 7,
+      "par": 6,
+      "states": 239,
+      "validated": "bfs",
+      "tags": [
+        "mixing",
+        "varcap"
+      ],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 90,
+      "sol": 9,
+      "limit": 11,
+      "par": 10,
+      "states": 150662,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 91,
+      "sol": 8,
+      "limit": 10,
+      "par": 9,
+      "states": 228146,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 92,
+      "sol": 8,
+      "limit": 10,
+      "par": 9,
+      "states": 58411,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 93,
+      "sol": 9,
+      "limit": 11,
+      "par": 10,
+      "states": 173636,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 94,
+      "sol": 11,
+      "limit": 14,
+      "par": 12,
+      "states": 255840,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 95,
+      "sol": 6,
+      "limit": 8,
+      "par": 7,
+      "states": 15839,
+      "validated": "bfs",
+      "tags": [
+        "timer",
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": 123,
+      "thaw": [
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 96,
+      "sol": 4,
+      "limit": 6,
+      "par": 5,
+      "states": 220,
+      "validated": "bfs",
+      "tags": [
+        "mixing",
+        "varcap"
+      ],
+      "time": null,
+      "thaw": null,
+      "frozen": false
+    },
+    {
+      "id": 97,
+      "sol": 7,
+      "limit": 9,
+      "par": 8,
+      "states": 43877,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 98,
+      "sol": 12,
+      "limit": 15,
+      "par": 13,
+      "states": 141500,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "locked",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 99,
+      "sol": 13,
+      "limit": 16,
+      "par": 14,
+      "states": 97273,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    },
+    {
+      "id": 100,
+      "sol": 7,
+      "limit": 9,
+      "par": 8,
+      "states": 102882,
+      "validated": "bfs",
+      "tags": [
+        "varcap",
+        "frozen"
+      ],
+      "time": null,
+      "thaw": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      "frozen": true
+    }
+  ],
+  "elapsed_s": 1754.1
+}

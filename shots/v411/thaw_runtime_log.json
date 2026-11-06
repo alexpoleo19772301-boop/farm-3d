@@ -1,0 +1,113 @@
+[
+  {
+    "t": "start",
+    "moves": 0,
+    "state": "play",
+    "frozen": true,
+    "thawLeft": 1,
+    "top": "green",
+    "n": 4
+  },
+  {
+    "t": "pour",
+    "from": 2,
+    "to": 3,
+    "before": {
+      "moves": 0,
+      "state": "play",
+      "frozen": true,
+      "thawLeft": 1,
+      "top": "green",
+      "n": 4
+    },
+    "after": {
+      "moves": 1,
+      "state": "play",
+      "frozen": true,
+      "thawLeft": 1,
+      "top": "green",
+      "n": 4
+    }
+  },
+  {
+    "t": "pour",
+    "from": 1,
+    "to": 5,
+    "before": {
+      "moves": 1,
+      "state": "play",
+      "frozen": true,
+      "thawLeft": 1,
+      "top": "green",
+      "n": 4
+    },
+    "after": {
+      "moves": 2,
+      "state": "play",
+      "frozen": true,
+      "thawLeft": 1,
+      "top": "green",
+      "n": 4
+    }
+  },
+  {
+    "t": "pour",
+    "from": 1,
+    "to": 5,
+    "before": {
+      "moves": 2,
+      "state": "play",
+      "frozen": true,
+      "thawLeft": 1,
+      "top": "green",
+      "n": 4
+    },
+    "after": {
+      "moves": 3,
+      "state": "play",
+      "frozen": true,
+      "thawLeft": 1,
+      "top": "green",
+      "n": 4
+    }
+  },
+  {
+    "t": "pour",
+    "from": 1,
+    "to": 5,
+    "before": {
+      "moves": 3,
+      "state": "play",
+      "frozen": true,
+      "thawLeft": 1,
+      "top": "green",
+      "n": 4
+    },
+    "after": {
+      "moves": 4,
+      "state": "play",
+      "frozen": false,
+      "thawLeft": 0,
+      "top": "green",
+      "n": 4
+    }
+  },
+  {
+    "t": "THAWED",
+    "moves": 4,
+    "state": "play",
+    "frozen": false,
+    "thawLeft": 0,
+    "top": "green",
+    "n": 4
+  },
+  {
+    "t": "end",
+    "moves": 11,
+    "state": "win",
+    "frozen": false,
+    "thawLeft": 0,
+    "top": "teal",
+    "n": 4
+  }
+]

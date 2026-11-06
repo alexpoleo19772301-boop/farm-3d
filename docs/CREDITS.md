@@ -50,3 +50,6 @@ Kenney UI Audio также зеркалирован на OpenGameArt: [51 UI sou
 - `sfx_pour.ogg` был почти неслышен (mean ≈ −68 dB, peak ≈ 0.008). Пересобран + loudnorm ≈ −16 LUFS; остальные SFX нормализованы.
 - WebAudio buffer + пул HTMLAudio; unlock на первом жесте (Android WebView).
 - Фоны: `assets/bg/bg_workshop.webp`, `bg_landscape.webp`, `bg_hills.webp` (cover, dim, particles).
+
+### sfx_ice_crack.ogg (v4.1.1)
+Original procedural ice-crack synthesized for this project (CC0 / public domain).

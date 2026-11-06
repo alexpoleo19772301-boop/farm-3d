@@ -45,3 +45,6 @@ Kenney UI Audio также зеркалирован на OpenGameArt: [51 UI sou
 ## OTA (v4.0.2)
 
 Исправлен OTA: приложение снова качает `version.json` + `www.zip` с GitHub Releases через Capacitor `AppUpdate` (в v4.0.0–4.0.1 остался только локальный reload). Старые резкие `assets/audio/sfx_*.wav|ogg` удалены; только `assets/audio/sfx/`.
+
+### sfx_ice_crack.ogg (v4.1.1)
+Original procedural ice-crack synthesized for this project (CC0 / public domain).

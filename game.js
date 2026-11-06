@@ -1,8 +1,8 @@
-/* Краски v4.1.0 — move limit, color locks, timer, varcap, mixing */
+/* Краски v4.1.1 — thawable frozen flasks */
 (function () {
   'use strict';
-  const VERSION = '4.1.0';
-  const APP_VERSION = { version: '4.1.0', versionCode: 41000, webVersion: '4.1.0' };
+  const VERSION = '4.1.1';
+  const APP_VERSION = { version: '4.1.1', versionCode: 41001, webVersion: '4.1.1' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -529,6 +529,7 @@
   }
   function flaskComplete(f) {
     if (f.corked) return true;
+    if (f.frozen) return false; // ice blocks completion until thawed
     if (!f.layers.length) return false;
     if (f.mixer) return false; // mixer never corks — pour result out
     const cap = flaskCap(f);
@@ -570,7 +571,8 @@
       layers: f.layers.map(l => ({ color: l.color, hidden: !!l.hidden })),
       frozen: !!f.frozen, locked: !!f.locked, corked: !!f.corked,
       cap: flaskCap(f), lockColor: f.lockColor || null, mixer: !!f.mixer,
-      unlockAnim: 0, lift: 0, wobble: 0
+      thawLeft: f.thawLeft | 0, thawMax: f.thawMax | 0,
+      unlockAnim: 0, thawAnim: 0, lift: 0, wobble: 0
     }));
   }
   function pushHistory() {
@@ -589,8 +591,40 @@
     }
   }
 
+  function spawnIceShards(cx, cy) {
+    for (let i = 0; i < 18; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 60 + Math.random() * 140;
+      particles.push({
+        x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40,
+        color: i % 2 ? '#E8F6FF' : '#A8D8F0', life: 0.7 + Math.random() * 0.5, t: 0,
+        ice: true, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 8, sz: 3 + Math.random() * 5
+      });
+    }
+  }
+  function tickThawFromComplete() {
+    let thawed = 0;
+    for (const o of flasks) {
+      if (!o.frozen || !(o.thawLeft > 0)) continue;
+      o.thawLeft = Math.max(0, (o.thawLeft | 0) - 1);
+      if (o.thawLeft === 0) {
+        o.frozen = false;
+        o.thawAnim = 1;
+        thawed++;
+        const L = flaskLayout(flasks.indexOf(o));
+        spawnIceShards(L.cx, L.cy);
+        playSfx('ice', 0.7);
+        buzz([12, 30, 12]);
+        toast(t('toast_thaw'));
+      } else {
+        playSfx('clunk', 0.25);
+        toast(t('toast_ice_crack', { n: o.thawLeft | 0 }));
+      }
+    }
+    return thawed;
+  }
   function tryCompleteFlask(f, idx) {
-    if (f.corked) return;
+    if (f.corked || f.frozen) return;
     if (!flaskComplete(f)) return;
     f.corked = true;
     playSfx('cork', 0.5); playSfx('star', 0.28); buzz(18);
@@ -605,6 +639,7 @@
       }
     }
     if (unlocked) { toast(t('toast_unlock')); playSfx('box', 0.4); }
+    tickThawFromComplete();
   }
 
   function checkWin() {
@@ -1002,12 +1037,36 @@
       roundRect(ctx, -neckW + 2, -h * 0.50, neckW * 2 - 4, 6, 2); ctx.fill();
     }
 
-    // frozen overlay
+    // frozen overlay + thaw counter / crack stages
     if (f.frozen) {
-      ctx.fillStyle = 'rgba(180,220,255,0.35)';
+      const left = f.thawLeft | 0;
+      const maxT = Math.max(1, f.thawMax | left | 1);
+      const cracked = 1 - (left / maxT); // 0 fresh → ~1 almost thawed
+      const alpha = 0.28 + 0.22 * (1 - cracked);
+      ctx.fillStyle = 'rgba(180,220,255,' + alpha + ')';
       roundRect(ctx, -w * 0.5, -h * 0.5, w, h, 10); ctx.fill();
-      ctx.font = '20px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('❄️', 0, 0);
+      // crack lines grow as left decreases
+      if (cracked > 0.05) {
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 + cracked * 0.5) + ')';
+        ctx.lineWidth = 1.5 + cracked;
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.2, -h * 0.25); ctx.lineTo(w * 0.1, h * 0.05); ctx.lineTo(-w * 0.05, h * 0.3);
+        if (cracked > 0.35) { ctx.moveTo(w * 0.15, -h * 0.2); ctx.lineTo(-w * 0.1, h * 0.15); }
+        if (cracked > 0.6) { ctx.moveTo(-w * 0.35, 0); ctx.lineTo(w * 0.3, h * 0.25); }
+        ctx.stroke();
+      }
+      ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#E8F6FF';
+      ctx.fillText('❄️' + left, 0, 0);
+    }
+    if (f.thawAnim && f.thawAnim > 0) {
+      const a = f.thawAnim;
+      ctx.globalAlpha = Math.min(1, a);
+      ctx.font = (16 + (1 - a) * 18) + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('💧', 0, -10 - (1 - a) * 28);
+      ctx.globalAlpha = 1;
+      f.thawAnim = Math.max(0, a - dt * 1.2);
     }
     if (f.locked) {
       ctx.fillStyle = 'rgba(20,10,30,0.5)';
@@ -1124,13 +1183,16 @@
     const lockCol = flasks.map(f => f.lockColor || null);
     let locked0 = flasks.map(f => !!f.locked);
     const corked0 = flasks.map(f => !!f.corked);
-    const frozen0 = flasks.map(f => !!f.frozen);
+    const thaw0 = flasks.map(f => f.thawLeft | 0);
     const start = flasks.map(f => f.layers.map(l => l.color));
-    function norm(st, lk) { return st.map(a => a.join(',')).join('|') + '#' + lk.map(x => x ? 1 : 0).join(''); }
-    function won(st, lk) {
+    function norm(st, lk, th, ck) {
+      return st.map(a => a.join(',')).join('|') + '#' + lk.map(x => x ? 1 : 0).join('')
+        + '@' + th.join(',') + '!' + ck.map(x => x ? 1 : 0).join('');
+    }
+    function won(st, lk, th, ck) {
       for (let i = 0; i < N; i++) {
-        if (lk[i]) return false;
-        if (corked0[i]) continue;
+        if (lk[i] || th[i] > 0) return false;
+        if (ck[i]) continue;
         if (mixer[i]) { if (st[i].length) return false; continue; }
         if (!st[i].length) continue;
         if (st[i].length !== caps[i]) return false;
@@ -1144,8 +1206,8 @@
       for (let i = a.length - 1; i >= 0; i--) { if (a[i] !== c) break; n++; }
       return [c, n];
     }
-    function can(st, lk, i, j) {
-      if (lk[i] || lk[j] || frozen0[i] || frozen0[j] || corked0[i] || corked0[j]) return 0;
+    function can(st, lk, th, ck, i, j) {
+      if (lk[i] || lk[j] || th[i] > 0 || th[j] > 0 || ck[i] || ck[j]) return 0;
       if (!st[i].length) return 0;
       const [c, n] = topR(st[i]);
       if (mixer[j]) {
@@ -1159,9 +1221,11 @@
       if (st[j][st[j].length - 1] !== c) return 0;
       return Math.min(n, caps[j] - st[j].length);
     }
-    function apply(st, lk, i, j, amt) {
+    function apply(st, lk, th, ck, i, j, amt) {
       const nf = st.map(a => a.slice());
       const nl = lk.slice();
+      const nt = th.slice();
+      const nc = ck.slice();
       if (mixer[j] && nf[j].length === 1 && mixResult(nf[j][0], nf[i][nf[i].length - 1])) {
         const poured = nf[i].pop();
         const existing = nf[j].pop();
@@ -1170,31 +1234,33 @@
         for (let k = 0; k < amt; k++) nf[j].push(nf[i].pop());
       }
       for (let fi = 0; fi < N; fi++) {
-        if (mixer[fi]) continue;
+        if (mixer[fi] || nc[fi]) continue;
         if (nf[fi].length === caps[fi] && nf[fi].every(c => c === nf[fi][0])) {
+          nc[fi] = true;
           const kc = nf[fi][0];
           for (let k = 0; k < N; k++) if (nl[k] && lockCol[k] === kc) nl[k] = false;
+          for (let k = 0; k < N; k++) if (nt[k] > 0) nt[k]--;
         }
       }
-      return [nf, nl];
+      return [nf, nl, nt, nc];
     }
-    const q = [[start, locked0, []]];
-    const seen = new Set([norm(start, locked0)]);
+    const q = [[start, locked0, thaw0, corked0.slice(), []]];
+    const seen = new Set([norm(start, locked0, thaw0, corked0)]);
     let guard = 0;
     while (q.length && guard++ < 80000) {
-      const [st, lk, path] = q.shift();
-      if (won(st, lk)) return path[0] || null;
+      const [st, lk, th, ck, path] = q.shift();
+      if (won(st, lk, th, ck)) return path[0] || null;
       if (path.length > 30) continue;
       for (let i = 0; i < N; i++) {
         for (let j = 0; j < N; j++) {
           if (i === j) continue;
-          const amt = can(st, lk, i, j);
+          const amt = can(st, lk, th, ck, i, j);
           if (!amt) continue;
-          const [ns, nl] = apply(st, lk, i, j, amt);
-          const key = norm(ns, nl);
+          const [ns, nl, nt, nc] = apply(st, lk, th, ck, i, j, amt);
+          const key = norm(ns, nl, nt, nc);
           if (seen.has(key)) continue;
           seen.add(key);
-          q.push([ns, nl, path.concat([{ from: i, to: j }])]);
+          q.push([ns, nl, nt, nc, path.concat([{ from: i, to: j }])]);
         }
       }
     }
@@ -1219,19 +1285,33 @@
     runTimeLimit = def.timeLimit || 0;
     runTimeLeft = runTimeLimit;
     timerPaused = false;
+    const thawArr = def.thawAfter || def.thaw || [];
     flasks = def.flasks.map((arr, fi) => {
       const hidden = (def.hidden && def.hidden[fi]) || [];
       const caps = def.caps || [];
+      const thawN = (thawArr[fi] | 0);
+      const isFrozen = thawN > 0 || !!(def.frozen && def.frozen[fi]);
       return {
         layers: arr.map((c, li) => ({ color: c, hidden: !!hidden[li] })),
-        frozen: !!(def.frozen && def.frozen[fi]),
+        frozen: isFrozen,
+        thawLeft: isFrozen ? Math.max(1, thawN || 1) : 0,
+        thawMax: isFrozen ? Math.max(1, thawN || 1) : 0,
         locked: !!(def.locked && def.locked[fi]),
         lockColor: (def.lockColor && def.lockColor[fi]) || null,
         mixer: !!(def.mixer && def.mixer[fi]),
         cap: caps[fi] || CAP,
-        unlockAnim: 0,
+        unlockAnim: 0, thawAnim: 0,
         corked: false, lift: 0, wobble: 0
       };
+    });
+    // Cork flasks already full-mono at start WITHOUT counting toward thaw
+    // (deliberate: pre-solved flasks don't crack ice).
+    flasks.forEach((f) => {
+      if (f.frozen || f.mixer || f.corked) return;
+      const cap = flaskCap(f);
+      if (f.layers.length === cap && f.layers.every(l => l.color === f.layers[0].color) && !f.layers.some(l => l.hidden)) {
+        f.corked = true;
+      }
     });
     state = 'play';
     showScreen('play');
@@ -1259,8 +1339,9 @@
     } else if (def.mixer && def.mixer.some(Boolean) && !save.seenTut.mixing) {
       showTut(t('tut_mixing_t'), t('tut_mixing_b'));
       save.seenTut.mixing = 1; persist();
-    } else if (def.frozen && !save.seenTut.frozen) {
-      showTut(t('tut_frozen_t'), t('tut_frozen_b'));
+    } else if ((def.thawAfter || def.frozen) && flasks.some(f => f.frozen) && !save.seenTut.frozen) {
+      const n = Math.max(...flasks.map(f => f.thawLeft | 0), 1);
+      showTut(t('tut_frozen_t'), t('tut_frozen_b', { n: n }));
       save.seenTut.frozen = 1; persist();
     }
   }
@@ -1400,7 +1481,16 @@
     const i = flaskAt(x, y);
     if (i < 0) { selected = -1; return; }
     const f = flasks[i];
-    if (f.frozen) { toast(t('toast_ice')); playSfx('error', 0.35); return; }
+    if (f.frozen) {
+      const n = f.thawLeft | 0;
+      toast(t('toast_ice_left', { n: n }));
+      playSfx('error', 0.28);
+      if (!save.seenTut.frozenTap) {
+        showTut(t('tut_frozen_t'), t('tut_frozen_tap', { n: n }));
+        save.seenTut.frozenTap = 1; persist();
+      }
+      return;
+    }
     if (f.locked) { toast(t('toast_need_color')); playSfx('error', 0.35); return; }
     if (f.corked) { toast(t('toast_done')); return; }
     if (selected < 0) {
@@ -1450,7 +1540,7 @@
     if (save.boosters.flask <= 0) { toast(t('toast_no_flask')); return; }
     if (flasks.length >= 16) { toast(t('toast_too_many')); return; }
     save.boosters.flask--; runUsedBooster = true; persist();
-    flasks.push({ layers: [], frozen: false, locked: false, corked: false, cap: CAP, mixer: false, lockColor: null, unlockAnim: 0, lift: 0, wobble: 0 });
+    flasks.push({ layers: [], frozen: false, locked: false, corked: false, cap: CAP, mixer: false, lockColor: null, thawLeft: 0, thawMax: 0, unlockAnim: 0, thawAnim: 0, lift: 0, wobble: 0 });
     refreshHud(); playSfx('box', 0.4); toast(t('toast_flask_plus'));
   }
   function useHint() {
@@ -1684,7 +1774,15 @@
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i]; p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 200 * dt;
         const a = 1 - p.t / p.life; if (a <= 0) { particles.splice(i, 1); continue; }
-        ctx.globalAlpha = a; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+        ctx.globalAlpha = a; ctx.fillStyle = p.color;
+        if (p.ice) {
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate((p.rot || 0) + (p.vr || 0) * p.t);
+          ctx.fillRect(-(p.sz || 4) / 2, -(p.sz || 4) / 2, p.sz || 4, (p.sz || 4) * 0.6);
+          ctx.restore();
+        } else {
+          ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
       }
       for (let i = confetti.length - 1; i >= 0; i--) {
         const c = confetti[i]; c.life -= dt; c.x += c.vx * dt; c.y += c.vy * dt; c.rot += c.vr;
@@ -1989,6 +2087,7 @@
     loadAudio('coin', SFX + 'sfx_coin.ogg');
     loadAudio('star', SFX + 'sfx_star.ogg');
     loadAudio('undo', SFX + 'sfx_undo.ogg');
+    loadAudio('ice', SFX + 'sfx_ice_crack.ogg');
     for (const b of BG_SET) {
       const im = new Image();
       im.src = b.file;
@@ -2012,7 +2111,8 @@
     window.__V = {
       VERSION, startLevel, startBoss, endLose, buyLoseBoost, getBoss: () => boss && ({ done: boss.done, total: boss.pieces.length, placed: boss.pieces.filter(p => p.placed).length }),
       placeBossN: (n) => { if (!boss) return 0; let k = 0; for (const p of boss.pieces) { if (p.placed) continue; p.x = p.correctX; p.y = p.correctY; p.placed = true; p.inTray = false; k++; if (k >= n) break; } layoutBossTray(); if (boss.pieces.every(q => q.placed)) completeBoss(); return k; },
-      getState: () => ({ state, levelIdx, moves, moveLimit: runMoveLimit, timeLeft: runTimeLeft, selected, flasks: flasks.map(f => ({ n: f.layers.length, cap: flaskCap(f), corked: f.corked, frozen: f.frozen, locked: f.locked, lockColor: f.lockColor, mixer: !!f.mixer, top: f.layers.length ? f.layers[f.layers.length-1].color : null })), pour: !!pourAnim }),
+      getState: () => ({ state, levelIdx, moves, moveLimit: runMoveLimit, timeLeft: runTimeLeft, selected, flasks: flasks.map(f => ({ n: f.layers.length, cap: flaskCap(f), corked: f.corked, frozen: f.frozen, thawLeft: f.thawLeft|0, locked: f.locked, lockColor: f.lockColor, mixer: !!f.mixer, top: f.layers.length ? f.layers[f.layers.length-1].color : null })), pour: !!pourAnim }),
+      forceThawTick: () => tickThawFromComplete(),
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },
       tick: (sec) => { const steps = Math.ceil(sec / 0.016); for (let i = 0; i < steps; i++) { if (pourAnim) { pourAnim.t += 0.016; if (pourAnim.t >= pourAnim.duration) finishPour(); } animT += 0.016; } },
