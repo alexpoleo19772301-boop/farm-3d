@@ -1,0 +1,9 @@
+{
+  "version": "4.1.2",
+  "versionCode": 41002,
+  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
+  "webVersion": "4.1.2",
+  "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
+  "force": false,
+  "changelog": "• Кнопка «Заново» на игровом экране (не путать с ↻ Обновить); подтверждение если были ходы; пауза таймера; сброс только попытки\n• Уровни-коллекторы: высокий сосуд в центре, только целевой цвет, прогресс N/Need, вылить нельзя; цель = заполнить сосуд\n• Первые коллекторы: 12,22,32,42,52,62,72,82,92; туториал ru/uk/en\n• 100/100 exact BFS; wrong color не тратит ход; restart восстанавливает лёд"
+}
