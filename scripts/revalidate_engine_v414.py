@@ -48,7 +48,7 @@ def can_safely_cork(fi, layers, hidden, caps, corked, mixer, collector, frozen, 
            if a != fi and not corked[a] and not mixer[a] and not collector[a]]
   return can_partition(rem, avail)
 
-def can_pour(layers, hidden, caps, locked, thaw, corked, mixer, collector, coll_color, i, j):
+def can_pour(layers, hidden, caps, locked, thaw, corked, mixer, collector, coll_color, i, j, filters=None):
   if i == j: return 0
   if locked[i] or locked[j]: return 0
   if thaw[i] > 0 or thaw[j] > 0: return 0
@@ -67,6 +67,8 @@ def can_pour(layers, hidden, caps, locked, thaw, corked, mixer, collector, coll_
     a = layers[j][-1]
     if a == color: return 0
     return 1 if frozenset((a, color)) in MIX else 0
+  if filters and filters[j] and color != filters[j]:
+    return 0
   space = caps[j] - len(layers[j])
   if space <= 0: return 0
   if hidden[j] and layers[j] and hidden[j][-1]: return 0
@@ -146,6 +148,8 @@ def init_state(L):
   while len(collector)<n: collector.append(False)
   coll_color = L.get('collectorColor')
   coll_need = L.get('collectorNeed') or 0
+  filters = list(L.get('filterColor') or [None]*n)
+  while len(filters)<n: filters.append(None)
   for i,c in enumerate(collector):
     if c and coll_need: caps[i] = coll_need
   corked = [False]*n
@@ -156,10 +160,10 @@ def init_state(L):
       color = layers[i][0]
       for k,lc in enumerate(lock_color):
         if locked[k] and lc == color: locked[k] = False
-  return layers, hidden, caps, locked, lock_color, thaw, corked, mixer, collector, coll_color, coll_need
+  return layers, hidden, caps, locked, lock_color, thaw, corked, mixer, collector, coll_color, coll_need, filters
 
 def bfs_solve(L, max_states=500000, max_depth=100):
-  layers, hidden, caps, locked, lock_color, thaw, corked, mixer, collector, coll_color, coll_need = init_state(L)
+  layers, hidden, caps, locked, lock_color, thaw, corked, mixer, collector, coll_color, coll_need, filters = init_state(L)
   n = len(layers)
   start = norm(layers, hidden, locked, thaw, corked)
   if is_won(layers, hidden, caps, locked, thaw, corked, mixer, collector, coll_color, coll_need):
@@ -173,7 +177,7 @@ def bfs_solve(L, max_states=500000, max_depth=100):
       return path, len(seen), True
     for i in range(n):
       for j in range(n):
-        amt = can_pour(layers, hidden, caps, locked, thaw, corked, mixer, collector, coll_color, i, j)
+        amt = can_pour(layers, hidden, caps, locked, thaw, corked, mixer, collector, coll_color, i, j, filters)
         if amt <= 0: continue
         nl, nh, lk, th, ck = apply_pour(layers, hidden, caps, locked, lock_color, thaw, corked, mixer, collector, i, j, amt, coll_color)
         key = norm(nl, nh, lk, th, ck)
@@ -185,9 +189,9 @@ def bfs_solve(L, max_states=500000, max_depth=100):
   return None, len(seen), False
 
 def replay(L, path):
-  layers, hidden, caps, locked, lock_color, thaw, corked, mixer, collector, coll_color, coll_need = init_state(L)
+  layers, hidden, caps, locked, lock_color, thaw, corked, mixer, collector, coll_color, coll_need, filters = init_state(L)
   for step, (i,j,amt) in enumerate(path):
-    a = can_pour(layers, hidden, caps, locked, thaw, corked, mixer, collector, coll_color, i, j)
+    a = can_pour(layers, hidden, caps, locked, thaw, corked, mixer, collector, coll_color, i, j, filters)
     if a <= 0: return False, f'step{step} illegal {(i,j,amt)} got {a}'
     use = min(a, amt)
     layers, hidden, locked, thaw, corked = apply_pour(layers, hidden, caps, locked, lock_color, thaw, corked, mixer, collector, i, j, use, coll_color)[:5]

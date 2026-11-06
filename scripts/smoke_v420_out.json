@@ -1,0 +1,36 @@
+{
+  "ver": "4.2.0",
+  "pack": "4.2.0",
+  "tests": [
+    {
+      "n": "version",
+      "ok": true,
+      "d": "4.2.0"
+    },
+    {
+      "n": "palette_distinct",
+      "ok": true,
+      "d": "{\"red\":\"#FF2A32\",\"brown\":\"#4A2A12\",\"orange\":\"#FF7A00\"}"
+    },
+    {
+      "n": "wrong_filter_no_move",
+      "ok": true,
+      "d": "{\"skip\":false,\"r\":false,\"movesBefore\":0,\"movesAfter\":0,\"src\":0,\"filterIdx\":7,\"filterCol\":\"red\"}"
+    },
+    {
+      "n": "win_L56",
+      "ok": true,
+      "d": "win"
+    },
+    {
+      "n": "win_L90",
+      "ok": true,
+      "d": "win"
+    },
+    {
+      "n": "win_L100",
+      "ok": true,
+      "d": "win"
+    }
+  ]
+}

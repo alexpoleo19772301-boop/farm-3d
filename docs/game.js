@@ -1,8 +1,8 @@
-/* ColorFlow v4.1.9 — branding ColorFlow icon */
+/* ColorFlow v4.2.0 — big icon, distinct brown/red, filters+harder pack */
 (function () {
   'use strict';
-  const VERSION = '4.1.9';
-  const APP_VERSION = { version: '4.1.9', versionCode: 41009, webVersion: '4.1.9' };
+  const VERSION = '4.2.0';
+  const APP_VERSION = { version: '4.2.0', versionCode: 42000, webVersion: '4.2.0' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -47,15 +47,15 @@
   // Colour-blind friendly vivid paints (Okabe–Ito + extras)
   const PAINT = {
     // v4.0.7 high-contrast palette (CIEDE2000 min≈15.7; green↔blue ≈67)
-    red:    { fill: '#E53935', gloss: '#F19290', deep: '#85211F', pat: 'hstripes' },
-    orange: { fill: '#FF5A00', gloss: '#FFA673', deep: '#943400', pat: 'diag' },
+    red:    { fill: '#FF2A32', gloss: '#FF8A8E', deep: '#B01018', pat: 'hstripes' },
+    orange: { fill: '#FF7A00', gloss: '#FFB36B', deep: '#A04800', pat: 'diag' },
     yellow: { fill: '#FFD400', gloss: '#FFE773', deep: '#947B00', pat: 'dots' },
-    green:  { fill: '#2ECC40', gloss: '#8CE396', deep: '#1B7625', pat: 'vstripes' },
+    green:  { fill: '#1DB954', gloss: '#7EE0A0', deep: '#0E6B30', pat: 'vstripes' },
     teal:   { fill: '#00C4D8', gloss: '#73DFEA', deep: '#00727D', pat: 'diamonds' },
     blue:   { fill: '#1F4FE0', gloss: '#849EEE', deep: '#122E82', pat: 'cross' },
     purple: { fill: '#9C27B0', gloss: '#C988D4', deep: '#5A1766', pat: 'chevron' },
     pink:   { fill: '#FF2D92', gloss: '#FF8CC3', deep: '#941A55', pat: 'rings' },
-    brown:  { fill: '#6B3A1F', gloss: '#AE9384', deep: '#3E2212', pat: 'bricks' },
+    brown:  { fill: '#4A2A12', gloss: '#8B6238', deep: '#2A1608', pat: 'bricks' },
     lime:   { fill: '#B8F000', gloss: '#D8F773', deep: '#6B8B00', pat: 'plus' },
     indigo: { fill: '#2A1268', gloss: '#8A7DAC', deep: '#180A3C', pat: 'tri' },
     coral:  { fill: '#FFB4A2', gloss: '#FFD5CB', deep: '#94685E', pat: 'waves' }
@@ -635,6 +635,9 @@
       return mixResult(a, color) ? 1 : 0;
     }
 
+    // Color filter flask: only accepts its indicated color (wrong pour = 0, no move spent)
+    if (dst.filterColor && color !== dst.filterColor) return 0;
+
     if (dst.layers.length >= dcap) return 0;
     if (!dst.layers.length) return Math.min(n, dcap - dst.layers.length);
     const dt = dst.layers[dst.layers.length - 1];
@@ -647,7 +650,7 @@
     return flasks.map(f => ({
       layers: f.layers.map(l => ({ color: l.color, hidden: !!l.hidden })),
       frozen: !!f.frozen, locked: !!f.locked, corked: !!f.corked,
-      cap: flaskCap(f), lockColor: f.lockColor || null, mixer: !!f.mixer,
+      cap: flaskCap(f), lockColor: f.lockColor || null, filterColor: f.filterColor || null, mixer: !!f.mixer,
       collector: !!f.collector, collectorColor: f.collectorColor || null,
       thawLeft: f.thawLeft | 0, thawMax: f.thawMax | 0,
       unlockAnim: 0, thawAnim: 0, lift: 0, wobble: 0
@@ -1300,6 +1303,20 @@
       ctx.globalAlpha = 1;
       f.unlockAnim = Math.max(0, a - dt * 1.4);
     }
+    if (f.filterColor && !f.collector && !f.mixer) {
+      const fp = PAINT[f.filterColor] || PAINT.red;
+      // funnel/filter ring at mouth — distinct from lock padlock
+      ctx.save();
+      ctx.translate(0, -h * 0.52);
+      ctx.beginPath();
+      ctx.moveTo(-12, -6); ctx.lineTo(12, -6); ctx.lineTo(6, 8); ctx.lineTo(-6, 8); ctx.closePath();
+      ctx.fillStyle = fp.fill; ctx.fill();
+      ctx.strokeStyle = '#fff6ff'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = '#ffe8ff';
+      ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(colorName(f.filterColor), 0, 10);
+      ctx.restore();
+    }
     if (f.mixer) {
       ctx.strokeStyle = '#ffd76a';
       ctx.lineWidth = 3;
@@ -1431,6 +1448,7 @@
     const collColor = runCollectorColor;
     const collNeed = runCollectorNeed;
     const lockCol = flasks.map(f => f.lockColor || null);
+    const filterCol = flasks.map(f => f.filterColor || null);
     let locked0 = flasks.map(f => !!f.locked);
     const corked0 = flasks.map(f => !!f.corked);
     const thaw0 = flasks.map(f => f.thawLeft | 0);
@@ -1480,6 +1498,7 @@
         if (st[j][st[j].length - 1] === c) return 0;
         return mixResult(st[j][st[j].length - 1], c) ? 1 : 0;
       }
+      if (filterCol[j] && c !== filterCol[j]) return 0;
       if (st[j].length >= caps[j]) return 0;
       if (!st[j].length) return Math.min(n, caps[j] - st[j].length);
       if (st[j][st[j].length - 1] !== c) return 0;
@@ -1583,6 +1602,7 @@
         thawMax: (isFrozen && !isColl) ? Math.max(1, thawN || 1) : 0,
         locked: !!(def.locked && def.locked[fi]) && !isColl,
         lockColor: (def.lockColor && def.lockColor[fi]) || null,
+        filterColor: (def.filterColor && def.filterColor[fi]) || null,
         mixer: !!(def.mixer && def.mixer[fi]),
         collector: isColl,
         collectorColor: isColl ? (def.collectorColor || null) : null,
@@ -1769,8 +1789,8 @@
     $('ver').textContent = 'v' + VERSION;
     try {
       const seen = localStorage.getItem('farm3d_cap4_notice');
-      if (seen !== '4.1.9') {
-        localStorage.setItem('farm3d_cap4_notice', '4.1.9');
+      if (seen !== '4.2.0') {
+        localStorage.setItem('farm3d_cap4_notice', '4.2.0');
         setTimeout(() => toast(t('toast_cap4_migrate')), 900);
       }
     } catch (e) {}
@@ -1864,7 +1884,7 @@
     if (save.boosters.flask <= 0) { toast(t('toast_no_flask')); return; }
     if (flasks.length >= 16) { toast(t('toast_too_many')); return; }
     save.boosters.flask--; runUsedBooster = true; persist();
-    flasks.push({ layers: [], frozen: false, locked: false, corked: false, cap: CAP, mixer: false, lockColor: null, thawLeft: 0, thawMax: 0, unlockAnim: 0, thawAnim: 0, lift: 0, wobble: 0 });
+    flasks.push({ layers: [], frozen: false, locked: false, corked: false, cap: CAP, mixer: false, lockColor: null, filterColor: null, thawLeft: 0, thawMax: 0, unlockAnim: 0, thawAnim: 0, lift: 0, wobble: 0 });
     refreshHud(); playSfx('box', 0.4); toast(t('toast_flask_plus'));
   }
   function useHint() {
