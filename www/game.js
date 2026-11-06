@@ -1,8 +1,8 @@
-/* Краски v4.1.7 — harder progressive cap4 pack */
+/* Краски v4.1.8 — new-game reset (campaign) */
 (function () {
   'use strict';
-  const VERSION = '4.1.7';
-  const APP_VERSION = { version: '4.1.7', versionCode: 41007, webVersion: '4.1.7' };
+  const VERSION = '4.1.8';
+  const APP_VERSION = { version: '4.1.8', versionCode: 41008, webVersion: '4.1.8' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -36,6 +36,7 @@
   function colorName(c) { return t('color_' + c) || c; }
   const SAVE_KEY = 'vintiki_save_v40';
   const LEGACY_KEY = 'vintiki_save_v32';
+  const SAVE_BAK_NEWGAME = 'vintiki_save_v40_bak_newgame';
   const $ = (id) => document.getElementById(id);
   const t = (key, vars) => (window.I18N ? I18N.t(key, vars) : key);
   let langPref = 'auto';
@@ -135,14 +136,19 @@
     return t(BOSS_TITLE_KEYS[((i % n) + n) % n]);
   }
 
-  function loadSave() {
-    const defaults = {
+
+  const PREF_KEYS = ['musicOn', 'musicVol', 'sfxVol', 'vibrateOn', 'trackId', 'pourSfxId', 'langPref', 'colorBlindMode'];
+  function defaultSaveObject() {
+    return {
       unlocked: 1, coins: 120, stars: {},
       musicOn: true, musicVol: 0.40, sfxVol: 0.55, vibrateOn: true, trackId: 1, pourSfxId: 1, langPref: 'auto', colorBlindMode: false,
       boosters: { undo: 5, flask: 2, hint: 3 },
       daily: { lastClaim: null, streak: 0, lastQuestDay: null, quests: [] },
       seenTut: {}, starChests: {}, questBadge: false
     };
+  }
+  function loadSave() {
+    const defaults = defaultSaveObject();
     try {
       let raw = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
       if (!raw) {
@@ -1763,8 +1769,8 @@
     $('ver').textContent = 'v' + VERSION;
     try {
       const seen = localStorage.getItem('farm3d_cap4_notice');
-      if (seen !== '4.1.7') {
-        localStorage.setItem('farm3d_cap4_notice', '4.1.7');
+      if (seen !== '4.1.8') {
+        localStorage.setItem('farm3d_cap4_notice', '4.1.8');
         setTimeout(() => toast(t('toast_cap4_migrate')), 900);
       }
     } catch (e) {}
@@ -2137,6 +2143,8 @@
       confirmReturn = 'boss';
       $('confirm-title').textContent = t('restart_boss_t');
       $('confirm-body').textContent = t('restart_boss_b');
+      const by = $('btn-confirm-yes'); if (by) by.textContent = t('restart_yes');
+      const bn = $('btn-confirm-no'); if (bn) bn.textContent = t('restart_no');
       showScreen('confirm');
       return;
     }
@@ -2148,12 +2156,104 @@
       confirmReturn = 'play';
       $('confirm-title').textContent = t('restart_confirm_t');
       $('confirm-body').textContent = t('restart_confirm_b');
+      const by = $('btn-confirm-yes'); if (by) by.textContent = t('restart_yes');
+      const bn = $('btn-confirm-no'); if (bn) bn.textContent = t('restart_no');
       showScreen('confirm');
       return;
     }
     doRestart();
   }
+  function requestNewGame() {
+    // Only opens confirmation — never resets on open
+    if (settingsReturn === 'play' || state === 'play') timerPaused = true;
+    confirmReturn = 'newgame';
+    $('confirm-title').textContent = t('newgame_confirm_t');
+    $('confirm-body').textContent = t('newgame_confirm_b');
+    const by = $('btn-confirm-yes'); if (by) by.textContent = t('newgame_yes');
+    const bn = $('btn-confirm-no'); if (bn) bn.textContent = t('newgame_no');
+    showScreen('confirm');
+  }
+  function disposeRunState() {
+    // Invalidate delayed win/lose/rewards and clear transient UI
+    outcomeGen++;
+    pourAnim = null;
+    selected = -1;
+    hintMove = null;
+    history = [];
+    particles = [];
+    pendingBossAfterWin = false;
+    boss = null;
+    bossDrag = null;
+    timerPaused = false;
+  }
+  function applyNewGameSave(next) {
+    save = next;
+    // Re-bind runtime prefs from preserved values (already in next)
+    musicOn = save.musicOn !== false;
+    musicVol = (save.musicVol == null ? 0.40 : +save.musicVol);
+    sfxVol = (save.sfxVol == null ? 0.55 : +save.sfxVol);
+    vibrateOn = save.vibrateOn !== false;
+    trackId = save.trackId || 1;
+    pourSfxId = (save.pourSfxId == null ? 1 : (save.pourSfxId | 0));
+    if (pourSfxId < 0 || pourSfxId > 5) pourSfxId = 1;
+    colorBlindMode = !!save.colorBlindMode;
+    langPref = (save.langPref === 'ru' || save.langPref === 'uk' || save.langPref === 'en') ? save.langPref : 'auto';
+    if (window.I18N) I18N.setPref(langPref);
+  }
+  function confirmNewGame() {
+    // If a pour is mid-flight, drop it safely then reset (confirmed)
+    const prevSnap = JSON.stringify(save);
+    try {
+      localStorage.setItem(SAVE_BAK_NEWGAME, prevSnap);
+    } catch (e) { /* backup optional */ }
+
+    const defaults = defaultSaveObject();
+    const next = Object.assign({}, defaults);
+    // Preserve preference keys exactly as currently saved
+    for (const k of PREF_KEYS) {
+      if (save[k] !== undefined) next[k] = save[k];
+    }
+    // Ensure nested booster defaults are fresh copies
+    next.boosters = { undo: 5, flask: 2, hint: 3 };
+    next.stars = {};
+    next.seenTut = {};
+    next.starChests = {};
+    next.questBadge = false;
+    next.daily = { lastClaim: null, streak: 0, lastQuestDay: null, quests: [] };
+    next.unlocked = 1;
+    next.coins = 120;
+
+    // Transactional write: only commit if storage succeeds
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(next));
+      const verify = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+      if (!verify || (verify.unlocked | 0) !== 1 || (verify.coins | 0) !== 120) {
+        throw new Error('verify failed');
+      }
+    } catch (e) {
+      try { localStorage.setItem(SAVE_KEY, prevSnap); } catch (e2) {}
+      toast(t('newgame_fail'));
+      // stay on confirm / return to settings without applying
+      confirmReturn = 'newgame';
+      showScreen('settings');
+      renderSettings();
+      return;
+    }
+
+    disposeRunState();
+    applyNewGameSave(next);
+    ensureQuests();
+    applyI18nDom();
+    refreshHud();
+    applyBgmVol();
+    toast(t('newgame_done'));
+    startLevel(0); // authoritative: campaign begins at level 1
+  }
   function doRestart() {
+    if (confirmReturn === 'newgame') {
+      confirmNewGame();
+      return;
+    }
     timerPaused = false;
     if (confirmReturn === 'boss' || state === 'boss') {
       const bn = Math.floor((levelIdx + 1) / 5) - 1;
@@ -2164,6 +2264,17 @@
     startLevel(levelIdx);
   }
   function cancelRestart() {
+    if (confirmReturn === 'newgame') {
+      // Resume timer only if we came from play via settings
+      if (settingsReturn === 'play') {
+        showScreen('settings');
+        // keep timerPaused true while still in settings; closeSettings resumes
+        return;
+      }
+      timerPaused = false;
+      showScreen('settings');
+      return;
+    }
     timerPaused = false;
     if (confirmReturn === 'boss') {
       state = 'boss';
@@ -2406,6 +2517,7 @@
     const brs = $('btn-restart'); if (brs) brs.onclick = requestRestart;
     const by = $('btn-confirm-yes'); if (by) by.onclick = doRestart;
     const bn = $('btn-confirm-no'); if (bn) bn.onclick = cancelRestart;
+    const bng = $('btn-newgame'); if (bng) bng.onclick = requestNewGame;
     $('btn-settings').onclick = openSettings;
     $('btn-home-settings').onclick = openSettings;
     $('btn-home-sound').onclick = openSettings;
@@ -2483,7 +2595,7 @@
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },
       tick: (sec) => { const steps = Math.ceil(sec / 0.016); for (let i = 0; i < steps; i++) { if (pourAnim) { pourAnim.t += 0.016; if (pourAnim.t >= pourAnim.duration) finishPour(); } animT += 0.016; } },
-      solveHint, openDaily, openSettings, checkOta, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx, getPourOptions, getBgmTracks, langPref: () => langPref, setLanguagePref, applyI18nDom, colorBlindMode: () => colorBlindMode, setColorBlindMode: (on) => { colorBlindMode = !!on; save.colorBlindMode = colorBlindMode; persist(); }, PAINT, getPourSfxId: () => pourSfxId, setPourSfxId: (id) => { pourSfxId = Math.max(0, Math.min(5, id|0)); save.pourSfxId = pourSfxId; persist(); },
+      solveHint, openDaily, openSettings, requestNewGame, confirmNewGame, cancelRestart, requestRestart, doRestart, checkOta, getSave: () => JSON.parse(JSON.stringify(save)), SAVE_KEY, SAVE_BAK_NEWGAME, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx, getPourOptions, getBgmTracks, langPref: () => langPref, setLanguagePref, applyI18nDom, colorBlindMode: () => colorBlindMode, setColorBlindMode: (on) => { colorBlindMode = !!on; save.colorBlindMode = colorBlindMode; persist(); }, PAINT, getPourSfxId: () => pourSfxId, setPourSfxId: (id) => { pourSfxId = Math.max(0, Math.min(5, id|0)); save.pourSfxId = pourSfxId; persist(); },
       ensureBgm, stopBgm, setBgmTrack, countPlayingBgm, stopPreview, getBgmTracks,
       autoSolve: (maxSteps) => {
         let steps = 0;

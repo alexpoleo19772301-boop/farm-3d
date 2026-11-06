@@ -20,6 +20,7 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
 .btn:active{transform:translateY(2px);box-shadow:0 2px 0 #7a2878}
 .btn.ghost{background:linear-gradient(180deg,#5a3a68,#3a2048);color:#ffe8ff;box-shadow:0 4px 0 #201028}
 .btn.green{background:linear-gradient(180deg,#7dcf5a,#3a9a28);color:#14380c;box-shadow:0 4px 0 #1e6010}
+.btn.danger{background:linear-gradient(180deg,#e888a0,#c04060);color:#2a0810;box-shadow:0 4px 0 #801828;min-height:48px;font-size:16px}
 #hud{position:absolute;left:0;right:0;top:0;z-index:4;pointer-events:none;padding:calc(8px + env(safe-area-inset-top)) 10px 0}
 #hud .row{display:flex;gap:8px;align-items:center;pointer-events:auto;flex-wrap:wrap}
 .pill{background:rgba(30,14,40,.85);border:2px solid #d89ae0;border-radius:999px;padding:8px 12px;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:6px;color:#ffe8ff}
@@ -179,6 +180,9 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
       <div class="track-list" id="pour-list"></div>
       <p style="margin:12px 0 6px;font-weight:800;color:#fff6ff;font-size:15px;text-align:left" data-i18n="melody_section">Мелодия</p>
       <div class="track-list" id="track-list"></div>
+      <p style="margin:16px 0 6px;font-weight:800;color:#fff6ff;font-size:15px;text-align:left" data-i18n="newgame_section">Кампания</p>
+      <button type="button" class="btn danger" id="btn-newgame" style="width:100%;min-height:48px;margin-top:4px" data-i18n="newgame_btn">Начать игру сначала</button>
+      <p class="sub" style="margin:6px 0 10px;font-size:12px;opacity:.8" data-i18n="newgame_hint">Не путать с «Заново» — то только текущий уровень.</p>
       <button class="btn green" id="btn-settings-done" style="width:100%;margin-top:14px" data-i18n="done">Готово</button>
     </div>
   </div>
@@ -211,9 +215,9 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     </div>
   </div>
   <div id="toast"></div>
-  <div id="ver">v4.1.7</div>
+  <div id="ver">v4.1.8</div>
 </div>
-<script src="i18n.js?v=4.1.7"></script>
-<script src="game.js?v=4.1.7"></script>
+<script src="i18n.js?v=4.1.8"></script>
+<script src="game.js?v=4.1.8"></script>
 </body>
 </html>

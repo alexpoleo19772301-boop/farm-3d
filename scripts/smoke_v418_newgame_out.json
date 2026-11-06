@@ -1,0 +1,55 @@
+{
+  "ver": "4.1.8",
+  "tests": [
+    {
+      "name": "load_preserves_advanced",
+      "ok": true,
+      "detail": "{\"u\":42,\"c\":9999,\"lang\":\"uk\"}"
+    },
+    {
+      "name": "tap_opens_confirm_only",
+      "ok": true,
+      "detail": "Почати всю гру спочатку?"
+    },
+    {
+      "name": "cancel_preserves",
+      "ok": true,
+      "detail": "unlocked 42"
+    },
+    {
+      "name": "cancel_back_to_play",
+      "ok": true,
+      "detail": "play"
+    },
+    {
+      "name": "confirm_resets_gameplay",
+      "ok": true,
+      "detail": "{\"u\":1,\"c\":120,\"lvl\":0,\"boost\":{\"undo\":5,\"flask\":2,\"hint\":3},\"tut\":{\"basic\":1}}"
+    },
+    {
+      "name": "confirm_keeps_prefs",
+      "ok": true,
+      "detail": "{\"lang\":\"uk\",\"track\":3,\"pour\":4}"
+    },
+    {
+      "name": "confirm_keeps_unrelated",
+      "ok": true,
+      "detail": "{\"sentinel\":\"keep-me\",\"manifest\":\"https://example.test/manifest.json\",\"notice\":\"4.1.8\"}"
+    },
+    {
+      "name": "reload_durable_l1",
+      "ok": true,
+      "detail": "{\"u\":1,\"lang\":\"uk\"}"
+    },
+    {
+      "name": "stale_win_no_regrant",
+      "ok": true,
+      "detail": "{\"u\":1,\"c\":120,\"stars\":{}}"
+    },
+    {
+      "name": "hud_restart_keeps_campaign",
+      "ok": true,
+      "detail": "{\"u\":42,\"lvl\":26}"
+    }
+  ]
+}
