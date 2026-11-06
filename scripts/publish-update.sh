@@ -14,7 +14,7 @@ gh auth status >/dev/null
 gh auth setup-git >/dev/null 2>&1 || true
 IFS=. read -r MA MI PA <<<"$VER"
 CODE=$((10#$MA * 10000 + 10#$MI * 1000 + 10#$PA))
-APK_URL="https://github.com/${OWNER}/${REPO}/releases/latest/download/farm-3d-debug.apk"
+APK_URL="https://github.com/${OWNER}/${REPO}/releases/download/v${VER}/ColorFlow-${VER}.apk"
 WEB_URL="https://github.com/${OWNER}/${REPO}/releases/latest/download/www.zip"
 MANIFEST_URL="https://github.com/${OWNER}/${REPO}/releases/latest/download/version.json"
 
@@ -59,6 +59,10 @@ npx cap sync android
 ( cd android && ./gradlew assembleDebug --quiet )
 cp -f android/app/build/outputs/apk/debug/app-debug.apk farm-3d-debug.apk
 cp -f farm-3d-debug.apk "dist/farm-3d-$VER-debug.apk"
+cp -f farm-3d-debug.apk "ColorFlow-${VER}.apk"
+cp -f farm-3d-debug.apk "dist/ColorFlow-${VER}.apk"
+cp -f farm-3d-debug.apk ColorFlow.apk
+cp -f farm-3d-debug.apk dist/ColorFlow.apk
 cp -f version.json dist/version.json
 cp -f dist/www.zip dist/www.zip 2>/dev/null || true
 # dist/www.zip no longer mirrored to Pages
@@ -96,10 +100,10 @@ www.zip: ${WEB_URL}
 Pages: https://${OWNER}.github.io/${REPO}/
 "
 if gh release view "$TAG" >/dev/null 2>&1; then
-  gh release upload "$TAG" farm-3d-debug.apk version.json dist/www.zip --clobber
+  gh release upload "$TAG" "ColorFlow-${VER}.apk" ColorFlow.apk farm-3d-debug.apk version.json dist/www.zip --clobber
   gh release edit "$TAG" --notes "$NOTES"
 else
-  gh release create "$TAG" farm-3d-debug.apk version.json dist/www.zip --title "v${VER}" --notes "$NOTES"
+  gh release create "$TAG" "ColorFlow-${VER}.apk" ColorFlow.apk farm-3d-debug.apk version.json dist/www.zip --title "v${VER}" --notes "$NOTES"
 fi
 echo "Manifest: ${MANIFEST_URL}"
 echo "Web ZIP:  ${WEB_URL}"
