@@ -1,8 +1,8 @@
-/* Краски v4.1.6 — all ordinary flasks cap=4; only collector is tall */
+/* Краски v4.1.7 — harder progressive cap4 pack */
 (function () {
   'use strict';
-  const VERSION = '4.1.6';
-  const APP_VERSION = { version: '4.1.6', versionCode: 41006, webVersion: '4.1.6' };
+  const VERSION = '4.1.7';
+  const APP_VERSION = { version: '4.1.7', versionCode: 41007, webVersion: '4.1.7' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -905,10 +905,10 @@
     if (n > 6 && n <= 10) cols = Math.ceil(n / 2);
     if (n > 10) cols = Math.ceil(n / 3);
     const rows = Math.ceil(n / cols);
-    const cellW = Math.min(78, (W - 24) / cols);
-    const cellH = Math.min(areaH / rows, 210);
-    const flaskW = Math.min(52, cellW * 0.72);
-    const maxFlaskH = Math.min(168, cellH * 0.88);
+    const cellW = Math.min(n >= 10 ? 70 : 78, (W - 20) / cols);
+    const cellH = Math.min(areaH / rows, n >= 10 ? 175 : 210);
+    const flaskW = Math.min(n >= 10 ? 46 : 52, cellW * 0.72);
+    const maxFlaskH = Math.min(n >= 10 ? 148 : 168, cellH * 0.88);
     const unitH = Math.max(7, (maxFlaskH * BODY_FRAC - 6) / CAP);
     const cap = CAP; // all ordinary flasks identical
     const flaskH = Math.min(maxFlaskH, Math.max(maxFlaskH * 0.40, (unitH * cap + 6) / BODY_FRAC));
@@ -1405,6 +1405,19 @@
 
   /* ---------- solver for hint ---------- */
   function solveHint() {
+    // Prefer precomputed witness first-step when still at level start (no undo history).
+    try {
+      const def = levels[levelIdx];
+      if (def && def.hintPath && def.hintPath.length && history.length === 0) {
+        const step = def.hintPath[0];
+        if (step && step.length >= 2) {
+          const from = step[0]|0, to = step[1]|0;
+          if (from >= 0 && to >= 0 && from < flasks.length && to < flasks.length && canPour(flasks[from], flasks[to]) > 0) {
+            return { from, to, fromSaved: true };
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
     const N = flasks.length;
     const caps = flasks.map(flaskCap);
     const mixer = flasks.map(f => !!f.mixer);
@@ -1509,10 +1522,10 @@
     const q = [[start, locked0, thaw0, corked0.slice(), []]];
     const seen = new Set([norm(start, locked0, thaw0, corked0)]);
     let guard = 0;
-    while (q.length && guard++ < 80000) {
+    while (q.length && guard++ < 120000) {
       const [st, lk, th, ck, path] = q.shift();
       if (won(st, lk, th, ck)) return path[0] || null;
-      if (path.length > 30) continue;
+      if (path.length > 40) continue;
       for (let i = 0; i < N; i++) {
         for (let j = 0; j < N; j++) {
           if (i === j) continue;
@@ -1527,7 +1540,7 @@
       }
     }
     for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-      if (canPour(flasks[i], flasks[j]) > 0) return { from: i, to: j };
+      if (canPour(flasks[i], flasks[j]) > 0) return { from: i, to: j, nonOptimal: true };
     }
     return null;
   }
@@ -1750,8 +1763,8 @@
     $('ver').textContent = 'v' + VERSION;
     try {
       const seen = localStorage.getItem('farm3d_cap4_notice');
-      if (seen !== '4.1.6') {
-        localStorage.setItem('farm3d_cap4_notice', '4.1.6');
+      if (seen !== '4.1.7') {
+        localStorage.setItem('farm3d_cap4_notice', '4.1.7');
         setTimeout(() => toast(t('toast_cap4_migrate')), 900);
       }
     } catch (e) {}

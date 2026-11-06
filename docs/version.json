@@ -1,9 +1,9 @@
 {
-  "version": "4.1.6",
-  "versionCode": 41006,
+  "version": "4.1.7",
+  "versionCode": 41007,
   "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/farm-3d-debug.apk",
-  "webVersion": "4.1.6",
+  "webVersion": "4.1.7",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• Все обычные колбы одинаковые (4 слоя); разный размер только у центрального сосуда-цели\n• Уровни пересобраны под cap4 (количества краски кратны 4), без «лишней» краски 5/3/6\n• Убраны подсказки про колбы 3/5/6; после обновления перезапустите текущий уровень"
+  "changelog": "• v4.1.7 partial: levels 1–55 harder (mixed layouts, more colors, fewer pre-solved)\n• Levels 56–100 unchanged from 4.1.6\n• All ordinary flasks still cap4; tall collector only\n• Fair move limits from verified witnesses\n• Restart current level after update"
 }

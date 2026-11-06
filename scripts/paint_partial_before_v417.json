@@ -1,0 +1,42 @@
+{
+  "10": {
+    "colors": 3,
+    "mixed": 0,
+    "presolved": 2,
+    "empty": 1,
+    "sol": 6,
+    "lim": 20
+  },
+  "25": {
+    "colors": 4,
+    "mixed": 0,
+    "presolved": 3,
+    "empty": 1,
+    "sol": 5,
+    "lim": 20
+  },
+  "26": {
+    "colors": 4,
+    "mixed": 0,
+    "presolved": 2,
+    "empty": 1,
+    "sol": 4,
+    "lim": 20
+  },
+  "27": {
+    "colors": 4,
+    "mixed": 0,
+    "presolved": 2,
+    "empty": 0,
+    "sol": 6,
+    "lim": 20
+  },
+  "55": {
+    "colors": 4,
+    "mixed": 0,
+    "presolved": 3,
+    "empty": 1,
+    "sol": 9,
+    "lim": 20
+  }
+}
