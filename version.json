@@ -1,9 +1,9 @@
 {
-  "version": "4.2.1",
-  "versionCode": 42001,
-  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/download/v4.2.1/ColorFlow-4.2.1.apk",
-  "webVersion": "4.2.1",
+  "version": "4.3.0",
+  "versionCode": 43000,
+  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/download/v4.3.0/ColorFlow-4.3.0.apk",
+  "webVersion": "4.3.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v4.2.1 maximal ColorFlow icon (flasks ~98%x84%, full purple bleed)\n• All 100 levels witness-replayed (21/23/25/31/38 via v417 paths)\n• Isolated smokes: hidden/filter/ice+key/cap4/collector/mixer/newgame\n• Filter badge RU «красный»; red #FF2A32 vs brown #4A2A12 kept\n• Package com.alex.farm3d unchanged; progress kept\n• APK needed for launcher icon"
+  "changelog": "• v4.3.0 layer-mix every 3rd level (3,6,…,99) — 33 levels\n• Bottom 2/3/4 recipe mixers (layers bottom→top); sources above\n• Y+B→green, R+Y→orange, R+B→purple; pending half-pair; wrong=0 moves\n• Collectors moved 12/42/72 → 13/43/73; bosses every 5 kept\n• Cap4 all ordinary+mixers; package com.alex.farm3d; progress kept"
 }

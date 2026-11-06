@@ -1,8 +1,8 @@
-/* ColorFlow v4.2.1 — big icon, distinct brown/red, filters+harder pack */
+/* ColorFlow v4.3.0 — layer-mix every 3rd level (2–4 bottom recipes) */
 (function () {
   'use strict';
-  const VERSION = '4.2.1';
-  const APP_VERSION = { version: '4.2.1', versionCode: 42001, webVersion: '4.2.1' };
+  const VERSION = '4.3.0';
+  const APP_VERSION = { version: '4.3.0', versionCode: 43000, webVersion: '4.3.0' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -33,6 +33,34 @@
     return n;
   }
   function mixResult(a, b) { return MIX[a + '|' + b] || null; }
+  const PRODUCT_ING = { green: ['yellow','blue'], orange: ['red','yellow'], purple: ['red','blue'] };
+  function ingredientsFor(product) { return PRODUCT_ING[product] || null; }
+  function isRecipeMixer(f) { return !!(f && f.mixer && f.mixRecipe && f.mixRecipe.length); }
+  function mixerNextProduct(f) {
+    if (!isRecipeMixer(f)) return null;
+    if ((f.layers.length|0) >= f.mixRecipe.length) return null;
+    return f.mixRecipe[f.layers.length];
+  }
+  function recipeIngredientNeed() {
+    const need = {};
+    for (const f of flasks) {
+      if (!isRecipeMixer(f)) continue;
+      const done = f.layers.length|0;
+      for (let li = done; li < f.mixRecipe.length; li++) {
+        const pair = ingredientsFor(f.mixRecipe[li]);
+        if (!pair) continue;
+        if (li === done && f.pending) {
+          const other = f.pending === pair[0] ? pair[1] : pair[0];
+          if (f.pending === pair[0] || f.pending === pair[1]) need[other] = (need[other]|0) + 1;
+          else { need[pair[0]] = (need[pair[0]]|0)+1; need[pair[1]] = (need[pair[1]]|0)+1; }
+        } else {
+          need[pair[0]] = (need[pair[0]]|0) + 1;
+          need[pair[1]] = (need[pair[1]]|0) + 1;
+        }
+      }
+    }
+    return need;
+  }
   function colorName(c) { return t('color_' + c) || c; }
   const SAVE_KEY = 'vintiki_save_v40';
   const LEGACY_KEY = 'vintiki_save_v32';
@@ -590,10 +618,22 @@
     const color = f.layers[0].color;
     // Collector levels: never cork the target color in side flasks — those units must reach the vessel
     if (runCollector && color === runCollectorColor) return false;
+    // Layer-mix: keep ingredients needed for unfinished recipes
+    const rNeed = recipeIngredientNeed();
+    if ((rNeed[color]|0) > 0) {
+      let totalAvail = 0;
+      for (const o of flasks) {
+        for (const l of o.layers) if (l.color === color) totalAvail++;
+        if (o.pending === color) totalAvail++;
+      }
+      const k0 = flaskCap(f);
+      if (totalAvail - k0 < (rNeed[color]|0)) return false;
+    }
     const k = flaskCap(f);
     let total = 0;
     for (const o of flasks) {
       for (const l of o.layers) if (l.color === color) total++;
+      if (o.pending === color) total++;
     }
     const rem = total - k;
     if (rem === 0) return true;
@@ -611,6 +651,7 @@
     if (src.frozen || src.locked || dst.frozen || dst.locked) return 0;
     if (src.corked || dst.corked) return 0;
     if (src.collector) return 0; // cannot pour OUT of collector
+    if (src.mixer && isRecipeMixer(src)) return 0; // recipe products stay
     if (!src.layers.length) return 0;
     const top = src.layers[src.layers.length - 1];
     if (top.hidden) return 0;
@@ -626,8 +667,21 @@
       return Math.min(n, space);
     }
 
-    // Mixing flask destination
+    // Mixing flask destination (layer-recipe or legacy catalyst)
     if (dst.mixer) {
+      if (isRecipeMixer(dst)) {
+        const want = mixerNextProduct(dst);
+        if (!want) return 0; // recipe complete
+        const pair = ingredientsFor(want);
+        if (!pair) return 0;
+        if (!dst.pending) {
+          if (color !== pair[0] && color !== pair[1]) return 0;
+          return 1; // one portion only
+        }
+        if (color === dst.pending) return 0;
+        return mixResult(dst.pending, color) === want ? 1 : 0;
+      }
+      // legacy empty-catalyst mixer
       if (!dst.layers.length) return Math.min(n, 1);
       if (dst.layers.length >= 2) return 0;
       const a = dst.layers[dst.layers.length - 1].color;
@@ -651,6 +705,8 @@
       layers: f.layers.map(l => ({ color: l.color, hidden: !!l.hidden })),
       frozen: !!f.frozen, locked: !!f.locked, corked: !!f.corked,
       cap: flaskCap(f), lockColor: f.lockColor || null, filterColor: f.filterColor || null, mixer: !!f.mixer,
+      mixRecipe: f.mixRecipe ? f.mixRecipe.slice() : null,
+      pending: f.pending || null,
       collector: !!f.collector, collectorColor: f.collectorColor || null,
       thawLeft: f.thawLeft | 0, thawMax: f.thawMax | 0,
       unlockAnim: 0, thawAnim: 0, lift: 0, wobble: 0
@@ -732,6 +788,18 @@
     const want = c.collectorColor || runCollectorColor;
     return c.layers.length >= need && c.layers.every(l => l.color === want);
   }
+  function layerMixComplete() {
+    const mixers = flasks.filter(isRecipeMixer);
+    if (!mixers.length) return false;
+    for (const f of mixers) {
+      if (f.pending) return false;
+      if (f.layers.length !== f.mixRecipe.length) return false;
+      for (let i = 0; i < f.mixRecipe.length; i++) {
+        if (!f.layers[i] || f.layers[i].color !== f.mixRecipe[i]) return false;
+      }
+    }
+    return true;
+  }
   function checkWin() {
     if (state !== 'play' || pourAnim) return;
     if (runCollector) {
@@ -740,6 +808,16 @@
         toast(t('toast_collector_full'));
         setTimeout(() => { if (g === outcomeGen && state === 'play') endWin(); }, 450);
       }
+      return;
+    }
+    if (flasks.some(isRecipeMixer)) {
+      if (!layerMixComplete()) return;
+      // cork remaining ordinary paints
+      flasks.forEach((f, i) => { if (!f.corked && flaskComplete(f)) tryCompleteFlask(f, i); });
+      const ordinaryOk = flasks.every(f => isRecipeMixer(f) || !f.layers.length || f.corked);
+      if (!ordinaryOk) return;
+      const g = outcomeGen;
+      setTimeout(() => { if (g === outcomeGen && state === 'play') endWin(); }, 500);
       return;
     }
     if (flasks.every(f => !f.layers.length || f.corked || flaskComplete(f))) {
@@ -768,7 +846,13 @@
       }
     }
     const amt = canPour(src, dst);
-    if (amt <= 0) { playSfx('error', 0.35); return false; }
+    if (amt <= 0) {
+      if (dst && isRecipeMixer(dst) && src && src.layers.length) {
+        const top = src.layers[src.layers.length - 1];
+        if (top && !top.hidden) toast(t('toast_mix_reject', { color: colorName(top.color) }));
+      }
+      playSfx('error', 0.35); return false;
+    }
     pushHistory();
     const color = flasks[fromIdx].layers[flasks[fromIdx].layers.length - 1].color;
     pourAnim = {
@@ -786,7 +870,21 @@
     if (!pourAnim) return;
     const { from, to, amt, color } = pourAnim;
     const src = flasks[from], dst = flasks[to];
-    if (dst.mixer && dst.layers.length === 1 && mixResult(dst.layers[0].color, color)) {
+    if (dst.mixer && isRecipeMixer(dst)) {
+      src.layers.pop();
+      const want = mixerNextProduct(dst);
+      if (!dst.pending) {
+        dst.pending = color;
+        toast(t('toast_mix_pending', { color: colorName(color), want: colorName(want) }));
+        playSfx('pour', 0.35);
+      } else {
+        const result = mixResult(dst.pending, color);
+        dst.pending = null;
+        dst.layers.push({ color: result, hidden: false });
+        toast(t('toast_mix', { color: t('color_' + result) || result }));
+        playSfx('reward', 0.4);
+      }
+    } else if (dst.mixer && dst.layers.length === 1 && mixResult(dst.layers[0].color, color)) {
       const existing = dst.layers.pop().color;
       src.layers.pop();
       const result = mixResult(existing, color);
@@ -880,6 +978,49 @@
     const info = levelCapsInfo();
     const maxC = info.maxC;
     const BODY_FRAC = 0.74; // bodyTop(-0.32h) .. bodyBot(+0.42h)
+    // Layer-mix: sources above, recipe mixers on a distinct bottom row
+    const mixIdx = [];
+    for (let k = 0; k < n; k++) if (isRecipeMixer(flasks[k])) mixIdx.push(k);
+    if (mixIdx.length >= 2 && !flasks.some(f => f.collector)) {
+      const srcIdx = [];
+      for (let k = 0; k < n; k++) if (!isRecipeMixer(flasks[k])) srcIdx.push(k);
+      const mixRowH = Math.min(168, areaH * 0.38);
+      const srcAreaH = areaH - mixRowH - 10;
+      const unitH = Math.max(7, (Math.min(140, mixRowH * 0.85) * BODY_FRAC - 6) / CAP);
+      const flaskH = Math.min(148, Math.max(110, (unitH * CAP + 6) / BODY_FRAC));
+      const flaskW = Math.min(48, W * 0.13);
+      if (mixIdx.includes(i)) {
+        const mi = mixIdx.indexOf(i);
+        const m = mixIdx.length;
+        const cellW = Math.min(90, (W - 24) / m);
+        const rowWidth = m * cellW;
+        const x0 = (W - rowWidth) / 2;
+        const cx = x0 + mi * cellW + cellW / 2;
+        const cy = bottomY - flaskH * 0.48 - 4;
+        return { cx, cy, w: flaskW, h: flaskH, cellW, cellH: mixRowH, tall: false, unitH, cap: CAP, maxC: CAP, mixRow: true };
+      }
+      const si = srcIdx.indexOf(i);
+      const sn = srcIdx.length;
+      let cols = sn <= 5 ? sn : (sn <= 8 ? Math.ceil(sn / 2) : Math.ceil(sn / 3));
+      if (sn > 8) cols = Math.ceil(sn / 3);
+      const rows = Math.ceil(sn / cols);
+      const cellW = Math.min(sn >= 10 ? 68 : 76, (W - 16) / cols);
+      const cellH = Math.min(srcAreaH / rows, sn >= 10 ? 150 : 170);
+      const sW = Math.min(sn >= 10 ? 42 : 48, cellW * 0.72);
+      const maxFlaskH = Math.min(sn >= 10 ? 130 : 148, cellH * 0.88);
+      const sUnit = Math.max(7, (maxFlaskH * BODY_FRAC - 6) / CAP);
+      const sH = Math.min(maxFlaskH, Math.max(maxFlaskH * 0.40, (sUnit * CAP + 6) / BODY_FRAC));
+      const row = (si / cols) | 0;
+      const col = si % cols;
+      const rowCount = Math.min(cols, sn - row * cols);
+      const rowWidth = rowCount * cellW;
+      const x0 = (W - rowWidth) / 2;
+      const y0 = topY + Math.max(0, (srcAreaH - rows * cellH) / 2);
+      const cx = x0 + col * cellW + cellW / 2;
+      const baseline = y0 + (row + 1) * cellH - 2;
+      const cy = baseline - sH * 0.48;
+      return { cx, cy, w: sW, h: sH, cellW, cellH, tall: false, unitH: sUnit, cap: CAP, maxC: CAP };
+    }
     const ci = flasks.findIndex(f => f && f.collector);
     if (ci >= 0 && runCollector) {
       // Tall central collector + side flasks; sides share unit height from max side cap
@@ -1328,6 +1469,61 @@
       ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
       ctx.fillStyle = '#ffd76a';
       ctx.fillText('🧪', -w * 0.42, -h * 0.42);
+      if (isRecipeMixer(f)) {
+        const want = mixerNextProduct(f);
+        const done = f.layers.length|0;
+        const total = f.mixRecipe.length;
+        // recipe chips under flask
+        const chipY = h * 0.52 + 10;
+        const chipW = Math.min(12, (w * 1.6) / Math.max(4, total));
+        const totalW = total * (chipW + 3);
+        let cx0 = -totalW / 2;
+        for (let ci = 0; ci < total; ci++) {
+          const pal = PAINT[f.mixRecipe[ci]] || PAINT.green;
+          roundRect(ctx, cx0, chipY, chipW, 8, 2);
+          ctx.fillStyle = ci < done ? pal.fill : 'rgba(255,255,255,0.15)';
+          ctx.fill();
+          if (ci === done) {
+            ctx.strokeStyle = '#fff6ff'; ctx.lineWidth = 1.5; ctx.stroke();
+          } else {
+            ctx.strokeStyle = 'rgba(255,246,255,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+          }
+          cx0 += chipW + 3;
+        }
+        if (want) {
+          const pair = ingredientsFor(want);
+          const wp = PAINT[want] || PAINT.green;
+          // ghost target for current layer at next slot height
+          ctx.save();
+          ctx.globalAlpha = 0.35;
+          const bodyBot = h * 0.42;
+          const bodyTop = -h * 0.32;
+          const unit = (bodyBot - bodyTop) / CAP;
+          const gy = bodyBot - (done + 0.5) * unit;
+          ctx.fillStyle = wp.fill;
+          ctx.fillRect(-w * 0.38, gy - unit * 0.4, w * 0.76, unit * 0.8);
+          ctx.restore();
+          ctx.fillStyle = '#ffe8ff';
+          ctx.font = 'bold 10px sans-serif';
+          if (f.pending) {
+            ctx.fillText(colorName(f.pending) + ' + ? → ' + colorName(want), 0, -h * 0.55);
+          } else if (pair) {
+            ctx.fillText(colorName(pair[0]) + '+' + colorName(pair[1]) + '→' + colorName(want), 0, -h * 0.55);
+          }
+        } else {
+          ctx.fillStyle = '#9effb0';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.fillText('✓', 0, -h * 0.52);
+        }
+        // pending half-pair blob at mouth
+        if (f.pending) {
+          const pp = PAINT[f.pending] || PAINT.red;
+          ctx.beginPath();
+          ctx.arc(0, -h * 0.28, 10, 0, Math.PI * 2);
+          ctx.fillStyle = pp.fill; ctx.fill();
+          ctx.strokeStyle = '#fff6ff'; ctx.lineWidth = 2; ctx.stroke();
+        }
+      }
     }
     if (f.collector) {
       // gold rim + target swatch + progress
@@ -1444,6 +1640,8 @@
     const N = flasks.length;
     const caps = flasks.map(flaskCap);
     const mixer = flasks.map(f => !!f.mixer);
+    const recipes = flasks.map(f => (f.mixRecipe && f.mixRecipe.length) ? f.mixRecipe.slice() : null);
+    let pendings = flasks.map(f => f.pending || null);
     const collector = flasks.map(f => !!f.collector);
     const collColor = runCollectorColor;
     const collNeed = runCollectorNeed;
@@ -1468,7 +1666,16 @@
       for (let i = 0; i < N; i++) {
         if (lk[i] || th[i] > 0) return false;
         if (ck[i] || collector[i]) continue;
-        if (mixer[i]) { if (st[i].length) return false; continue; }
+        if (mixer[i]) {
+          if (recipes[i] && recipes[i].length) {
+            if (pendings[i]) return false;
+            if (st[i].length !== recipes[i].length) return false;
+            if (!st[i].every((c, li) => c === recipes[i][li])) return false;
+            continue;
+          }
+          if (st[i].length) return false; continue;
+        }
+        
         if (!st[i].length) continue;
         if (st[i].length !== caps[i]) return false;
         if (!st[i].every(c => c === st[i][0])) return false;
@@ -1484,6 +1691,7 @@
     function can(st, lk, th, ck, i, j) {
       if (lk[i] || lk[j] || th[i] > 0 || th[j] > 0 || ck[i] || ck[j]) return 0;
       if (collector[i]) return 0;
+      if (mixer[i] && recipes[i] && recipes[i].length) return 0;
       if (!st[i].length) return 0;
       const [c, n] = topR(st[i]);
       if (collector[j]) {
@@ -1493,6 +1701,18 @@
         return Math.min(n, space);
       }
       if (mixer[j]) {
+        const recipe = recipes[j];
+        if (recipe && recipe.length) {
+          const done = st[j].length;
+          if (done >= recipe.length) return 0;
+          const want = recipe[done];
+          const pair = ingredientsFor(want);
+          if (!pair) return 0;
+          const pend = pendings[j];
+          if (!pend) return (c === pair[0] || c === pair[1]) ? 1 : 0;
+          if (c === pend) return 0;
+          return mixResult(pend, c) === want ? 1 : 0;
+        }
         if (!st[j].length) return Math.min(n, 1);
         if (st[j].length >= 2) return 0;
         if (st[j][st[j].length - 1] === c) return 0;
@@ -1509,7 +1729,16 @@
       const nl = lk.slice();
       const nt = th.slice();
       const nc = ck.slice();
-      if (mixer[j] && nf[j].length === 1 && mixResult(nf[j][0], nf[i][nf[i].length - 1])) {
+      if (mixer[j] && recipes[j] && recipes[j].length) {
+        const poured = nf[i].pop();
+        const want = recipes[j][nf[j].length];
+        if (!pendings[j]) pendings[j] = poured;
+        else {
+          const prod = mixResult(pendings[j], poured);
+          pendings[j] = null;
+          nf[j].push(prod);
+        }
+      } else if (mixer[j] && nf[j].length === 1 && mixResult(nf[j][0], nf[i][nf[i].length - 1])) {
         const poured = nf[i].pop();
         const existing = nf[j].pop();
         nf[j].push(mixResult(existing, poured));
@@ -1604,6 +1833,8 @@
         lockColor: (def.lockColor && def.lockColor[fi]) || null,
         filterColor: (def.filterColor && def.filterColor[fi]) || null,
         mixer: !!(def.mixer && def.mixer[fi]),
+        mixRecipe: (def.mixRecipe && def.mixRecipe[fi]) ? def.mixRecipe[fi].slice() : null,
+        pending: null,
         collector: isColl,
         collectorColor: isColl ? (def.collectorColor || null) : null,
         cap: isColl ? (def.collectorNeed || caps[fi] || 6) : CAP,
@@ -1649,6 +1880,9 @@
     } else if (runTimeLimit > 0 && !save.seenTut.timer) {
       showTut(t('tut_timer_t'), t('tut_timer_b'));
       save.seenTut.timer = 1; persist();
+    } else if (def.mixRecipe && def.mixRecipe.some(r => r && r.length) && !save.seenTut.layer_mix) {
+      showTut(t('tut_layer_mix_t'), t('tut_layer_mix_b'));
+      save.seenTut.layer_mix = 1; persist();
     } else if (def.mixer && def.mixer.some(Boolean) && !save.seenTut.mixing) {
       showTut(t('tut_mixing_t'), t('tut_mixing_b'));
       save.seenTut.mixing = 1; persist();
@@ -1789,8 +2023,8 @@
     $('ver').textContent = 'v' + VERSION;
     try {
       const seen = localStorage.getItem('farm3d_cap4_notice');
-      if (seen !== '4.2.1') {
-        localStorage.setItem('farm3d_cap4_notice', '4.2.1');
+      if (seen !== '4.3.0') {
+        localStorage.setItem('farm3d_cap4_notice', '4.3.0');
         setTimeout(() => toast(t('toast_cap4_migrate')), 900);
       }
     } catch (e) {}
@@ -1838,6 +2072,22 @@
     }
     if (f.corked) { toast(t('toast_done')); return; }
     if (selected < 0) {
+      if (isRecipeMixer(f)) {
+        const want = mixerNextProduct(f);
+        const done = f.layers.length|0;
+        if (!want) toast(t('toast_mix_done'));
+        else {
+          const pair = ingredientsFor(want);
+          toast(t('toast_mix_need', {
+            n: done + 1, total: f.mixRecipe.length,
+            a: colorName(pair[0]), b: colorName(pair[1]),
+            out: colorName(want),
+            pending: f.pending ? colorName(f.pending) : ''
+          }));
+        }
+        playSfx('tap', 0.35);
+        return;
+      }
       if (!f.layers.length) { playSfx('error', 0.28); return; }
       selected = i; f.lift = 10; playSfx('tap', 0.45); buzz(8);
       return;
@@ -1884,7 +2134,7 @@
     if (save.boosters.flask <= 0) { toast(t('toast_no_flask')); return; }
     if (flasks.length >= 16) { toast(t('toast_too_many')); return; }
     save.boosters.flask--; runUsedBooster = true; persist();
-    flasks.push({ layers: [], frozen: false, locked: false, corked: false, cap: CAP, mixer: false, lockColor: null, filterColor: null, thawLeft: 0, thawMax: 0, unlockAnim: 0, thawAnim: 0, lift: 0, wobble: 0 });
+    flasks.push({ layers: [], frozen: false, locked: false, corked: false, cap: CAP, mixer: false, mixRecipe: null, pending: null, lockColor: null, filterColor: null, thawLeft: 0, thawMax: 0, unlockAnim: 0, thawAnim: 0, lift: 0, wobble: 0 });
     refreshHud(); playSfx('box', 0.4); toast(t('toast_flask_plus'));
   }
   function useHint() {
@@ -2610,7 +2860,7 @@
     window.__V = {
       VERSION, startLevel, startBoss, endLose, buyLoseBoost, canSafelyCork, flaskComplete, getBoss: () => boss && ({ done: boss.done, total: boss.pieces.length, placed: boss.pieces.filter(p => p.placed).length }),
       placeBossN: (n) => { if (!boss) return 0; let k = 0; for (const p of boss.pieces) { if (p.placed) continue; p.x = p.correctX; p.y = p.correctY; p.placed = true; p.inTray = false; k++; if (k >= n) break; } layoutBossTray(); if (boss.pieces.every(q => q.placed)) completeBoss(); return k; },
-      getState: () => ({ state, levelIdx, moves, moveLimit: runMoveLimit, timeLeft: runTimeLeft, collector: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed, selected, flasks: flasks.map(f => ({ n: f.layers.length, cap: flaskCap(f), corked: f.corked, frozen: f.frozen, thawLeft: f.thawLeft|0, locked: f.locked, lockColor: f.lockColor, mixer: !!f.mixer, collector: !!f.collector, top: f.layers.length ? f.layers[f.layers.length-1].color : null, colors: f.layers.map(l => l.color) })), pour: !!pourAnim, collectorMode: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed }),
+      getState: () => ({ state, levelIdx, moves, moveLimit: runMoveLimit, timeLeft: runTimeLeft, collector: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed, selected, flasks: flasks.map(f => ({ n: f.layers.length, cap: flaskCap(f), corked: f.corked, frozen: f.frozen, thawLeft: f.thawLeft|0, locked: f.locked, lockColor: f.lockColor, mixer: !!f.mixer, mixRecipe: f.mixRecipe || null, pending: f.pending || null, collector: !!f.collector, top: f.layers.length ? f.layers[f.layers.length-1].color : null, colors: f.layers.map(l => l.color) })), pour: !!pourAnim, collectorMode: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed }),
       forceThawTick: () => tickThawFromComplete(),
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },

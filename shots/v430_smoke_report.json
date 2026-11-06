@@ -1,0 +1,113 @@
+{
+  "ver": "4.3.0",
+  "tests": [
+    {
+      "n": "version",
+      "ok": true,
+      "d": "4.3.0/4.3.0"
+    },
+    {
+      "n": "mix_count_33",
+      "ok": true,
+      "d": 33
+    },
+    {
+      "n": "mixers_2_early",
+      "ok": true,
+      "d": "2/2"
+    },
+    {
+      "n": "mixers_3_mid",
+      "ok": true,
+      "d": "3/3"
+    },
+    {
+      "n": "mixers_4_late",
+      "ok": true,
+      "d": "4/4"
+    },
+    {
+      "n": "L3_cap4",
+      "ok": true,
+      "d": ""
+    },
+    {
+      "n": "reject_0",
+      "ok": true,
+      "d": {
+        "mi": 8,
+        "want": "purple",
+        "a": "red",
+        "b": "blue",
+        "wrong": 0,
+        "m0": 0,
+        "m1": 0,
+        "srcA": 3,
+        "rejectOk": true
+      }
+    },
+    {
+      "n": "pending_set",
+      "ok": true,
+      "d": "red"
+    },
+    {
+      "n": "undo_clears_pending",
+      "ok": true,
+      "d": {
+        "pending": null,
+        "moves": 1
+      }
+    },
+    {
+      "n": "restart_moves0",
+      "ok": true,
+      "d": ""
+    },
+    {
+      "n": "win_L3",
+      "ok": true,
+      "d": "win"
+    },
+    {
+      "n": "win_L6",
+      "ok": true,
+      "d": "win"
+    },
+    {
+      "n": "win_L48",
+      "ok": true,
+      "d": "win"
+    },
+    {
+      "n": "win_L99",
+      "ok": true,
+      "d": "win"
+    },
+    {
+      "n": "win_L2_ordinary",
+      "ok": true,
+      "d": "win"
+    },
+    {
+      "n": "win_L2",
+      "ok": true,
+      "d": "win"
+    },
+    {
+      "n": "collector_L13",
+      "ok": true,
+      "d": ""
+    },
+    {
+      "n": "ice_key",
+      "ok": true,
+      "d": "skip"
+    },
+    {
+      "n": "newgame_open_no_reset",
+      "ok": true,
+      "d": 55
+    }
+  ]
+}
