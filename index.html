@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#2a1a3a"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <title data-i18n="app_title">ColorFlow</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=4.3.1"/>
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=4.3.1"/>
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=4.3.1"/>
-  <link rel="manifest" href="manifest.webmanifest?v=4.3.1"/>
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=4.4.0"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=4.4.0"/>
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=4.4.0"/>
+  <link rel="manifest" href="manifest.webmanifest?v=4.4.0"/>
   <meta name="theme-color" content="#2A1450"/>
   <meta name="application-name" content="ColorFlow"/>
 <style>
@@ -84,6 +84,11 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
 
 .restart-btn{min-width:44px;min-height:44px;padding:8px 12px;font-size:13px;font-weight:800;white-space:nowrap}
 #collector-pill{border-color:#ffd76a;color:#ffe8a8}
+#workshop-pill{border-color:#7ec8ff;color:#e8f6ff;font-size:12px;gap:8px}
+.wchip{display:inline-flex;align-items:center;gap:4px;margin:2px 3px;font-weight:800}
+.wdot{width:12px;height:12px;border-radius:50%;border:1.5px solid #fff8ff;display:inline-block;flex-shrink:0}
+.wdone{opacity:.95;filter:none}
+.wtodo{opacity:.9}
 </style>
 </head>
 <body>
@@ -105,6 +110,9 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     </div>
     <div class="row" id="collector-hud" style="display:none;margin-top:6px">
       <span class="pill" id="collector-pill">🎯 —</span>
+    </div>
+    <div class="row" id="workshop-hud" style="display:none;margin-top:6px;flex-wrap:wrap;gap:6px;justify-content:center;max-width:100%">
+      <span class="pill" id="workshop-pill" style="flex-wrap:wrap;max-width:96%;height:auto;min-height:36px;border-radius:14px;line-height:1.3;padding:8px 10px;text-align:center">📋</span>
     </div>
   </div>
   <div id="boosters" style="display:none">
@@ -221,9 +229,9 @@ canvas#game{display:block;width:100%;height:100%;touch-action:none}
     </div>
   </div>
   <div id="toast"></div>
-  <div id="ver">v4.3.1</div>
+  <div id="ver">v4.4.0</div>
 </div>
-<script src="i18n.js?v=4.3.1"></script>
-<script src="game.js?v=4.3.1"></script>
+<script src="i18n.js?v=4.4.0"></script>
+<script src="game.js?v=4.4.0"></script>
 </body>
 </html>
