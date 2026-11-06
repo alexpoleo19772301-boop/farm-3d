@@ -1,8 +1,8 @@
-/* ColorFlow v4.3.0 — layer-mix every 3rd level (2–4 bottom recipes) */
+/* ColorFlow v4.3.1 — mix recipe UI dots every 3rd level (2–4 bottom recipes) */
 (function () {
   'use strict';
-  const VERSION = '4.3.0';
-  const APP_VERSION = { version: '4.3.0', versionCode: 43000, webVersion: '4.3.0' };
+  const VERSION = '4.3.1';
+  const APP_VERSION = { version: '4.3.1', versionCode: 43001, webVersion: '4.3.1' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -60,6 +60,17 @@
       }
     }
     return need;
+  }
+  function drawPaintDot(color, x, y, r) {
+    const pal = PAINT[color] || PAINT.red;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = pal.fill;
+    ctx.fill();
+    ctx.strokeStyle = '#fff8ff';
+    ctx.lineWidth = Math.max(1.5, r * 0.18);
+    ctx.stroke();
+    if (colorBlindMode) drawColorPattern(ctx, x - r, y - r, r * 2, pal.pat);
   }
   function colorName(c) { return t('color_' + c) || c; }
   const SAVE_KEY = 'vintiki_save_v40';
@@ -1459,69 +1470,109 @@
       ctx.restore();
     }
     if (f.mixer) {
-      ctx.strokeStyle = '#ffd76a';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = isRecipeMixer(f) ? 'rgba(255,215,106,0.55)' : '#ffd76a';
+      ctx.lineWidth = isRecipeMixer(f) ? 1.5 : 3;
+      ctx.setLineDash(isRecipeMixer(f) ? [3, 3] : [4, 3]);
       ctx.beginPath();
-      ctx.arc(0, 0, w * 0.68, 0, Math.PI * 2);
+      ctx.arc(0, 0, w * (isRecipeMixer(f) ? 0.58 : 0.68), 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+      ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
       ctx.fillStyle = '#ffd76a';
       ctx.fillText('🧪', -w * 0.42, -h * 0.42);
       if (isRecipeMixer(f)) {
         const want = mixerNextProduct(f);
         const done = f.layers.length|0;
         const total = f.mixRecipe.length;
-        // recipe chips under flask
-        const chipY = h * 0.52 + 10;
-        const chipW = Math.min(12, (w * 1.6) / Math.max(4, total));
-        const totalW = total * (chipW + 3);
-        let cx0 = -totalW / 2;
-        for (let ci = 0; ci < total; ci++) {
-          const pal = PAINT[f.mixRecipe[ci]] || PAINT.green;
-          roundRect(ctx, cx0, chipY, chipW, 8, 2);
-          ctx.fillStyle = ci < done ? pal.fill : 'rgba(255,255,255,0.15)';
-          ctx.fill();
-          if (ci === done) {
-            ctx.strokeStyle = '#fff6ff'; ctx.lineWidth = 1.5; ctx.stroke();
-          } else {
-            ctx.strokeStyle = 'rgba(255,246,255,0.35)'; ctx.lineWidth = 1; ctx.stroke();
-          }
-          cx0 += chipW + 3;
-        }
+        const colW = Math.min(w * 1.35, 58); // stay inside this flask's column (~60px at 360/4)
+        const dotR = Math.min(7, Math.max(5.5, colW / 10));
+        // Compact recipe ABOVE flask: dot + dot = target (no full color names)
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         if (want) {
-          const pair = ingredientsFor(want);
+          const pair = ingredientsFor(want) || ['red', 'yellow'];
+          const a = f.pending || pair[0];
+          const b = f.pending ? (f.pending === pair[0] ? pair[1] : pair[0]) : pair[1];
+          const yRec = -h * 0.58;
+          const gap = Math.min(11, colW / 5.2);
+          // layer index badge
+          ctx.fillStyle = 'rgba(20,8,40,0.82)';
+          roundRect(ctx, -16, yRec - 22, 32, 14, 6);
+          ctx.fill();
+          ctx.fillStyle = '#ffe8ff';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.fillText((done + 1) + '/' + total, 0, yRec - 15);
+          // dots: A + B = want  (if pending, A is pending and B is ghost outline)
+          const x0 = -gap * 2;
+          drawPaintDot(a, x0, yRec, dotR);
+          ctx.fillStyle = '#ffe8ff';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.fillText('+', x0 + gap, yRec + 1);
+          if (f.pending) {
+            // needed partner as outlined hollow if not yet poured
+            const pal = PAINT[b] || PAINT.red;
+            ctx.beginPath();
+            ctx.arc(x0 + gap * 2, yRec, dotR, 0, Math.PI * 2);
+            ctx.strokeStyle = pal.fill;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255,255,255,0.12)';
+            ctx.fill();
+          } else {
+            drawPaintDot(b, x0 + gap * 2, yRec, dotR);
+          }
+          ctx.fillStyle = '#ffe8ff';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.fillText('=', x0 + gap * 3, yRec + 1);
+          drawPaintDot(want, x0 + gap * 4, yRec, dotR);
+        } else {
+          ctx.fillStyle = '#9effb0';
+          ctx.font = 'bold 14px sans-serif';
+          ctx.fillText('✓', 0, -h * 0.55);
+        }
+        // Ghost outlined current target layer inside flask
+        if (want) {
           const wp = PAINT[want] || PAINT.green;
-          // ghost target for current layer at next slot height
-          ctx.save();
-          ctx.globalAlpha = 0.35;
           const bodyBot = h * 0.42;
           const bodyTop = -h * 0.32;
           const unit = (bodyBot - bodyTop) / CAP;
           const gy = bodyBot - (done + 0.5) * unit;
+          ctx.save();
+          ctx.globalAlpha = 0.55;
+          ctx.strokeStyle = wp.fill;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([3, 2]);
+          ctx.strokeRect(-w * 0.36, gy - unit * 0.38, w * 0.72, unit * 0.76);
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 0.22;
           ctx.fillStyle = wp.fill;
-          ctx.fillRect(-w * 0.38, gy - unit * 0.4, w * 0.76, unit * 0.8);
+          ctx.fillRect(-w * 0.36, gy - unit * 0.38, w * 0.72, unit * 0.76);
           ctx.restore();
-          ctx.fillStyle = '#ffe8ff';
-          ctx.font = 'bold 10px sans-serif';
-          if (f.pending) {
-            ctx.fillText(colorName(f.pending) + ' + ? → ' + colorName(want), 0, -h * 0.55);
-          } else if (pair) {
-            ctx.fillText(colorName(pair[0]) + '+' + colorName(pair[1]) + '→' + colorName(want), 0, -h * 0.55);
-          }
-        } else {
-          ctx.fillStyle = '#9effb0';
-          ctx.font = 'bold 11px sans-serif';
-          ctx.fillText('✓', 0, -h * 0.52);
         }
-        // pending half-pair blob at mouth
-        if (f.pending) {
-          const pp = PAINT[f.pending] || PAINT.red;
+        // Progress chips = colored target goals (completed solid / current bright ring / remaining dim)
+        const chipY = h * 0.52 + 8;
+        const chipR = Math.min(6, (colW - 8) / (total * 2.2));
+        const totalW = total * (chipR * 2 + 4);
+        let cx0 = -totalW / 2 + chipR;
+        for (let ci = 0; ci < total; ci++) {
+          const pal = PAINT[f.mixRecipe[ci]] || PAINT.green;
           ctx.beginPath();
-          ctx.arc(0, -h * 0.28, 10, 0, Math.PI * 2);
-          ctx.fillStyle = pp.fill; ctx.fill();
-          ctx.strokeStyle = '#fff6ff'; ctx.lineWidth = 2; ctx.stroke();
+          ctx.arc(cx0, chipY, chipR, 0, Math.PI * 2);
+          if (ci < done) {
+            ctx.fillStyle = pal.fill; ctx.fill();
+            ctx.strokeStyle = '#fff6ff'; ctx.lineWidth = 1.2; ctx.stroke();
+          } else if (ci === done) {
+            ctx.fillStyle = pal.fill; ctx.globalAlpha = 0.35; ctx.fill(); ctx.globalAlpha = 1;
+            ctx.strokeStyle = '#fff6ff'; ctx.lineWidth = 2.2; ctx.stroke();
+          } else {
+            ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fill();
+            ctx.strokeStyle = pal.fill; ctx.globalAlpha = 0.45; ctx.lineWidth = 1.4; ctx.stroke(); ctx.globalAlpha = 1;
+          }
+          cx0 += chipR * 2 + 4;
+        }
+        // pending half-pair at mouth
+        if (f.pending) {
+          drawPaintDot(f.pending, 0, -h * 0.28, 9);
         }
       }
     }
@@ -1896,6 +1947,34 @@
     }
   }
 
+  function showMixerRecipePopup(f) {
+    if (!isRecipeMixer(f)) return;
+    const done = f.layers.length|0;
+    const total = f.mixRecipe.length;
+    const want = mixerNextProduct(f);
+    const lines = [];
+    lines.push(t('mix_popup_layers', { n: Math.min(done + 1, total), total: total }));
+    if (want) {
+      const pair = ingredientsFor(want);
+      let cur = t('mix_popup_current', {
+        a: colorName(pair[0]), b: colorName(pair[1]), out: colorName(want)
+      });
+      if (f.pending) cur += '\n' + t('mix_popup_pending', { color: colorName(f.pending) });
+      lines.push(cur);
+    } else {
+      lines.push(t('toast_mix_done'));
+    }
+    lines.push('');
+    lines.push(t('mix_popup_all'));
+    for (let i = 0; i < total; i++) {
+      const prod = f.mixRecipe[i];
+      const pair = ingredientsFor(prod);
+      const mark = i < done ? '✓' : (i === done ? '▶' : '·');
+      lines.push(mark + ' ' + (i + 1) + '/' + total + ': ' +
+        colorName(pair[0]) + ' + ' + colorName(pair[1]) + ' → ' + colorName(prod));
+    }
+    showTut(t('mix_popup_title'), lines.join('\n'));
+  }
   function showTut(title, body) {
     timerPaused = true;
     $('tut-title').textContent = title;
@@ -2023,8 +2102,8 @@
     $('ver').textContent = 'v' + VERSION;
     try {
       const seen = localStorage.getItem('farm3d_cap4_notice');
-      if (seen !== '4.3.0') {
-        localStorage.setItem('farm3d_cap4_notice', '4.3.0');
+      if (seen !== '4.3.1') {
+        localStorage.setItem('farm3d_cap4_notice', '4.3.1');
         setTimeout(() => toast(t('toast_cap4_migrate')), 900);
       }
     } catch (e) {}
@@ -2073,18 +2152,7 @@
     if (f.corked) { toast(t('toast_done')); return; }
     if (selected < 0) {
       if (isRecipeMixer(f)) {
-        const want = mixerNextProduct(f);
-        const done = f.layers.length|0;
-        if (!want) toast(t('toast_mix_done'));
-        else {
-          const pair = ingredientsFor(want);
-          toast(t('toast_mix_need', {
-            n: done + 1, total: f.mixRecipe.length,
-            a: colorName(pair[0]), b: colorName(pair[1]),
-            out: colorName(want),
-            pending: f.pending ? colorName(f.pending) : ''
-          }));
-        }
+        showMixerRecipePopup(f);
         playSfx('tap', 0.35);
         return;
       }

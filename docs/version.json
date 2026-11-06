@@ -1,9 +1,9 @@
 {
-  "version": "4.3.0",
-  "versionCode": 43000,
-  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/download/v4.3.0/ColorFlow-4.3.0.apk",
-  "webVersion": "4.3.0",
+  "version": "4.3.1",
+  "versionCode": 43001,
+  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/download/v4.3.1/ColorFlow-4.3.1.apk",
+  "webVersion": "4.3.1",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v4.3.0 layer-mix every 3rd level (3,6,…,99) — 33 levels\n• Bottom 2/3/4 recipe mixers (layers bottom→top); sources above\n• Y+B→green, R+Y→orange, R+B→purple; pending half-pair; wrong=0 moves\n• Collectors moved 12/42/72 → 13/43/73; bosses every 5 kept\n• Cap4 all ordinary+mixers; package com.alex.farm3d; progress kept"
+  "changelog": "• v4.3.1 compact mix recipes: colored dots per flask (no overlapping names)\n• Tap mixer → full RU/UK/EN recipe popup with all 4 layers\n• Layer 1/4 badge + ghost target + colored progress chips\n• Restored collector on L92 (9 collectors: 13,22,32,43,52,62,73,82,92)\n• Gameplay/recipes unchanged; package com.alex.farm3d; progress kept"
 }
