@@ -1,8 +1,8 @@
-/* Краски v4.1.2 — restart button + collector vessel levels */
+/* Краски v4.1.3 — HUD tip overlap fix on narrow screens */
 (function () {
   'use strict';
-  const VERSION = '4.1.2';
-  const APP_VERSION = { version: '4.1.2', versionCode: 41002, webVersion: '4.1.2' };
+  const VERSION = '4.1.3';
+  const APP_VERSION = { version: '4.1.3', versionCode: 41003, webVersion: '4.1.3' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -757,9 +757,56 @@
   }
 
   /* ---------- layout ---------- */
+
+  function hudBottomInCanvas() {
+    const hud = $('hud');
+    if (!hud || hud.style.display === 'none') return 56;
+    const wrapR = wrap.getBoundingClientRect();
+    const hudR = hud.getBoundingClientRect();
+    // bottom of HUD relative to canvas/wrap top
+    return Math.max(48, hudR.bottom - wrapR.top);
+  }
+  function playfieldTopY() {
+    // Space for tip when L1 onboarding is visible — keep flasks below tip block
+    const tipOn = (state === 'play' && levelIdx === 0 && moves === 0 && selected < 0);
+    const gap = 14;
+    const tipBlock = tipOn ? 48 : 0; // up to 2 wrapped tip lines + padding
+    return hudBottomInCanvas() + gap + tipBlock;
+  }
+  function drawWrappedTip(text, cx, topY, maxW) {
+    const fontSize = W < 380 ? 12 : 13;
+    ctx.font = fontSize + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const words = String(text || '').split(/\s+/);
+    const lines = [];
+    let line = '';
+    for (const w of words) {
+      const trial = line ? (line + ' ' + w) : w;
+      if (ctx.measureText(trial).width > maxW && line) {
+        lines.push(line);
+        line = w;
+      } else line = trial;
+    }
+    if (line) lines.push(line);
+    const lineH = fontSize + 3;
+    // soft backdrop so text stays readable over busy bg
+    const boxW = Math.min(maxW + 16, W - 16);
+    const boxH = lines.length * lineH + 8;
+    const bx = cx - boxW / 2;
+    ctx.fillStyle = 'rgba(20,10,30,0.55)';
+    // box starts at topY — never bleed upward into HUD
+    roundRect(ctx, bx, topY, boxW, boxH, 10); ctx.fill();
+    ctx.fillStyle = 'rgba(255,232,255,0.95)';
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], cx, topY + 4 + i * lineH);
+    }
+    return boxH;
+  }
+
   function flaskLayout(i) {
     const n = flasks.length;
-    const topY = 100;
+    const topY = Math.max(playfieldTopY(), hudBottomInCanvas() + 12);
     const bottomY = H - 110;
     const areaH = bottomY - topY;
     const ci = flasks.findIndex(f => f && f.collector);
@@ -1925,9 +1972,9 @@
         ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.rot); ctx.fillStyle = c.color; ctx.fillRect(-4, -2, 8, 4); ctx.restore();
       }
       if (state === 'play' && levelIdx === 0 && moves === 0 && selected < 0) {
-        ctx.fillStyle = 'rgba(255,232,255,0.85)';
-        ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText(t('tip_pour'), W / 2, 88);
+        const tipY = hudBottomInCanvas() + 14;
+        const maxW = Math.min(W - 28, 340);
+        drawWrappedTip(t('tip_pour'), W / 2, tipY, maxW);
       }
     }
   }
