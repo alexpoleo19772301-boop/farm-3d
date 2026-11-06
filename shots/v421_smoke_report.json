@@ -1,0 +1,132 @@
+{
+  "ver": "4.2.1",
+  "pack": "4.2.1",
+  "tests": [
+    {
+      "n": "version",
+      "ok": true,
+      "d": "4.2.1/4.2.1"
+    },
+    {
+      "n": "palette_red_brown",
+      "ok": true,
+      "d": {
+        "red": "#FF2A32",
+        "brown": "#4A2A12"
+      }
+    },
+    {
+      "n": "ordinary_cap4",
+      "ok": true,
+      "d": ""
+    },
+    {
+      "n": "hidden_pour_moves",
+      "ok": true,
+      "d": {
+        "moves": 1,
+        "hid": 0
+      }
+    },
+    {
+      "n": "hidden_undo",
+      "ok": true,
+      "d": {
+        "undid": true,
+        "restored": true
+      }
+    },
+    {
+      "n": "hidden_restart",
+      "ok": true,
+      "d": 0
+    },
+    {
+      "n": "filter_reject_0",
+      "ok": true,
+      "d": {
+        "skip": false,
+        "movesBefore": 0,
+        "movesAfter": 0,
+        "src": 0,
+        "filterIdx": 7,
+        "filterCol": "red"
+      }
+    },
+    {
+      "n": "filter_correct",
+      "ok": true,
+      "d": {
+        "skip": true
+      }
+    },
+    {
+      "n": "filter_undo",
+      "ok": true,
+      "d": "called"
+    },
+    {
+      "n": "filter_restart",
+      "ok": true,
+      "d": 0
+    },
+    {
+      "n": "ice_key_present",
+      "ok": true,
+      "d": {
+        "id": 24,
+        "hasF": true,
+        "hasL": true
+      }
+    },
+    {
+      "n": "collector",
+      "ok": true,
+      "d": {
+        "has": true,
+        "cap": 6
+      }
+    },
+    {
+      "n": "mixer",
+      "ok": true,
+      "d": 40
+    },
+    {
+      "n": "newgame_open_no_reset",
+      "ok": true,
+      "d": {
+        "beforeNG": 55,
+        "afterOpen": 55,
+        "modalOn": false
+      }
+    },
+    {
+      "n": "newgame_cancel_keeps",
+      "ok": true,
+      "d": ""
+    },
+    {
+      "n": "filter_badge_shot",
+      "ok": true,
+      "d": {
+        "lang": "ru"
+      }
+    },
+    {
+      "n": "win_L27",
+      "ok": true,
+      "d": "win"
+    },
+    {
+      "n": "win_L56",
+      "ok": true,
+      "d": "win"
+    },
+    {
+      "n": "win_L100",
+      "ok": true,
+      "d": "win"
+    }
+  ]
+}
