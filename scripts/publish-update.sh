@@ -11,6 +11,7 @@ export ANDROID_HOME="${ANDROID_HOME:-/home/box/android/sdk}"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PATH="$JAVA_HOME/bin:$PATH"
 gh auth status >/dev/null
+python3 scripts/check-paint-counts.py
 gh auth setup-git >/dev/null 2>&1 || true
 IFS=. read -r MA MI PA <<<"$VER"
 CODE=$((10#$MA * 10000 + 10#$MI * 1000 + 10#$PA))
