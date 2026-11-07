@@ -1,9 +1,9 @@
 {
-  "version": "4.4.0",
-  "versionCode": 44000,
-  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/download/v4.4.0/ColorFlow-4.4.0.apk",
-  "webVersion": "4.4.0",
+  "version": "4.4.1",
+  "versionCode": 44001,
+  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/download/v4.4.1/ColorFlow-4.4.1.apk",
+  "webVersion": "4.4.1",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• v4.4.0 mixing removed — replaced by «Заказ мастерской» every 3rd level\n• Collect full corked mono flasks of listed colors (2→3→4 goals)\n• Remaining paint may stay unsorted; no recipes/color transforms\n• Collectors 13,22,32,43,52,62,73,82,92; bosses every 5 kept\n• Cap4 ordinary; package com.alex.farm3d; progress kept"
+  "changelog": "• Исправлены уровни 40 и 47: зелёного достаточно, лишние ингредиенты убраны. • Смешивание не возвращено. • Добавлена проверка количества краски перед выпуском. • Прогресс сохраняется; текущий уровень перезапустите кнопкой «Заново»."
 }
