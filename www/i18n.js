@@ -3,6 +3,8 @@
   'use strict';
   const DICT = {
     ru: {
+      world_egypt: 'Египет', world_england: 'Камелот', world_greece: 'Олимп', world_japan: 'Япония', world_atlantis: 'Атлантида',
+      world_open: 'Открыть за {cost} 🪙', world_need_prev: 'Сначала пройди: {name}', world_no_coins: 'Нужно {cost} 🪙, у тебя {have}', world_opened: 'Мир «{name}» открыт! 🎉', world_locked_toast: 'Открой мир «{name}» на карте за {cost} 🪙',
       app_title: 'ColorFlow',
       home_sub: 'Переливай · сортируй · освобождай колбы',
       home_blurb: 'Нажми колбу с краской, затем другую — перелей верхний цвет. Собери одинаковые цвета!',
@@ -201,6 +203,8 @@
       gift_coins: '🪙 {n}'
     },
     uk: {
+      world_egypt: 'Єгипет', world_england: 'Камелот', world_greece: 'Олімп', world_japan: 'Японія', world_atlantis: 'Атлантида',
+      world_open: 'Відкрити за {cost} 🪙', world_need_prev: 'Спершу пройди: {name}', world_no_coins: 'Потрібно {cost} 🪙, у тебе {have}', world_opened: 'Світ «{name}» відкрито! 🎉', world_locked_toast: 'Відкрий світ «{name}» на карті за {cost} 🪙',
       app_title: 'ColorFlow',
       home_sub: 'Переливай · сортуй · звільняй колби',
       home_blurb: 'Натисни колбу з фарбою, потім іншу — перелий верхній колір. Збери однакові кольори!',
@@ -391,6 +395,8 @@
       gift_coins: '🪙 {n}'
     },
     en: {
+      world_egypt: 'Egypt', world_england: 'Camelot', world_greece: 'Olympus', world_japan: 'Japan', world_atlantis: 'Atlantis',
+      world_open: 'Unlock for {cost} 🪙', world_need_prev: 'Finish {name} first', world_no_coins: 'Need {cost} 🪙, you have {have}', world_opened: 'World "{name}" unlocked! 🎉', world_locked_toast: 'Unlock "{name}" on the map for {cost} 🪙',
       app_title: 'ColorFlow',
       home_sub: 'Pour · sort · free the flasks',
       home_blurb: 'Tap a paint flask, then another — pour the top color. Match identical colors!',

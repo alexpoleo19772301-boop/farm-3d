@@ -186,7 +186,8 @@
       musicOn: true, musicVol: 0.40, sfxVol: 0.55, vibrateOn: true, trackId: 1, pourSfxId: 1, langPref: 'auto', colorBlindMode: false,
       boosters: { undo: 5, flask: 2, hint: 3 },
       daily: { lastClaim: null, streak: 0, lastQuestDay: null, quests: [] },
-      seenTut: {}, starChests: {}, questBadge: false
+      seenTut: {}, starChests: {}, questBadge: false,
+      worldsPaid: { egypt: 1 }
     };
   }
   function loadSave() {
@@ -215,6 +216,19 @@
       if (!raw.stars) raw.stars = {};
       // v4.4.0: mixing removed — drop obsolete attempt payload only
       if (raw._mixAttempt) delete raw._mixAttempt;
+      // v4.6.0 worlds: worlds already reached by existing players stay open for free
+      if (!raw.worldsPaid || typeof raw.worldsPaid !== 'object') raw.worldsPaid = { egypt: 1 };
+      if (!raw.worldsMigrated) {
+        const un = raw.unlocked | 0;
+        const bounds = [['england', 20], ['greece', 40], ['japan', 60], ['atlantis', 80]];
+        for (const [id, from] of bounds) {
+          let played = un > from + 1;
+          for (let i = from; i < from + 20 && !played; i++) if ((raw.stars && raw.stars[i]) | 0) played = true;
+          if (played) raw.worldsPaid[id] = 1;
+        }
+        raw.worldsMigrated = 1;
+      }
+      raw.worldsPaid.egypt = 1;
       return raw;
     } catch (e) { return defaults; }
   }
@@ -1002,6 +1016,16 @@
     c.closePath();
   }
 
+  const WORLDS = [
+    { id: 'egypt', from: 0, to: 19, cost: 0, bg: 'assets/worlds/egypt.webp', rim: '#f2c14e', band: '#1fb5a8', tint: 'rgba(255,210,120,0.16)', emblem: '☥' },
+    { id: 'england', from: 20, to: 39, cost: 400, bg: 'assets/worlds/england.webp', rim: '#cfd8e0', band: '#2e8b57', tint: 'rgba(170,230,190,0.14)', emblem: '♛' },
+    { id: 'greece', from: 40, to: 59, cost: 700, bg: 'assets/worlds/greece.webp', rim: '#fbf6e9', band: '#3a7bd5', tint: 'rgba(200,225,255,0.16)', emblem: 'Ω' },
+    { id: 'japan', from: 60, to: 79, cost: 1000, bg: 'assets/worlds/japan.webp', rim: '#e0384f', band: '#ffb7c5', tint: 'rgba(255,180,200,0.14)', emblem: '✿' },
+    { id: 'atlantis', from: 80, to: 9999, cost: 1400, bg: 'assets/worlds/atlantis.webp', rim: '#6ff0e0', band: '#c9a3ff', tint: 'rgba(120,240,230,0.16)', emblem: 'Ψ' }
+  ];
+  function worldOf(idx) { idx = Math.max(0, idx | 0); for (const w of WORLDS) if (idx >= w.from && idx <= w.to) return w; return WORLDS[0]; }
+  function worldPaid(w) { return !w.cost || !!(save.worldsPaid && save.worldsPaid[w.id]); }
+  function worldName(w) { return t('world_' + w.id); }
   const BG_SET = [
     { file: 'assets/bg/bg_workshop.webp', from: 0, to: 14 },
     { file: 'assets/bg/bg_landscape.webp', from: 15, to: 34 },
@@ -1022,6 +1046,7 @@
   }
   function pickBgFile() {
     const idx = Math.max(0, levelIdx | 0);
+    if (state === 'play' || state === 'win' || state === 'lose') return worldOf(idx).bg;
     for (const b of BG_SET) if (idx >= b.from && idx <= b.to) return b.file;
     return BG_SET[0].file;
   }
@@ -1272,9 +1297,22 @@
     ctx.lineTo(-w * 0.48, bodyTop + 24);
     ctx.quadraticCurveTo(-w * 0.48, bodyTop + 8, -neckW, bodyTop);
     ctx.closePath();
-    ctx.strokeStyle = 'rgba(245,250,255,0.92)';
-    ctx.lineWidth = 2.6;
+    const WS = worldOf(levelIdx);
+    ctx.fillStyle = WS.tint; ctx.fill();
+    ctx.strokeStyle = WS.rim;
+    ctx.lineWidth = 2.8;
     ctx.stroke();
+    // world-styled neck ring + base band
+    ctx.fillStyle = WS.rim;
+    roundRect(ctx, -neckW - 3, -h * 0.49, neckW * 2 + 6, 6, 3); ctx.fill();
+    ctx.fillStyle = WS.band;
+    roundRect(ctx, -neckW - 1, -h * 0.49 + 6, neckW * 2 + 2, 3, 1.5); ctx.fill();
+    ctx.fillStyle = WS.band; ctx.globalAlpha = 0.9;
+    roundRect(ctx, -w * 0.36, bodyBot - 1, w * 0.72, 5, 2.5); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = WS.rim; ctx.font = 'bold ' + Math.max(9, Math.round(neckW * 0.9)) + 'px serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(WS.emblem, 0, (bodyTop - h * 0.40) / 2 + 2);
     // refraction streak
     ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.lineWidth = 2;
@@ -1604,6 +1642,12 @@
 
   /* ---------- levels / screens ---------- */
   function startLevel(idx) {
+    const gw = worldOf(idx);
+    if (!worldPaid(gw)) {
+      state = 'map'; showScreen('map'); buildMap(gw.id);
+      toast(t('world_locked_toast', { name: worldName(gw), cost: gw.cost }));
+      return;
+    }
     outcomeGen++;
     levelIdx = idx;
     boss = null; bossDrag = null; pipe = null; pendingPipeAfterWin = false; pourAnim = null; selected = -1;
@@ -1839,19 +1883,62 @@
     updateQuestBadge();
   }
 
-  function buildMap() {
+  function buyWorld(w) {
+    if (worldPaid(w)) return;
+    if ((save.unlocked | 0) <= w.from) { toast(t('world_need_prev', { name: worldName(WORLDS[WORLDS.indexOf(w) - 1]) })); return; }
+    if ((save.coins | 0) < w.cost) { toast(t('world_no_coins', { cost: w.cost, have: save.coins | 0 })); playSfx('error', 0.3); return; }
+    save.coins -= w.cost; save.worldsPaid[w.id] = 1; persist();
+    playSfx('coin', 0.5);
+    toast(t('world_opened', { name: worldName(w) }));
+    buildMap(w.id);
+  }
+  function buildMap(focusId) {
     const g = $('mapgrid'); if (!g) return;
     g.innerHTML = '';
-    const ms = $('map-stars'); if (ms) ms.textContent = '★ ' + totalStars();
-    for (let i = 0; i < levels.length; i++) {
-      const cell = document.createElement('div');
-      const locked = i >= (save.unlocked | 0);
-      cell.className = 'mapcell' + (locked ? ' lock' : '') + ((save.stars[i] | 0) > 0 ? ' done' : '');
-      const st = save.stars[i] | 0;
-      cell.innerHTML = '<div>' + (i + 1) + '</div><div class="stars">' + (locked ? '🔒' : ('★'.repeat(st) + '☆'.repeat(3 - st))) + '</div>';
-      if (!locked) cell.onclick = () => startLevel(i);
-      g.appendChild(cell);
+    const ms = $('map-stars'); if (ms) ms.textContent = '★ ' + totalStars() + '   🪙 ' + (save.coins | 0);
+    let focusEl = null;
+    const curW = worldOf(Math.min(levels.length - 1, Math.max(0, (save.unlocked | 0) - 1)));
+    for (const w of WORLDS) {
+      if (w.from >= levels.length) continue;
+      const to = Math.min(w.to, levels.length - 1);
+      const paid = worldPaid(w);
+      const sec = document.createElement('div');
+      sec.className = 'world' + (paid ? '' : ' wlock');
+      sec.dataset.world = w.id;
+      sec.style.backgroundImage = 'linear-gradient(rgba(10,4,20,.35),rgba(10,4,20,.65)),url(' + w.bg + ')';
+      let wst = 0; for (let i = w.from; i <= to; i++) wst += save.stars[i] | 0;
+      const head = document.createElement('div');
+      head.className = 'whead';
+      head.innerHTML = '<span class="wemb" style="color:' + w.rim + '">' + w.emblem + '</span><b>' + worldName(w) + '</b><span class="wst">★ ' + wst + '/' + ((to - w.from + 1) * 3) + '</span>';
+      sec.appendChild(head);
+      const grid = document.createElement('div');
+      grid.className = 'wgrid';
+      for (let i = w.from; i <= to; i++) {
+        const cell = document.createElement('div');
+        const locked = !paid || i >= (save.unlocked | 0);
+        cell.className = 'mapcell' + (locked ? ' lock' : '') + ((save.stars[i] | 0) > 0 ? ' done' : '');
+        cell.style.borderColor = w.rim;
+        const st = save.stars[i] | 0;
+        cell.innerHTML = '<div>' + (i + 1) + '</div><div class="stars">' + (locked ? '🔒' : ('★'.repeat(st) + '☆'.repeat(3 - st))) + '</div>';
+        if (!locked) cell.onclick = () => startLevel(i);
+        grid.appendChild(cell);
+      }
+      sec.appendChild(grid);
+      if (!paid) {
+        const ov = document.createElement('div');
+        ov.className = 'wbuy';
+        const ready = (save.unlocked | 0) > w.from;
+        const b = document.createElement('button');
+        b.className = 'btn' + (ready ? '' : ' ghost');
+        b.textContent = ready ? t('world_open', { cost: w.cost }) : t('world_need_prev', { name: worldName(WORLDS[WORLDS.indexOf(w) - 1]) });
+        b.onclick = () => buyWorld(w);
+        ov.appendChild(b);
+        sec.appendChild(ov);
+      }
+      g.appendChild(sec);
+      if ((focusId && w.id === focusId) || (!focusId && w === curW)) focusEl = sec;
     }
+    if (focusEl) setTimeout(() => { try { g.scrollTop = focusEl.offsetTop - g.offsetTop - 4; } catch (e) {} }, 30);
   }
 
   /* ---------- input ---------- */
@@ -2232,7 +2319,7 @@
   function completePipe() {
     if (!pipe || pipe.done) return;
     pipe.done = true; pipe.revealT = 0;
-    playSfx('win', 0.5); buzz([20, 40, 20]);
+    playSfx('coin', 0.5); buzz([20, 40, 20]);
     let stars = 1; if (pipe.taps <= Math.ceil(pipe.par * 2)) stars = 2; if (pipe.taps <= Math.ceil(pipe.par * 1.3) + 1) stars = 3;
     const coins = 30 + pipe.lvl + stars * 10;
     save.coins += coins;
@@ -2843,7 +2930,7 @@
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },
       tick: (sec) => { const steps = Math.ceil(sec / 0.016); for (let i = 0; i < steps; i++) { if (pourAnim) { pourAnim.t += 0.016; if (pourAnim.t >= pourAnim.duration) finishPour(); } animT += 0.016; } },
-      solveHint, openDaily, openSettings, requestNewGame, confirmNewGame, cancelRestart, requestRestart, doRestart, checkOta, getSave: () => JSON.parse(JSON.stringify(save)), SAVE_KEY, SAVE_BAK_NEWGAME, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx, getPourOptions, getBgmTracks, langPref: () => langPref, setLanguagePref, applyI18nDom, colorBlindMode: () => colorBlindMode, setColorBlindMode: (on) => { colorBlindMode = !!on; save.colorBlindMode = colorBlindMode; persist(); }, PAINT, getPourSfxId: () => pourSfxId, setPourSfxId: (id) => { pourSfxId = Math.max(0, Math.min(5, id|0)); save.pourSfxId = pourSfxId; persist(); },
+      solveHint, openDaily, openSettings, requestNewGame, confirmNewGame, cancelRestart, requestRestart, doRestart, checkOta, worlds: () => WORLDS.map(w => ({ id: w.id, from: w.from, cost: w.cost, paid: worldPaid(w) })), buyWorld: (id) => buyWorld(WORLDS.find(w => w.id === id)), setCoins: (n) => { save.coins = n | 0; persist(); }, getSave: () => JSON.parse(JSON.stringify(save)), SAVE_KEY, SAVE_BAK_NEWGAME, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx, getPourOptions, getBgmTracks, langPref: () => langPref, setLanguagePref, applyI18nDom, colorBlindMode: () => colorBlindMode, setColorBlindMode: (on) => { colorBlindMode = !!on; save.colorBlindMode = colorBlindMode; persist(); }, PAINT, getPourSfxId: () => pourSfxId, setPourSfxId: (id) => { pourSfxId = Math.max(0, Math.min(5, id|0)); save.pourSfxId = pourSfxId; persist(); },
       ensureBgm, stopBgm, setBgmTrack, countPlayingBgm, stopPreview, getBgmTracks,
       autoSolve: (maxSteps) => {
         let steps = 0;
