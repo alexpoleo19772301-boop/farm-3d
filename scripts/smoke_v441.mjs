@@ -6,7 +6,7 @@ const root='/workspace/farm-3d/www';
 const mime={'.html':'text/html','.js':'application/javascript','.json':'application/json','.png':'image/png','.webp':'image/webp','.ogg':'audio/ogg','.webmanifest':'application/manifest+json'};
 const server=http.createServer((req,res)=>{let u=decodeURIComponent(req.url.split('?')[0]);if(u==='/')u='/index.html';const fp=path.join(root,u.slice(1));if(!fs.existsSync(fp)){res.writeHead(404);res.end();return;}res.writeHead(200,{'Content-Type':mime[path.extname(fp)]||'octet-stream'});fs.createReadStream(fp).pipe(res);});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
-const sols=JSON.parse(fs.readFileSync('scripts/paint_solutions_v440.json','utf8'));
+const sols=JSON.parse(fs.readFileSync('scripts/paint_solutions_v470.json','utf8'));
 const pack=JSON.parse(fs.readFileSync('www/assets/paint_levels.json','utf8'));
 const browser=await chromium.launch({args:['--no-sandbox']});
 const page=await browser.newPage({viewport:{width:390,height:844}});
@@ -19,14 +19,14 @@ await page.evaluate(()=>localStorage.setItem('vintiki_save_v40', JSON.stringify(
 await page.reload({waitUntil:'networkidle'});
 await page.waitForFunction(()=>window.__V);
 
-const fixed=JSON.parse(fs.readFileSync('scripts/paint_solutions_v441_fixed.json','utf8'));
+const fixed=JSON.parse(fs.readFileSync('scripts/paint_solutions_v470.json','utf8'));
 const check=(name,ok,data)=>{console.log(name,ok?'PASS':'FAIL',JSON.stringify(data??null));if(!ok)throw new Error(name);};
 for(const id of [40,47]){
  await page.evaluate(i=>window.__V.startLevel(i),id-1);
  await page.evaluate(()=>{const b=document.getElementById('btn-tut-ok');if(b&&document.getElementById('sc-tut')?.classList.contains('on'))b.click();});
  const initial=await page.evaluate(()=>window.__V.getState());
  const colors=initial.flasks.flatMap(f=>f.colors).reduce((a,c)=>(a[c]=(a[c]||0)+1,a),{});
- check('L'+id+'_paint',colors.green===4&&colors.red===4&&colors.orange===4&&!colors.yellow&&!colors.blue,colors);
+ check('L'+id+'_paint_4each_no_mix',Object.values(colors).every(n=>n===4)&&initial.flasks.every(f=>!f.mixer&&f.cap===4),colors); // v4.7.0: regenerated harder, still no mixing
  await page.screenshot({path:`shots/v441_L${id}_initial_390.png`});
  await page.evaluate(path=>{for(const step of path){window.__V.pour(step[0],step[1]);window.__V.tick(2);}},fixed[id].path);
  await page.waitForTimeout(1100);
