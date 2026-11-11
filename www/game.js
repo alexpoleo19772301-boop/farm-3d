@@ -1,8 +1,8 @@
 /* ColorFlow v4.4.0 — workshop orders; mixing removed every 3rd level (2–4 bottom recipes) */
 (function () {
   'use strict';
-  const VERSION = '4.5.0';
-  const APP_VERSION = { version: '4.5.0', versionCode: 45000, webVersion: '4.5.0' };
+  const VERSION = '4.6.0';
+  const APP_VERSION = { version: '4.6.0', versionCode: 46000, webVersion: '4.6.0' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
