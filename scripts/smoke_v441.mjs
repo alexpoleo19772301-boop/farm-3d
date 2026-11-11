@@ -12,7 +12,7 @@ const browser=await chromium.launch({args:['--no-sandbox']});
 const page=await browser.newPage({viewport:{width:390,height:844}});
 await page.goto(`http://127.0.0.1:${server.address().port}/`);
 // Simulate upgrade from mix-pending attempt: unlocked mid mix level
-await page.evaluate(()=>localStorage.setItem('vintiki_save_v40', JSON.stringify({
+await page.evaluate(()=>localStorage.setItem('vintiki_save_v40', JSON.stringify({worldsPaid:{egypt:1,england:1,greece:1,japan:1,atlantis:1},worldsMigrated:1,
   unlocked:40,coins:777,stars:{0:3,1:2},boosters:{undo:9,flask:5,hint:9},musicOn:false,sfxOn:false,
   seenTut:{basic:1,moves:1,workshop:0},langPref:'ru',_mixAttempt:{pending:true,junk:1}
 })));
