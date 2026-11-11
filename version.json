@@ -1,9 +1,9 @@
 {
-  "version": "4.5.0",
-  "versionCode": 45000,
-  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/download/v4.5.0/ColorFlow-4.5.0.apk",
-  "webVersion": "4.5.0",
+  "version": "4.6.0",
+  "versionCode": 46000,
+  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/download/v4.6.0/ColorFlow-4.6.0.apk",
+  "webVersion": "4.6.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "Новое: мини-игра «Водопровод» после каждого 2-го уровня (поворачивай трубы, чтобы краска дотекла до колбы). Уровни сложнее: запас ходов уменьшен примерно на 30%. Пазл после каждого 5-го уровня остался. Прогресс сохраняется."
+  "changelog": "Новое: карта из пяти мифических миров по 20 уровней — Египет, Камелот, Олимп, Япония, Атлантида. У каждого мира свой фон и свои колбы. Следующий мир открывается за монеты (400, 700, 1000, 1400) после прохождения предыдущего. Уже открытые миры остаются бесплатными, прогресс сохраняется."
 }
