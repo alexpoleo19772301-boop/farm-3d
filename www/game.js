@@ -139,6 +139,7 @@
   let hintMove = null; // {from,to,t}
   let pendingBossAfterWin = false;
   let boss = null, bossDrag = null;
+  let pipe = null, pendingPipeAfterWin = false;
   let outcomeGen = 0;
   let audio = {}, bgmStarted = false, imgs = {};
   let levelPack = null;
@@ -1605,7 +1606,7 @@
   function startLevel(idx) {
     outcomeGen++;
     levelIdx = idx;
-    boss = null; bossDrag = null; pourAnim = null; selected = -1;
+    boss = null; bossDrag = null; pipe = null; pendingPipeAfterWin = false; pourAnim = null; selected = -1;
     hintMove = null; history = []; particles = [];
     moves = 0; runUsedBooster = false; runUsedHint = false;
     loseReason = '';
@@ -1766,7 +1767,8 @@
     const wr = $('btn-win-replay'); if (wr) wr.style.display = (best < 3) ? 'inline-flex' : 'none';
     const lvlNum = levelIdx + 1;
     pendingBossAfterWin = (lvlNum % 5 === 0) && lvlNum >= 5;
-    const bn = $('btn-next'); if (bn) bn.textContent = pendingBossAfterWin ? t('mini_boss') : t('next');
+    pendingPipeAfterWin = !pendingBossAfterWin && (lvlNum % 2 === 0) && lvlNum < levels.length;
+    const bn = $('btn-next'); if (bn) bn.textContent = pendingBossAfterWin ? t('mini_boss') : (pendingPipeAfterWin ? t('mini_pipe') : t('next'));
     showScreen('win'); refreshHud();
   }
 
@@ -1776,25 +1778,26 @@
       const el = $('sc-' + s); if (el) el.classList.toggle('on', s === name);
     });
     const playing = name === 'play';
-    const bossing = name === 'boss';
+    const bossing = name === 'boss' || name === 'pipe';
     $('hud').style.display = (playing || bossing) ? 'block' : 'none';
     $('boosters').style.display = playing ? 'flex' : 'none';
     const hg = $('btn-home-settings');
     if (hg) hg.style.display = (name === 'home' || name === 'settings' || name === 'daily') ? 'block' : 'none';
-    if (bossing) { const lp = $('lvl-pill'); if (lp) lp.textContent = t('boss_pill'); }
+    if (bossing) { const lp = $('lvl-pill'); if (lp) lp.textContent = name === 'pipe' ? t('pipe_pill') : t('boss_pill'); }
   }
   function refreshHud() {
-    $('lvl-pill').textContent = state === 'boss' ? t('boss_pill') : t('level', { n: levelIdx + 1 });
+    $('lvl-pill').textContent = state === 'boss' ? t('boss_pill') : (state === 'pipe' ? t('pipe_pill') : t('level', { n: levelIdx + 1 }));
     $('coin-pill').textContent = '🪙 ' + (save.coins | 0);
     const sc = $('star-pill'); if (sc) sc.textContent = '★ ' + totalStars();
     const mp = $('moves-pill');
-    if (mp) {
+    if (mp) mp.style.display = state === 'pipe' ? 'none' : '';
+    if (mp && state !== 'pipe') {
       if (runMoveLimit > 0) mp.textContent = t('moves_lim', { n: moves, max: runMoveLimit });
       else mp.textContent = t('moves', { n: moves });
     }
     const tp = $('timer-pill');
     if (tp) {
-      if (runTimeLimit > 0) {
+      if (runTimeLimit > 0 && state !== 'pipe') {
         tp.style.display = 'inline-flex';
         const sec = Math.max(0, Math.ceil(runTimeLeft));
         const mm = String(Math.floor(sec / 60)).padStart(1, '0');
@@ -1821,7 +1824,7 @@
     }
     renderWorkshopHud();
     const br = $('btn-restart');
-    if (br) br.style.display = (state === 'play' || state === 'boss') ? 'inline-flex' : 'none';
+    if (br) br.style.display = (state === 'play' || state === 'boss' || state === 'pipe') ? 'inline-flex' : 'none';
     $('badge-undo').textContent = save.boosters.undo;
     $('badge-flask').textContent = save.boosters.flask;
     $('badge-hint').textContent = save.boosters.hint;
@@ -1854,6 +1857,7 @@
   /* ---------- input ---------- */
   function onPointer(x, y) {
     if (state === 'boss') { bossPointerDown(x, y); return; }
+    if (state === 'pipe') { pipePointer(x, y); return; }
     if (state !== 'play' || pourAnim) return;
     ensureBgm();
     const i = flaskAt(x, y);
@@ -1892,6 +1896,7 @@
     const r = canvas.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;
     if (state === 'boss') { bossPointerDown(x, y, e.pointerId); return; }
+    if (state === 'pipe') { pipePointer(x, y); return; }
     onPointer(x, y);
   });
   canvas.addEventListener('pointermove', (e) => {
@@ -2127,6 +2132,174 @@
     }
   }
 
+  /* ---------- pipe mini-game (after every 2nd level) ---------- */
+  const PIPE_D = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // N E S W -> bits 1 2 4 8
+  const COLORS_LIST_FOR_PIPE = ['#3aa0ff', '#ff4fa3', '#36d17a', '#ffb02e', '#a970ff', '#ff2a32'];
+  function pipeRotMask(m) { return ((m << 1) | (m >> 3)) & 15; }
+  function pipeRng(seed) { let s = (seed >>> 0) || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
+  function pipeDir(ax, ay, bx, by) { for (let d = 0; d < 4; d++) if (ax + PIPE_D[d][0] === bx && ay + PIPE_D[d][1] === by) return d; return -1; }
+  function startPipe(lvlNum) {
+    lvlNum = Math.max(2, lvlNum | 0);
+    const n = lvlNum <= 30 ? 5 : (lvlNum <= 70 ? 6 : 7);
+    const minLen = n + (lvlNum <= 30 ? 2 : (lvlNum <= 70 ? 4 : 6));
+    const rnd = pipeRng(lvlNum * 7919 + 13);
+    let path = null;
+    for (let tries = 0; tries < 600 && !path; tries++) {
+      const sr = (rnd() * n) | 0;
+      const seen = new Set(['0,' + sr]); const pts = [[0, sr]];
+      for (let step = 0; step < n * n * 2; step++) {
+        const [x, y] = pts[pts.length - 1];
+        if (x === n - 1 && pts.length >= minLen) { path = pts; break; }
+        const opts = [];
+        for (let d = 0; d < 4; d++) {
+          const nx = x + PIPE_D[d][0], ny = y + PIPE_D[d][1];
+          if (nx < 0 || ny < 0 || nx >= n || ny >= n || seen.has(nx + ',' + ny)) continue;
+          if (nx === n - 1 && pts.length + 1 < minLen) continue;
+          opts.push([nx, ny]);
+        }
+        if (!opts.length) break;
+        const q = opts[(rnd() * opts.length) | 0]; pts.push(q); seen.add(q[0] + ',' + q[1]);
+      }
+    }
+    if (!path) { const r = (n / 2) | 0; path = []; for (let x = 0; x < n; x++) path.push([x, r]); }
+    const grid = [];
+    const extras = lvlNum > 50 ? [3, 6, 12, 9, 5, 10, 7, 11, 13, 14] : [3, 6, 12, 9, 5, 10];
+    for (let y = 0; y < n; y++) { const row = []; for (let x = 0; x < n; x++) row.push({ m: extras[(rnd() * extras.length) | 0], anim: 0, on: false }); grid.push(row); }
+    const pathCells = [];
+    for (let i = 0; i < path.length; i++) {
+      const [x, y] = path[i];
+      const din = i === 0 ? 3 : pipeDir(x, y, path[i - 1][0], path[i - 1][1]);
+      const dout = i === path.length - 1 ? 1 : pipeDir(x, y, path[i + 1][0], path[i + 1][1]);
+      const m = (1 << din) | (1 << dout);
+      grid[y][x].m = m; pathCells.push({ x, y, m });
+    }
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const k = (rnd() * 4) | 0; for (let j = 0; j < k; j++) grid[y][x].m = pipeRotMask(grid[y][x].m); }
+    pipe = { lvl: lvlNum, n, grid, path: pathCells, sx: 0, sy: path[0][1], ex: n - 1, ey: path[path.length - 1][1],
+      taps: 0, par: 0, done: false, revealT: 0, reward: null,
+      color: COLORS_LIST_FOR_PIPE[lvlNum % COLORS_LIST_FOR_PIPE.length] };
+    pipeFlow();
+    let guard = 0;
+    while (pipeSolved() && guard++ < 8) { const c = pathCells[(guard * 3) % pathCells.length]; grid[c.y][c.x].m = pipeRotMask(grid[c.y][c.x].m); pipeFlow(); }
+    let par = 0;
+    for (const c of pathCells) { let m = grid[c.y][c.x].m, k = 0; while (m !== c.m && k < 4) { m = pipeRotMask(m); k++; } par += k; }
+    pipe.par = Math.max(1, par);
+    showScreen('pipe'); refreshHud(); toast(t('pipe_hint'));
+  }
+  function pipeLayout() {
+    const top = Math.max(150, Math.round(H * 0.19));
+    const side = Math.min(W - 72, H - top - 110);
+    return { x: (W - side) / 2, y: top, side, cell: side / pipe.n };
+  }
+  function pipeFlow() {
+    const g = pipe.grid, n = pipe.n;
+    for (const row of g) for (const c of row) c.on = false;
+    const st = g[pipe.sy][pipe.sx];
+    if (!(st.m & 8)) return;
+    const q = [[pipe.sx, pipe.sy]]; st.on = true;
+    while (q.length) {
+      const [x, y] = q.shift(); const m = g[y][x].m;
+      for (let d = 0; d < 4; d++) {
+        if (!(m & (1 << d))) continue;
+        const nx = x + PIPE_D[d][0], ny = y + PIPE_D[d][1];
+        if (nx < 0 || ny < 0 || nx >= n || ny >= n) continue;
+        const nc = g[ny][nx];
+        if (nc.on || !(nc.m & (1 << ((d + 2) % 4)))) continue;
+        nc.on = true; q.push([nx, ny]);
+      }
+    }
+  }
+  function pipeSolved() {
+    if (!pipe) return false;
+    const e = pipe.grid[pipe.ey][pipe.ex];
+    return !!(e.on && (e.m & 2));
+  }
+  function pipeRotateCell(x, y) {
+    if (!pipe || pipe.done) return;
+    const c = pipe.grid[y] && pipe.grid[y][x]; if (!c) return;
+    c.m = pipeRotMask(c.m); c.anim = -Math.PI / 2; pipe.taps++;
+    playSfx('tap', 0.4); buzz(6);
+    pipeFlow();
+    if (pipeSolved()) completePipe();
+  }
+  function pipePointer(x, y) {
+    if (!pipe) return;
+    if (pipe.done) { if (pipe.revealT > 0.5) finishPipe(); return; }
+    const L = pipeLayout();
+    const cx = Math.floor((x - L.x) / L.cell), cy = Math.floor((y - L.y) / L.cell);
+    if (cx < 0 || cy < 0 || cx >= pipe.n || cy >= pipe.n) return;
+    pipeRotateCell(cx, cy);
+  }
+  function completePipe() {
+    if (!pipe || pipe.done) return;
+    pipe.done = true; pipe.revealT = 0;
+    playSfx('win', 0.5); buzz([20, 40, 20]);
+    let stars = 1; if (pipe.taps <= Math.ceil(pipe.par * 2)) stars = 2; if (pipe.taps <= Math.ceil(pipe.par * 1.3) + 1) stars = 3;
+    const coins = 30 + pipe.lvl + stars * 10;
+    save.coins += coins;
+    const key = 'pipe_' + pipe.lvl;
+    save.stars[key] = Math.max(save.stars[key] | 0, stars);
+    persist(); refreshHud(); playSfx('coin', 0.35);
+    pipe.reward = { stars, coins };
+    toast(t('pipe_done'));
+  }
+  function finishPipe() { pipe = null; startLevel(Math.min(levelIdx + 1, levels.length - 1)); }
+  function drawPipe(dt) {
+    if (!pipe) return;
+    drawStudioBg();
+    const L = pipeLayout(), n = pipe.n, cs = L.cell;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff6ff'; ctx.font = 'bold 18px sans-serif';
+    ctx.fillText(t('pipe_title'), W / 2, L.y - 46);
+    ctx.font = '12px sans-serif'; ctx.fillStyle = 'rgba(255,232,255,0.85)';
+    ctx.fillText(t('pipe_hint'), W / 2, L.y - 26);
+    ctx.fillText(t('pipe_taps', { n: pipe.taps }), W / 2, L.y + L.side + 24);
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = 'rgba(30,14,44,0.88)'; roundRect(ctx, L.x - 8, L.y - 8, L.side + 16, L.side + 16, 14); ctx.fill();
+    ctx.strokeStyle = '#e8b8f0'; ctx.lineWidth = 3; roundRect(ctx, L.x - 8, L.y - 8, L.side + 16, L.side + 16, 14); ctx.stroke();
+    const lw = Math.max(6, cs * 0.26);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const c = pipe.grid[y][x];
+      if (c.anim < 0) c.anim = Math.min(0, c.anim + dt * 14);
+      const cx = L.x + x * cs + cs / 2, cy = L.y + y * cs + cs / 2;
+      ctx.fillStyle = 'rgba(255,255,255,0.07)'; roundRect(ctx, cx - cs / 2 + 2, cy - cs / 2 + 2, cs - 4, cs - 4, 8); ctx.fill();
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(c.anim);
+      ctx.lineCap = 'round';
+      for (const pass of [0, 1]) {
+        ctx.strokeStyle = pass ? (c.on ? pipe.color : '#8a7f96') : '#2a1a33';
+        ctx.lineWidth = pass ? lw : lw + 6;
+        ctx.beginPath();
+        for (let d = 0; d < 4; d++) if (c.m & (1 << d)) { ctx.moveTo(0, 0); ctx.lineTo(PIPE_D[d][0] * cs / 2, PIPE_D[d][1] * cs / 2); }
+        ctx.stroke();
+      }
+      ctx.fillStyle = c.on ? pipe.color : '#8a7f96'; ctx.beginPath(); ctx.arc(0, 0, lw * 0.62, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    const sy = L.y + pipe.sy * cs + cs / 2, ey = L.y + pipe.ey * cs + cs / 2;
+    ctx.fillStyle = pipe.color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    roundRect(ctx, L.x - 34, sy - 16, 24, 32, 6); ctx.fill(); ctx.stroke();
+    const solved = pipeSolved();
+    ctx.fillStyle = solved ? pipe.color : 'rgba(255,255,255,0.15)';
+    roundRect(ctx, L.x + L.side + 10, ey - 18, 22, 36, 8); ctx.fill(); ctx.stroke();
+    ctx.font = '16px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+    ctx.fillText('🪣', L.x - 22, sy - 22);
+    ctx.fillText('🧪', L.x + L.side + 21, ey - 24);
+    if (pipe.done) {
+      pipe.revealT += dt;
+      const rw = Math.min(320, W - 40), rh = 150, rx = (W - rw) / 2, ry = H * 0.38;
+      ctx.fillStyle = 'rgba(20,10,30,0.9)'; roundRect(ctx, rx, ry, rw, rh, 18); ctx.fill();
+      ctx.strokeStyle = '#e8b8f0'; ctx.lineWidth = 3; roundRect(ctx, rx, ry, rw, rh, 18); ctx.stroke();
+      const rew = pipe.reward || { stars: 1, coins: 30 };
+      ctx.fillStyle = '#fff6ff'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(t('pipe_done'), W / 2, ry + 40);
+      ctx.fillStyle = '#ffd76a'; ctx.font = '28px sans-serif';
+      ctx.fillText('★'.repeat(rew.stars) + '☆'.repeat(3 - rew.stars), W / 2, ry + 78);
+      ctx.fillStyle = '#ffe8ff'; ctx.font = '15px sans-serif';
+      ctx.fillText(t('coins_plus', { n: rew.coins }), W / 2, ry + 110);
+      ctx.font = '13px sans-serif'; ctx.fillStyle = 'rgba(255,232,255,0.8)';
+      ctx.fillText(t('boss_tap'), W / 2, ry + 132);
+    }
+  }
+
   /* ---------- frame ---------- */
   function frame(dt) {
     animT += dt;
@@ -2136,6 +2309,7 @@
       return;
     }
     if (state === 'boss') { drawBoss(dt); return; }
+    if (state === 'pipe') { drawPipe(dt); return; }
     if (state === 'play' || state === 'win' || state === 'lose') {
       drawStudioBg();
       if (pourAnim) {
@@ -2197,6 +2371,7 @@
   /* ---------- settings / OTA ---------- */
 
   function requestRestart() {
+    if (state === 'pipe' && pipe) { startPipe(pipe.lvl); return; }
     if (state === 'boss') {
       timerPaused = true;
       confirmReturn = 'boss';
@@ -2244,6 +2419,8 @@
     runWorkshopOrder = null;
     boss = null;
     bossDrag = null;
+    pipe = null;
+    pendingPipeAfterWin = false;
     timerPaused = false;
   }
   function applyNewGameSave(next) {
@@ -2567,6 +2744,12 @@
         startBoss(Math.floor((levelIdx + 1) / 5) - 1);
         return;
       }
+      if (pendingPipeAfterWin) {
+        pendingPipeAfterWin = false;
+        const bn = $('btn-next'); if (bn) bn.textContent = t('next');
+        startPipe(levelIdx + 1);
+        return;
+      }
       startLevel(Math.min(levelIdx + 1, levels.length - 1));
     };
     $('btn-win-replay').onclick = () => startLevel(levelIdx);
@@ -2648,7 +2831,12 @@
     setTimeout(() => checkOta(true), 1200);
     // debug API
     window.__V = {
-      VERSION, startLevel, startBoss, endLose, buyLoseBoost, canSafelyCork, flaskComplete, getBoss: () => boss && ({ done: boss.done, total: boss.pieces.length, placed: boss.pieces.filter(p => p.placed).length }),
+      VERSION, startLevel, startBoss, endLose, buyLoseBoost, canSafelyCork, flaskComplete,
+    startPipe, getPipe: () => pipe && ({ lvl: pipe.lvl, n: pipe.n, done: pipe.done, taps: pipe.taps, par: pipe.par, solved: pipeSolved(), path: pipe.path.length }),
+    pipeTap: (x, y) => { if (!pipe) return false; pipeRotateCell(x, y); return pipe.done; },
+    pipeSolve: () => { if (!pipe) return false; for (const c of pipe.path) { let k = 0; while (!pipe.done && pipe.grid[c.y][c.x].m !== c.m && k++ < 4) pipeRotateCell(c.x, c.y); } return pipe.done; },
+    pipeFinish: () => finishPipe(),
+    getBoss: () => boss && ({ done: boss.done, total: boss.pieces.length, placed: boss.pieces.filter(p => p.placed).length }),
       placeBossN: (n) => { if (!boss) return 0; let k = 0; for (const p of boss.pieces) { if (p.placed) continue; p.x = p.correctX; p.y = p.correctY; p.placed = true; p.inTray = false; k++; if (k >= n) break; } layoutBossTray(); if (boss.pieces.every(q => q.placed)) completeBoss(); return k; },
       getState: () => ({ state, levelIdx, moves, moveLimit: runMoveLimit, timeLeft: runTimeLeft, collector: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed, selected, flasks: flasks.map(f => ({ n: f.layers.length, cap: flaskCap(f), corked: f.corked, frozen: f.frozen, thawLeft: f.thawLeft|0, locked: f.locked, lockColor: f.lockColor, mixer: false, collector: !!f.collector, top: f.layers.length ? f.layers[f.layers.length-1].color : null, colors: f.layers.map(l => l.color) })), pour: !!pourAnim, collectorMode: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed, workshopOrder: runWorkshopOrder ? runWorkshopOrder.slice() : null, workshopHave: workshopCounts() }),
       forceThawTick: () => tickThawFromComplete(),
