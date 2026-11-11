@@ -1,9 +1,9 @@
 {
-  "version": "4.4.1",
-  "versionCode": 44001,
-  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/download/v4.4.1/ColorFlow-4.4.1.apk",
-  "webVersion": "4.4.1",
+  "version": "4.5.0",
+  "versionCode": 45000,
+  "apkUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/download/v4.5.0/ColorFlow-4.5.0.apk",
+  "webVersion": "4.5.0",
   "webBundleUrl": "https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/www.zip",
   "force": false,
-  "changelog": "• Исправлены уровни 40 и 47: зелёного достаточно, лишние ингредиенты убраны. • Смешивание не возвращено. • Добавлена проверка количества краски перед выпуском. • Прогресс сохраняется; текущий уровень перезапустите кнопкой «Заново»."
+  "changelog": "Новое: мини-игра «Водопровод» после каждого 2-го уровня (поворачивай трубы, чтобы краска дотекла до колбы). Уровни сложнее: запас ходов уменьшен примерно на 30%. Пазл после каждого 5-го уровня остался. Прогресс сохраняется."
 }
