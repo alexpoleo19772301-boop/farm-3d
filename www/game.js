@@ -133,6 +133,7 @@
   let confirmReturn = 'play';
   let MOVE_BOOST_COST = 40, TIME_BOOST_COST = 50;
   let history = [];
+  let witnessStep = 0; // v4.7.0: index into the level's verified solution while the player follows it
   let pourAnim = null; // {from,to,color,amt,t,duration, streamY...}
   let particles = [];
   let confetti = [];
@@ -710,7 +711,7 @@
     }));
   }
   function pushHistory() {
-    history.push({ flasks: cloneFlasks(), moves });
+    history.push({ flasks: cloneFlasks(), moves, ws: witnessStep });
     if (history.length > 40) history.shift();
   }
 
@@ -841,6 +842,11 @@
     const amt = canPour(src, dst);
     if (amt <= 0) { playSfx('error', 0.35); return false; }
     pushHistory();
+    try {
+      const wdef = levels[levelIdx], wp = wdef && wdef.hintPath;
+      if (witnessStep >= 0 && wp && wp[witnessStep] && (wp[witnessStep][0] | 0) === fromIdx && (wp[witnessStep][1] | 0) === toIdx) witnessStep++;
+      else witnessStep = -1;
+    } catch (e) { witnessStep = -1; }
     const color = flasks[fromIdx].layers[flasks[fromIdx].layers.length - 1].color;
     pourAnim = {
       from: fromIdx, to: toIdx, color, amt,
@@ -1018,11 +1024,44 @@
 
   const WORLDS = [
     { id: 'egypt', from: 0, to: 19, cost: 0, bg: 'assets/worlds/egypt.webp', rim: '#f2c14e', band: '#1fb5a8', tint: 'rgba(255,210,120,0.16)', emblem: '☥' },
-    { id: 'england', from: 20, to: 39, cost: 400, bg: 'assets/worlds/england.webp', rim: '#cfd8e0', band: '#2e8b57', tint: 'rgba(170,230,190,0.14)', emblem: '♛' },
-    { id: 'greece', from: 40, to: 59, cost: 700, bg: 'assets/worlds/greece.webp', rim: '#fbf6e9', band: '#3a7bd5', tint: 'rgba(200,225,255,0.16)', emblem: 'Ω' },
-    { id: 'japan', from: 60, to: 79, cost: 1000, bg: 'assets/worlds/japan.webp', rim: '#e0384f', band: '#ffb7c5', tint: 'rgba(255,180,200,0.14)', emblem: '✿' },
-    { id: 'atlantis', from: 80, to: 9999, cost: 1400, bg: 'assets/worlds/atlantis.webp', rim: '#6ff0e0', band: '#c9a3ff', tint: 'rgba(120,240,230,0.16)', emblem: 'Ψ' }
+    { id: 'england', from: 20, to: 39, cost: 670, bg: 'assets/worlds/england.webp', rim: '#cfd8e0', band: '#2e8b57', tint: 'rgba(170,230,190,0.14)', emblem: '♛' },
+    { id: 'greece', from: 40, to: 59, cost: 840, bg: 'assets/worlds/greece.webp', rim: '#fbf6e9', band: '#3a7bd5', tint: 'rgba(200,225,255,0.16)', emblem: 'Ω' },
+    { id: 'japan', from: 60, to: 79, cost: 1020, bg: 'assets/worlds/japan.webp', rim: '#e0384f', band: '#ffb7c5', tint: 'rgba(255,180,200,0.14)', emblem: '✿' },
+    { id: 'atlantis', from: 80, to: 9999, cost: 1190, bg: 'assets/worlds/atlantis.webp', rim: '#6ff0e0', band: '#c9a3ff', tint: 'rgba(120,240,230,0.16)', emblem: 'Ψ' }
   ];
+  // v4.7.0 economy: coins are paid ONLY for new stars (first-time improvement), never for replays.
+  // Per world: cumulative coins for reaching 1★/2★/3★ on a level, first clear of a pipe / boss mini-game.
+  // Next world cost = 15×3★ + 5×2★ + all mini-games of the previous world (see PR / scripts/smoke_v470.mjs).
+  const WORLD_REWARDS = {
+    egypt:    { star: [0, 5, 10, 35], pipe: 5,  boss: 15 },
+    england:  { star: [0, 6, 12, 44], pipe: 6,  boss: 18 },
+    greece:   { star: [0, 8, 15, 53], pipe: 8,  boss: 22 },
+    japan:    { star: [0, 9, 18, 62], pipe: 9,  boss: 26 },
+    atlantis: { star: [0, 10, 20, 70], pipe: 10, boss: 30 }
+  };
+  const WORLD_LEVELS = 20, WORLD_NEED3 = 15; // 75% of a world's levels at ★★★ to open the next one
+  function worldRewards(w) { return WORLD_REWARDS[w.id] || WORLD_REWARDS.egypt; }
+  function starCoins(idx, prev, best) {
+    const r = worldRewards(worldOf(idx)).star;
+    prev = Math.max(0, Math.min(3, prev | 0)); best = Math.max(0, Math.min(3, best | 0));
+    return best > prev ? (r[best] - r[prev]) : 0;
+  }
+  function world3Count(w) {
+    let n = 0; const to = Math.min(w.to, w.from + WORLD_LEVELS - 1);
+    for (let i = w.from; i <= to; i++) if ((save.stars[i] | 0) >= 3) n++;
+    return n;
+  }
+  function prevWorld(w) { const i = WORLDS.indexOf(w); return i > 0 ? WORLDS[i - 1] : null; }
+  function world3Need(w) { return prevWorld(w) ? WORLD_NEED3 : 0; }
+  function economyTable() {
+    return WORLDS.map((w, i) => {
+      const r = worldRewards(w);
+      const minis = 8 * r.pipe + 4 * r.boss;
+      const earn = (k3) => k3 * r.star[3] + (WORLD_LEVELS - k3) * r.star[2] + minis;
+      const next = WORLDS[i + 1] || null;
+      return { id: w.id, cost: w.cost, nextCost: next ? next.cost : null, minis, all2: WORLD_LEVELS * r.star[2] + minis, earn14: earn(14), earn15: earn(15), earn20: earn(20) };
+    });
+  }
   function worldOf(idx) { idx = Math.max(0, idx | 0); for (const w of WORLDS) if (idx >= w.from && idx <= w.to) return w; return WORLDS[0]; }
   function worldPaid(w) { return !w.cost || !!(save.worldsPaid && save.worldsPaid[w.id]); }
   function worldName(w) { return t('world_' + w.id); }
@@ -1506,8 +1545,8 @@
     // Prefer precomputed witness first-step when still at level start (no undo history).
     try {
       const def = levels[levelIdx];
-      if (def && def.hintPath && def.hintPath.length && history.length === 0) {
-        const step = def.hintPath[0];
+      if (def && def.hintPath && def.hintPath.length && witnessStep >= 0 && witnessStep < def.hintPath.length) {
+        const step = def.hintPath[witnessStep];
         if (step && step.length >= 2) {
           const from = step[0]|0, to = step[1]|0;
           if (from >= 0 && to >= 0 && from < flasks.length && to < flasks.length && canPour(flasks[from], flasks[to]) > 0) {
@@ -1614,11 +1653,24 @@
       }
       return [nf, nl, nt, nc];
     }
-    const q = [[start, locked0, thaw0, corked0.slice(), []]];
+    function hScore(st, ck) {
+      let seg = 0; const cols = new Set();
+      for (let i = 0; i < N; i++) {
+        if (ck[i] || collector[i]) continue;
+        let prev = null;
+        for (const c of st[i]) { if (c !== prev) { seg++; prev = c; } cols.add(c); }
+      }
+      return seg - cols.size;
+    }
+    const heap = [];
+    const hpush = (node) => { heap.push(node); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p].f <= node.f) break; heap[i] = heap[p]; i = p; } heap[i] = node; };
+    const hpop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; if (l >= heap.length) break; const c = (r < heap.length && heap[r].f < heap[l].f) ? r : l; if (heap[c].f >= last.f) break; heap[i] = heap[c]; i = c; } heap[i] = last; } return top; };
+    hpush({ f: 0, v: [start, locked0, thaw0, corked0.slice(), []] });
+    const q = heap;
     const seen = new Set([norm(start, locked0, thaw0, corked0)]);
     let guard = 0;
-    while (q.length && guard++ < 120000) {
-      const [st, lk, th, ck, path] = q.shift();
+    while (q.length && guard++ < 60000) {
+      const [st, lk, th, ck, path] = hpop().v;
       if (won(st, lk, th, ck)) return path[0] || null;
       if (path.length > 40) continue;
       for (let i = 0; i < N; i++) {
@@ -1630,7 +1682,7 @@
           const key = norm(ns, nl, nt, nc);
           if (seen.has(key)) continue;
           seen.add(key);
-          q.push([ns, nl, nt, nc, path.concat([{ from: i, to: j }])]);
+          hpush({ f: path.length + 1 + 2 * hScore(ns, nc), v: [ns, nl, nt, nc, path.concat([{ from: i, to: j }])] });
         }
       }
     }
@@ -1651,7 +1703,7 @@
     outcomeGen++;
     levelIdx = idx;
     boss = null; bossDrag = null; pipe = null; pendingPipeAfterWin = false; pourAnim = null; selected = -1;
-    hintMove = null; history = []; particles = [];
+    hintMove = null; history = []; particles = []; witnessStep = 0;
     moves = 0; runUsedBooster = false; runUsedHint = false;
     loseReason = '';
     const def = levels[idx] || levels[0];
@@ -1798,8 +1850,8 @@
     const best = Math.max(prev, earned);
     const gained = Math.max(0, best - prev);
     save.stars[levelIdx] = best;
-    const coins = 40 + levelIdx * 2 + earned * 10;
-    save.coins += coins; playSfx('coin', 0.35);
+    const coins = starCoins(levelIdx, prev, best);
+    if (coins > 0) { save.coins += coins; playSfx('coin', 0.35); }
     if (save.unlocked < levelIdx + 2) save.unlocked = levelIdx + 2;
     questProgress('pass_levels', 1);
     if (gained) questProgress('earn_stars', gained);
@@ -1807,7 +1859,12 @@
     persist();
     const starStr = '★'.repeat(earned) + '☆'.repeat(3 - earned);
     const ws = $('win-stars'); if (ws) { ws.textContent = starStr; ws.className = 'win-stars-anim'; }
-    const wc = $('win-coins'); if (wc) wc.textContent = t('coins_win', { coins: coins, moves: moves, par: runPar });
+    const wc = $('win-coins');
+    if (wc) {
+      let txt = coins > 0 ? t('coins_win', { coins: coins, moves: moves, par: runPar }) : t('coins_win_none', { moves: moves, par: runPar });
+      if (best < 3) txt += '\n' + t('win_3star_tip', { n: starCoins(levelIdx, best, 3), max: runSolutionLen + Math.max(1, Math.floor(Math.max(1, runMoveLimit - runSolutionLen) / 3)) });
+      wc.textContent = txt; wc.style.whiteSpace = 'pre-line';
+    }
     const wr = $('btn-win-replay'); if (wr) wr.style.display = (best < 3) ? 'inline-flex' : 'none';
     const lvlNum = levelIdx + 1;
     pendingBossAfterWin = (lvlNum % 5 === 0) && lvlNum >= 5;
@@ -1875,8 +1932,8 @@
     $('ver').textContent = 'v' + VERSION;
     try {
       const seen = localStorage.getItem('farm3d_cap4_notice');
-      if (seen !== '4.4.0') {
-        localStorage.setItem('farm3d_cap4_notice', '4.4.0');
+      if (seen !== '4.7.0') {
+        localStorage.setItem('farm3d_cap4_notice', '4.7.0');
         setTimeout(() => toast(t('toast_cap4_migrate')), 900);
       }
     } catch (e) {}
@@ -1886,6 +1943,8 @@
   function buyWorld(w) {
     if (worldPaid(w)) return;
     if ((save.unlocked | 0) <= w.from) { toast(t('world_need_prev', { name: worldName(WORLDS[WORLDS.indexOf(w) - 1]) })); return; }
+    const pw = prevWorld(w);
+    if (pw && world3Count(pw) < world3Need(w)) { toast(t('world_need3', { have: world3Count(pw), need: world3Need(w), name: worldName(pw) })); playSfx('error', 0.3); return; }
     if ((save.coins | 0) < w.cost) { toast(t('world_no_coins', { cost: w.cost, have: save.coins | 0 })); playSfx('error', 0.3); return; }
     save.coins -= w.cost; save.worldsPaid[w.id] = 1; persist();
     playSfx('coin', 0.5);
@@ -1927,10 +1986,21 @@
       if (!paid) {
         const ov = document.createElement('div');
         ov.className = 'wbuy';
-        const ready = (save.unlocked | 0) > w.from;
+        const pw = prevWorld(w);
+        const have3 = pw ? world3Count(pw) : 0, need3 = world3Need(w);
+        const passed = (save.unlocked | 0) > w.from;
+        const ready = passed && have3 >= need3 && (save.coins | 0) >= w.cost;
+        const req = document.createElement('div');
+        req.className = 'wreq';
+        req.innerHTML = '<div class="wreq-t">' + t('world_req_title') + '</div>' +
+          '<div class="wreq-row' + (passed ? ' ok' : '') + '">' + (passed ? '✅ ' : '⬜ ') + t('world_req_pass', { name: worldName(pw) }) + '</div>' +
+          '<div class="wreq-row' + (have3 >= need3 ? ' ok' : '') + '">' + (have3 >= need3 ? '✅ ' : '⬜ ') + t('world_req_3star', { have: Math.min(have3, need3), need: need3, total: WORLD_LEVELS }) + '</div>' +
+          '<div class="wreq-bar"><i style="width:' + Math.round(100 * Math.min(1, have3 / Math.max(1, need3))) + '%"></i></div>' +
+          '<div class="wreq-row' + ((save.coins | 0) >= w.cost ? ' ok' : '') + '">' + ((save.coins | 0) >= w.cost ? '✅ ' : '⬜ ') + t('world_req_coins', { have: Math.min(save.coins | 0, w.cost), cost: w.cost }) + '</div>';
+        ov.appendChild(req);
         const b = document.createElement('button');
         b.className = 'btn' + (ready ? '' : ' ghost');
-        b.textContent = ready ? t('world_open', { cost: w.cost }) : t('world_need_prev', { name: worldName(WORLDS[WORLDS.indexOf(w) - 1]) });
+        b.textContent = t('world_open', { cost: w.cost });
         b.onclick = () => buyWorld(w);
         ov.appendChild(b);
         sec.appendChild(ov);
@@ -2007,7 +2077,7 @@
     save.boosters.undo--; runUsedBooster = true; persist();
     const snap = history.pop();
     // Undo restores flask state but does NOT refund moves (budget already spent).
-    flasks = snap.flasks; selected = -1;
+    flasks = snap.flasks; selected = -1; witnessStep = (snap.ws == null) ? -1 : snap.ws;
     refreshHud(); playSfx('undo', 0.45); toast(t('toast_undo_norefund'));
   }
   function useExtraFlask() {
@@ -2163,10 +2233,11 @@
     const elapsed = (performance.now() - boss.startT) / 1000;
     const cells = boss.cols * boss.rows;
     let stars = 1; if (elapsed <= cells * 4.5 * 1.35) stars = 2; if (elapsed <= cells * 4.5 * 0.85) stars = 3;
-    const coins = 60 + boss.n * 15 + stars * 20;
+    const key = 'boss_' + boss.n;
+    const firstClear = !(save.stars[key] | 0);
+    const coins = firstClear ? worldRewards(worldOf(boss.n * 5 + 4)).boss : 0;
     if (!boss.rewardGiven) {
-      boss.rewardGiven = true; save.coins += coins; playSfx('coin', 0.4);
-      const key = 'boss_' + boss.n;
+      boss.rewardGiven = true; if (coins) { save.coins += coins; playSfx('coin', 0.4); }
       save.stars[key] = Math.max(save.stars[key] | 0, stars); persist(); refreshHud();
       boss._reward = { stars, coins };
     }
@@ -2321,9 +2392,9 @@
     pipe.done = true; pipe.revealT = 0;
     playSfx('coin', 0.5); buzz([20, 40, 20]);
     let stars = 1; if (pipe.taps <= Math.ceil(pipe.par * 2)) stars = 2; if (pipe.taps <= Math.ceil(pipe.par * 1.3) + 1) stars = 3;
-    const coins = 30 + pipe.lvl + stars * 10;
-    save.coins += coins;
     const key = 'pipe_' + pipe.lvl;
+    const coins = (save.stars[key] | 0) ? 0 : worldRewards(worldOf(pipe.lvl - 1)).pipe;
+    save.coins += coins;
     save.stars[key] = Math.max(save.stars[key] | 0, stars);
     persist(); refreshHud(); playSfx('coin', 0.35);
     pipe.reward = { stars, coins };
@@ -2930,7 +3001,7 @@
       pour: (i, j) => startPour(i, j),
       select: (i) => { selected = i; },
       tick: (sec) => { const steps = Math.ceil(sec / 0.016); for (let i = 0; i < steps; i++) { if (pourAnim) { pourAnim.t += 0.016; if (pourAnim.t >= pourAnim.duration) finishPour(); } animT += 0.016; } },
-      solveHint, openDaily, openSettings, requestNewGame, confirmNewGame, cancelRestart, requestRestart, doRestart, checkOta, worlds: () => WORLDS.map(w => ({ id: w.id, from: w.from, cost: w.cost, paid: worldPaid(w) })), buyWorld: (id) => buyWorld(WORLDS.find(w => w.id === id)), setCoins: (n) => { save.coins = n | 0; persist(); }, getSave: () => JSON.parse(JSON.stringify(save)), SAVE_KEY, SAVE_BAK_NEWGAME, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx, getPourOptions, getBgmTracks, langPref: () => langPref, setLanguagePref, applyI18nDom, colorBlindMode: () => colorBlindMode, setColorBlindMode: (on) => { colorBlindMode = !!on; save.colorBlindMode = colorBlindMode; persist(); }, PAINT, getPourSfxId: () => pourSfxId, setPourSfxId: (id) => { pourSfxId = Math.max(0, Math.min(5, id|0)); save.pourSfxId = pourSfxId; persist(); },
+      solveHint, openDaily, openSettings, requestNewGame, confirmNewGame, cancelRestart, requestRestart, doRestart, checkOta, worlds: () => WORLDS.map(w => ({ id: w.id, from: w.from, cost: w.cost, paid: worldPaid(w) })), buyWorld: (id) => buyWorld(WORLDS.find(w => w.id === id)), setCoins: (n) => { save.coins = n | 0; persist(); }, setStars: (map) => { for (const k of Object.keys(map || {})) save.stars[k] = map[k] | 0; persist(); }, economy: economyTable, world3: (id) => world3Count(WORLDS.find(w => w.id === id)), starCoins, getSave: () => JSON.parse(JSON.stringify(save)), SAVE_KEY, SAVE_BAK_NEWGAME, sfxLog, audio, playSfx, sfxBuf, sfxPool, unlockAudio, getActx, getPourOptions, getBgmTracks, langPref: () => langPref, setLanguagePref, applyI18nDom, colorBlindMode: () => colorBlindMode, setColorBlindMode: (on) => { colorBlindMode = !!on; save.colorBlindMode = colorBlindMode; persist(); }, PAINT, getPourSfxId: () => pourSfxId, setPourSfxId: (id) => { pourSfxId = Math.max(0, Math.min(5, id|0)); save.pourSfxId = pourSfxId; persist(); },
       ensureBgm, stopBgm, setBgmTrack, countPlayingBgm, stopPreview, getBgmTracks,
       autoSolve: (maxSteps) => {
         let steps = 0;
