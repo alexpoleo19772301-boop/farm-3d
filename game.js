@@ -1,8 +1,8 @@
 /* ColorFlow v4.4.0 — workshop orders; mixing removed every 3rd level (2–4 bottom recipes) */
 (function () {
   'use strict';
-  const VERSION = '4.7.0';
-  const APP_VERSION = { version: '4.7.0', versionCode: 47000, webVersion: '4.7.0' };
+  const VERSION = '4.8.0';
+  const APP_VERSION = { version: '4.8.0', versionCode: 48000, webVersion: '4.8.0' };
   const DEFAULT_MANIFEST_URL = localStorage.getItem('farm3d_manifest_url') ||
     'https://github.com/alexpoleo19772301-boop/farm-3d/releases/latest/download/version.json';
   const CAP = 4;
@@ -1702,7 +1702,7 @@
     }
     outcomeGen++;
     levelIdx = idx;
-    boss = null; bossDrag = null; pipe = null; pendingPipeAfterWin = false; pourAnim = null; selected = -1;
+    boss = null; bossDrag = null; pipe = null; pendingPipeAfterWin = false; blocks = null; blocksDrag = null; pourAnim = null; selected = -1;
     hintMove = null; history = []; particles = []; witnessStep = 0;
     moves = 0; runUsedBooster = false; runUsedHint = false;
     loseReason = '';
@@ -1869,7 +1869,7 @@
     const lvlNum = levelIdx + 1;
     pendingBossAfterWin = (lvlNum % 5 === 0) && lvlNum >= 5;
     pendingPipeAfterWin = !pendingBossAfterWin && (lvlNum % 2 === 0) && lvlNum < levels.length;
-    const bn = $('btn-next'); if (bn) bn.textContent = pendingBossAfterWin ? t('mini_boss') : (pendingPipeAfterWin ? t('mini_pipe') : t('next'));
+    const bn = $('btn-next'); if (bn) bn.textContent = pendingBossAfterWin ? t('mini_boss') : (pendingPipeAfterWin ? t(miniAfterEven(lvlNum) === 'blocks' ? 'mini_blocks' : 'mini_pipe') : t('next'));
     showScreen('win'); refreshHud();
   }
 
@@ -1879,26 +1879,27 @@
       const el = $('sc-' + s); if (el) el.classList.toggle('on', s === name);
     });
     const playing = name === 'play';
-    const bossing = name === 'boss' || name === 'pipe';
+    const bossing = name === 'boss' || name === 'pipe' || name === 'blocks';
     $('hud').style.display = (playing || bossing) ? 'block' : 'none';
     $('boosters').style.display = playing ? 'flex' : 'none';
     const hg = $('btn-home-settings');
     if (hg) hg.style.display = (name === 'home' || name === 'settings' || name === 'daily') ? 'block' : 'none';
-    if (bossing) { const lp = $('lvl-pill'); if (lp) lp.textContent = name === 'pipe' ? t('pipe_pill') : t('boss_pill'); }
+    if (bossing) { const lp = $('lvl-pill'); if (lp) lp.textContent = name === 'pipe' ? t('pipe_pill') : (name === 'blocks' ? t('blocks_pill') : t('boss_pill')); }
   }
   function refreshHud() {
-    $('lvl-pill').textContent = state === 'boss' ? t('boss_pill') : (state === 'pipe' ? t('pipe_pill') : t('level', { n: levelIdx + 1 }));
+    $('lvl-pill').textContent = state === 'boss' ? t('boss_pill') : (state === 'pipe' ? t('pipe_pill') : (state === 'blocks' ? t('blocks_pill') : t('level', { n: levelIdx + 1 })));
+    const miniNoMoves = state === 'pipe' || state === 'blocks';
     $('coin-pill').textContent = '🪙 ' + (save.coins | 0);
     const sc = $('star-pill'); if (sc) sc.textContent = '★ ' + totalStars();
     const mp = $('moves-pill');
-    if (mp) mp.style.display = state === 'pipe' ? 'none' : '';
-    if (mp && state !== 'pipe') {
+    if (mp) mp.style.display = miniNoMoves ? 'none' : '';
+    if (mp && !miniNoMoves) {
       if (runMoveLimit > 0) mp.textContent = t('moves_lim', { n: moves, max: runMoveLimit });
       else mp.textContent = t('moves', { n: moves });
     }
     const tp = $('timer-pill');
     if (tp) {
-      if (runTimeLimit > 0 && state !== 'pipe') {
+      if (runTimeLimit > 0 && !miniNoMoves) {
         tp.style.display = 'inline-flex';
         const sec = Math.max(0, Math.ceil(runTimeLeft));
         const mm = String(Math.floor(sec / 60)).padStart(1, '0');
@@ -1925,7 +1926,7 @@
     }
     renderWorkshopHud();
     const br = $('btn-restart');
-    if (br) br.style.display = (state === 'play' || state === 'boss' || state === 'pipe') ? 'inline-flex' : 'none';
+    if (br) br.style.display = (state === 'play' || state === 'boss' || state === 'pipe' || state === 'blocks') ? 'inline-flex' : 'none';
     $('badge-undo').textContent = save.boosters.undo;
     $('badge-flask').textContent = save.boosters.flask;
     $('badge-hint').textContent = save.boosters.hint;
@@ -2015,6 +2016,7 @@
   function onPointer(x, y) {
     if (state === 'boss') { bossPointerDown(x, y); return; }
     if (state === 'pipe') { pipePointer(x, y); return; }
+    if (state === 'blocks') { blocksPointerDown(x, y); return; }
     if (state !== 'play' || pourAnim) return;
     ensureBgm();
     const i = flaskAt(x, y);
@@ -2054,14 +2056,17 @@
     const x = e.clientX - r.left, y = e.clientY - r.top;
     if (state === 'boss') { bossPointerDown(x, y, e.pointerId); return; }
     if (state === 'pipe') { pipePointer(x, y); return; }
+    if (state === 'blocks') { try { canvas.setPointerCapture(e.pointerId); } catch (er) {} blocksPointerDown(x, y); return; }
     onPointer(x, y);
   });
   canvas.addEventListener('pointermove', (e) => {
+    if (state === 'blocks' && blocksDrag) { const r = canvas.getBoundingClientRect(); blocksPointerMove(e.clientX - r.left, e.clientY - r.top); return; }
     if (state !== 'boss' || !bossDrag) return;
     const r = canvas.getBoundingClientRect();
     bossPointerMove(e.clientX - r.left, e.clientY - r.top);
   });
   function bossPointerEnd(e) {
+    if (state === 'blocks') { const r = canvas.getBoundingClientRect(); blocksPointerUp(e.clientX - r.left, e.clientY - r.top); return; }
     if (state !== 'boss') return;
     const r = canvas.getBoundingClientRect();
     bossPointerUp(e.clientX - r.left, e.clientY - r.top);
@@ -2458,6 +2463,414 @@
     }
   }
 
+  /* ---------- wooden blocks puzzle «Проверь свой IQ» (after every 2nd level, v4.8.0) ---------- */
+  // Which mini-game follows an even (non-boss) level. Pipe code above is kept so it can be re-enabled or alternated.
+  const MINI_AFTER_EVEN = 'blocks'; // 'blocks' | 'pipe' | 'alternate'
+  function miniAfterEven(lvlNum) {
+    if (MINI_AFTER_EVEN === 'alternate') return (Math.floor(lvlNum / 2) % 2) ? 'blocks' : 'pipe';
+    return MINI_AFTER_EVEN;
+  }
+  let blocks = null, blocksDrag = null;
+  const BLK_N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  function blkKey(x, y) { return x + ',' + y; }
+  function blkNorm(cells) {
+    let mx = Infinity, my = Infinity;
+    for (const [x, y] of cells) { if (x < mx) mx = x; if (y < my) my = y; }
+    return cells.map(([x, y]) => [x - mx, y - my]).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+  }
+  function blkRot(cells, n) {
+    let c = cells.map(p => p.slice());
+    for (let i = 0; i < ((n % 4) + 4) % 4; i++) c = c.map(([x, y]) => [-y, x]);
+    return blkNorm(c);
+  }
+  function blkSig(cells) { return blkNorm(cells).map(p => p.join(':')).join('|'); }
+  function blkDims(cells) { let w = 0, h = 0; for (const [x, y] of cells) { if (x + 1 > w) w = x + 1; if (y + 1 > h) h = y + 1; } return { w, h }; }
+  // Difficulty ramp by puzzle number k = lvl/2 (1..50): cells 10→45, pieces 3→10, rotation from puzzle 9.
+  function blocksParams(lvlNum) {
+    const k = Math.max(1, Math.floor(lvlNum / 2));
+    const tt = Math.min(1, (k - 1) / 44);
+    const cells = Math.round(10 + 35 * tt);
+    const pieces = Math.round(3 + 7 * tt);
+    const box = Math.min(8, Math.ceil(Math.sqrt(cells * 1.55)));
+    const rot = k <= 8 ? 'none' : (k <= 16 ? 'some' : 'all');
+    const maxSize = k <= 4 ? 4 : 5;
+    return { k, cells, pieces, cols: box, rows: box, rot, maxSize, iq: 80 + k * 2 + (k > 8 ? 4 : 0) + (k > 16 ? 6 : 0) };
+  }
+  function blkSizes(P, rnd) {
+    const s = []; const base = Math.floor(P.cells / P.pieces); let rem = P.cells - base * P.pieces;
+    for (let i = 0; i < P.pieces; i++) s.push(base + (rem-- > 0 ? 1 : 0));
+    for (let it = 0; it < P.pieces * 3; it++) {
+      const i = (rnd() * s.length) | 0, j = (rnd() * s.length) | 0;
+      if (i !== j && s[i] < P.maxSize && s[j] > 2) { s[i]++; s[j]--; }
+    }
+    return s;
+  }
+  function blocksGenerate(lvlNum) {
+    const P = blocksParams(lvlNum);
+    const rnd = pipeRng(lvlNum * 104729 + 31337);
+    for (let attempt = 0; attempt < 2000; attempt++) {
+      const sizes = blkSizes(P, rnd);
+      const owner = new Map(); const pcs = []; let ok = true;
+      const inB = (x, y) => x >= 0 && y >= 0 && x < P.cols && y < P.rows;
+      const nOwned = (x, y) => { let n = 0; for (const [dx, dy] of BLK_N4) if (owner.has(blkKey(x + dx, y + dy))) n++; return n; };
+      for (let i = 0; i < sizes.length && ok; i++) {
+        let seed;
+        if (!i) seed = [(P.cols / 2) | 0, (P.rows / 2) | 0];
+        else {
+          const fr = [], seen = new Set();
+          for (const k of owner.keys()) {
+            const [x, y] = k.split(',').map(Number);
+            for (const [dx, dy] of BLK_N4) { const nx = x + dx, ny = y + dy, kk = blkKey(nx, ny); if (inB(nx, ny) && !owner.has(kk) && !seen.has(kk)) { seen.add(kk); fr.push([nx, ny]); } }
+          }
+          if (!fr.length) { ok = false; break; }
+          // prefer cells touching the shape on one side only -> arms / irregular silhouette
+          let tot = 0; const wts = fr.map(([x, y]) => { const w = 1 / Math.pow(nOwned(x, y), 2.2); tot += w; return w; });
+          let r = rnd() * tot, pick = 0; while (pick < fr.length - 1 && (r -= wts[pick]) > 0) pick++;
+          seed = fr[pick];
+        }
+        const mine = [seed]; owner.set(blkKey(seed[0], seed[1]), i);
+        while (mine.length < sizes[i]) {
+          const cand = [];
+          for (const [x, y] of mine) for (const [dx, dy] of BLK_N4) { const nx = x + dx, ny = y + dy; if (inB(nx, ny) && !owner.has(blkKey(nx, ny))) cand.push([nx, ny]); }
+          if (!cand.length) break;
+          const c = cand[(rnd() * cand.length) | 0]; mine.push(c); owner.set(blkKey(c[0], c[1]), i);
+        }
+        if (mine.length < sizes[i]) ok = false; else pcs.push(mine);
+      }
+      if (!ok) continue;
+      // reject silhouettes with enclosed holes (frame must be one clean cut-out)
+      const out = new Set(), q = [[-1, -1]]; out.add(blkKey(-1, -1));
+      while (q.length) { const [x, y] = q.pop(); for (const [dx, dy] of BLK_N4) { const nx = x + dx, ny = y + dy, kk = blkKey(nx, ny); if (nx < -1 || ny < -1 || nx > P.cols || ny > P.rows || out.has(kk) || owner.has(kk)) continue; out.add(kk); q.push([nx, ny]); } }
+      if (out.size + owner.size !== (P.cols + 2) * (P.rows + 2)) continue;
+      // not a plain rectangle, and no more than 2 identical piece shapes (keeps it interesting)
+      let minX = 99, minY = 99, maxX = -1, maxY = -1;
+      for (const k of owner.keys()) { const [x, y] = k.split(',').map(Number); minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
+      if ((maxX - minX + 1) * (maxY - minY + 1) === owner.size) continue;
+      const sigCount = {}; let dup = false;
+      for (const m of pcs) { let s = blkSig(m); for (let r = 1; r < 4; r++) { const s2 = blkSig(blkRot(m, r)); if (s2 < s) s = s2; } sigCount[s] = (sigCount[s] || 0) + 1; if (sigCount[s] > 2) dup = true; }
+      if (dup) continue;
+      const target = []; for (const k of owner.keys()) { const [x, y] = k.split(',').map(Number); target.push([x - minX, y - minY]); }
+      const pieces = pcs.map((m, i) => {
+        let sx = Infinity, sy = Infinity; for (const [x, y] of m) { sx = Math.min(sx, x - minX); sy = Math.min(sy, y - minY); }
+        const base = blkNorm(m.map(([x, y]) => [x - minX, y - minY]));
+        let rot = 0;
+        if (P.rot === 'all') rot = 1 + ((rnd() * 3) | 0);
+        else if (P.rot === 'some') rot = (i % 2 === 1 || rnd() < 0.25) ? 1 + ((rnd() * 3) | 0) : 0;
+        return { id: i, base, sx, sy, rot, placed: false, gx: 0, gy: 0, tx: 0, ty: 0 };
+      });
+      // shuffle tray order deterministically
+      for (let i = pieces.length - 1; i > 0; i--) { const j = (rnd() * (i + 1)) | 0; const tmp = pieces[i]; pieces[i] = pieces[j]; pieces[j] = tmp; }
+      return { P, target, w: maxX - minX + 1, h: maxY - minY + 1, pieces };
+    }
+    return null;
+  }
+  function blkCells(p) { return blkRot(p.base, p.rot); }
+  function startBlocks(lvlNum) {
+    lvlNum = Math.max(2, lvlNum | 0);
+    const g = blocksGenerate(lvlNum);
+    if (!g) { startLevel(Math.min(lvlNum, levels.length - 1)); return; }
+    const tset = new Set(g.target.map(([x, y]) => blkKey(x, y)));
+    blocks = { lvl: lvlNum, k: g.P.k, P: g.P, target: g.target, tset, w: g.w, h: g.h, pieces: g.pieces,
+      canRotate: g.P.rot !== 'none', moves: 0, done: false, revealT: 0, reward: null, iq: g.P.iq };
+    blocksDrag = null;
+    showScreen('blocks'); refreshHud();
+  }
+  function blocksOcc(except) {
+    const occ = new Map();
+    for (const p of blocks.pieces) if (p.placed && p !== except) for (const [x, y] of blkCells(p)) occ.set(blkKey(p.gx + x, p.gy + y), p);
+    return occ;
+  }
+  function blocksFits(p, gx, gy) {
+    const occ = blocksOcc(p);
+    for (const [x, y] of blkCells(p)) { const k = blkKey(gx + x, gy + y); if (!blocks.tset.has(k) || occ.has(k)) return false; }
+    return true;
+  }
+  function blocksFilled() { return blocks && blocksOcc(null).size === blocks.target.length; }
+  function blocksLayout() {
+    const b = blocks;
+    const top = Math.max(196, Math.round(H * 0.25));
+    const trayH = Math.max(180, Math.round(H * 0.28));
+    const trayY = H - trayH - 8;
+    const availW = W - 56, availH = trayY - top - 34;
+    const cs = Math.max(16, Math.floor(Math.min(availW / b.w, availH / b.h, 58)));
+    const bw = cs * b.w, bh = cs * b.h;
+    const L = { x: Math.round((W - bw) / 2), y: Math.round(top + Math.max(0, (availH - bh) / 2)), cs, bw, bh, trayY, trayH };
+    // tray flow layout (shrink until everything fits)
+    const tray = b.pieces.filter(p => !p.placed && !(blocksDrag && blocksDrag.piece === p));
+    let ts = Math.min(cs * 0.72, 34);
+    for (let iter = 0; iter < 30; iter++) {
+      const gap = Math.max(10, ts * 0.6), rows = []; let row = [], rw = 0;
+      for (const p of tray) {
+        const d = blkDims(blkCells(p)); const pw = d.w * ts;
+        if (row.length && rw + gap + pw > W - 24) { rows.push({ row, rw }); row = []; rw = 0; }
+        rw += (row.length ? gap : 0) + pw; row.push({ p, d });
+      }
+      if (row.length) rows.push({ row, rw });
+      let hTot = 0; for (const r of rows) r.h = Math.max(...r.row.map(o => o.d.h)) * ts, hTot += r.h; hTot += gap * Math.max(0, rows.length - 1);
+      if (hTot <= trayH - 26 || ts <= 12) {
+        let y = trayY + 18 + Math.max(0, (trayH - 26 - hTot) / 2);
+        for (const r of rows) {
+          let x = (W - r.rw) / 2;
+          for (const o of r.row) { o.p.tx = x; o.p.ty = y + (r.h - o.d.h * ts) / 2; o.p.ts = ts; x += o.d.w * ts + gap; }
+          y += r.h + gap;
+        }
+        L.ts = ts; break;
+      }
+      ts *= 0.9;
+    }
+    return L;
+  }
+  function blocksHitPiece(p, x, y, ox, oy, s) {
+    for (const [cx, cy] of blkCells(p)) if (x >= ox + cx * s && x < ox + (cx + 1) * s && y >= oy + cy * s && y < oy + (cy + 1) * s) return true;
+    return false;
+  }
+  function blocksPointerDown(x, y) {
+    const b = blocks; if (!b) return;
+    if (b.done) { if (b.revealT > 0.5) finishBlocks(); return; }
+    const L = blocksLayout(); const pad = L.cs * 0.12;
+    let hit = null, from = null, ox = 0, oy = 0;
+    for (let i = b.pieces.length - 1; i >= 0 && !hit; i--) {
+      const p = b.pieces[i];
+      if (p.placed) {
+        const px = L.x + p.gx * L.cs, py = L.y + p.gy * L.cs;
+        if (blocksHitPiece(p, x, y, px, py, L.cs)) { hit = p; from = 'board'; ox = x - px; oy = y - py; }
+      } else {
+        const s = p.ts || L.ts;
+        // generous hit area around small tray pieces
+        const d = blkDims(blkCells(p));
+        if (x >= p.tx - pad && x <= p.tx + d.w * s + pad && y >= p.ty - pad && y <= p.ty + d.h * s + pad) { hit = p; from = 'tray'; ox = (x - p.tx) / s * L.cs; oy = (y - p.ty) / s * L.cs; }
+      }
+    }
+    if (!hit) return;
+    b.pieces.splice(b.pieces.indexOf(hit), 1); b.pieces.push(hit);
+    const wasPlaced = hit.placed; hit.placed = false;
+    blocksDrag = { piece: hit, from, ox, oy, sx: x, sy: y, x: x - ox, y: y - oy, moved: false, wasPlaced, pgx: hit.gx, pgy: hit.gy };
+    playSfx('tap', 0.35); buzz(6);
+  }
+  function blocksPointerMove(x, y) {
+    const d = blocksDrag; if (!d) return;
+    if (Math.abs(x - d.sx) + Math.abs(y - d.sy) > 8) d.moved = true;
+    d.x = x - d.ox; d.y = y - d.oy;
+  }
+  function blocksPointerUp(x, y) {
+    const d = blocksDrag; if (!d || !blocks) return;
+    blocksPointerMove(x, y);
+    const p = d.piece; blocksDrag = null;
+    if (!d.moved) {
+      if (d.from === 'tray' && blocks.canRotate) { p.rot = (p.rot + 1) % 4; playSfx('tap', 0.4); buzz(8); }
+      else if (d.from === 'tray' && !blocks.canRotate) toast(t('blocks_drag_hint'));
+      // tap on a placed piece takes it back to the tray
+      return;
+    }
+    const L = blocksLayout();
+    const gx = Math.round((d.x - L.x) / L.cs), gy = Math.round((d.y - L.y) / L.cs);
+    if (blocksPlace(p, gx, gy)) return;
+    playSfx('error', 0.25);
+  }
+  function blocksPlace(p, gx, gy) {
+    if (!blocks || blocks.done || !blocksFits(p, gx, gy)) return false;
+    p.placed = true; p.gx = gx; p.gy = gy; blocks.moves++;
+    playSfx('cork', 0.45); buzz(12);
+    if (blocksFilled()) completeBlocks();
+    return true;
+  }
+  function completeBlocks() {
+    const b = blocks; if (!b || b.done) return;
+    b.done = true; b.revealT = 0;
+    playSfx('coin', 0.5); buzz([20, 40, 20]);
+    const n = b.pieces.length;
+    let stars = 1; if (b.moves <= n * 2) stars = 2; if (b.moves <= n + Math.max(1, Math.floor(n / 3))) stars = 3;
+    const key = 'blocks_' + b.lvl;
+    // first clear of this mini-game slot pays once (a pipe already cleared on this slot counts as paid)
+    const paid = (save.stars[key] | 0) || (save.stars['pipe_' + b.lvl] | 0);
+    const coins = paid ? 0 : worldRewards(worldOf(b.lvl - 1)).pipe;
+    save.coins += coins;
+    save.stars[key] = Math.max(save.stars[key] | 0, stars);
+    persist(); refreshHud();
+    b.reward = { stars, coins };
+  }
+  function finishBlocks() { blocks = null; blocksDrag = null; startLevel(Math.min(levelIdx + 1, levels.length - 1)); }
+
+  let woodBgCache = null;
+  function woodBg() {
+    const key = Math.round(W) + 'x' + Math.round(H) + '@' + dpr;
+    if (woodBgCache && woodBgCache.key === key) return woodBgCache.c;
+    const c = document.createElement('canvas'); c.width = Math.ceil(W * dpr); c.height = Math.ceil(H * dpr);
+    const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const lg = g.createLinearGradient(0, 0, W, H); lg.addColorStop(0, '#c88a50'); lg.addColorStop(0.5, '#b97a43'); lg.addColorStop(1, '#a5672f');
+    g.fillStyle = lg; g.fillRect(0, 0, W, H);
+    const rnd = pipeRng(4242);
+    // planks
+    const plankH = Math.max(90, H / 7);
+    for (let py = 0; py < H; py += plankH) {
+      g.fillStyle = 'rgba(' + (rnd() < 0.5 ? '255,220,170' : '90,45,15') + ',' + (0.04 + rnd() * 0.06) + ')'; g.fillRect(0, py, W, plankH);
+      g.fillStyle = 'rgba(60,30,10,0.35)'; g.fillRect(0, py, W, 1.5);
+    }
+    // grain
+    for (let i = 0; i < 140; i++) {
+      const y0 = rnd() * H, amp = 2 + rnd() * 7, fr = 0.004 + rnd() * 0.012, ph = rnd() * 6.28;
+      g.strokeStyle = 'rgba(' + (rnd() < 0.7 ? '85,42,14' : '235,190,130') + ',' + (0.07 + rnd() * 0.16) + ')';
+      g.lineWidth = 0.6 + rnd() * 1.6; g.beginPath();
+      for (let x = -10; x <= W + 10; x += 8) { const yy = y0 + Math.sin(x * fr + ph) * amp + Math.sin(x * fr * 3.1 + ph) * amp * 0.3; if (x < 0) g.moveTo(x, yy); else g.lineTo(x, yy); }
+      g.stroke();
+    }
+    // knots
+    for (let i = 0; i < 4; i++) {
+      const kx = rnd() * W, ky = rnd() * H, r = 6 + rnd() * 10;
+      for (let j = 4; j >= 1; j--) { g.strokeStyle = 'rgba(80,38,12,' + (0.12 + j * 0.05) + ')'; g.lineWidth = 1.2; g.beginPath(); g.ellipse(kx, ky, r * j * 0.55 * 1.8, r * j * 0.55, 0, 0, Math.PI * 2); g.stroke(); }
+    }
+    const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(40,18,4,0.45)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    woodBgCache = { key, c };
+    return c;
+  }
+  const WOOD_TONES = [['#f7dcaa', '#ebc285', '#d9a764'], ['#f3d09a', '#e2b070', '#cf9653'], ['#f9e3b8', '#efcc96', '#deb277'], ['#f0c88e', '#dca465', '#c88a4a']];
+  function drawWoodPiece(cells, ox, oy, s, lifted, tone) {
+    const set = new Set(cells.map(([x, y]) => blkKey(x, y)));
+    const d = blkDims(cells);
+    ctx.save();
+    // drop shadow
+    const sh = s * (lifted ? 0.16 : 0.07);
+    ctx.fillStyle = 'rgba(30,12,2,' + (lifted ? 0.38 : 0.32) + ')';
+    for (const [x, y] of cells) ctx.fillRect(ox + x * s + sh, oy + y * s + sh, s, s);
+    // body with grain
+    ctx.beginPath(); for (const [x, y] of cells) ctx.rect(ox + x * s, oy + y * s, s, s);
+    ctx.save(); ctx.clip();
+    const lg = ctx.createLinearGradient(ox, oy, ox + d.w * s, oy + d.h * s);
+    const tn = WOOD_TONES[(tone | 0) % WOOD_TONES.length]; lg.addColorStop(0, tn[0]); lg.addColorStop(0.55, tn[1]); lg.addColorStop(1, tn[2]);
+    ctx.fillStyle = lg; ctx.fillRect(ox - 1, oy - 1, d.w * s + 2, d.h * s + 2);
+    ctx.lineWidth = Math.max(0.6, s * 0.025);
+    for (let i = 0; i < d.h * 4 + 3; i++) {
+      const y0 = oy + (i + 0.3) * s / 4; ctx.strokeStyle = 'rgba(160,100,45,' + (0.12 + ((i * 37) % 7) / 50) + ')';
+      ctx.beginPath(); for (let x = 0; x <= d.w * s; x += 6) { const yy = y0 + Math.sin((x + i * 13) * 0.07) * s * 0.04; if (!x) ctx.moveTo(ox + x, yy); else ctx.lineTo(ox + x, yy); } ctx.stroke();
+    }
+    ctx.restore();
+    // block seams + bevel
+    const bw = Math.max(1.5, s * 0.08);
+    ctx.lineCap = 'square';
+    for (const [x, y] of cells) {
+      const X = ox + x * s, Y = oy + y * s;
+      ctx.strokeStyle = 'rgba(130,78,30,0.35)'; ctx.lineWidth = 1;
+      if (set.has(blkKey(x + 1, y))) { ctx.beginPath(); ctx.moveTo(X + s, Y + 3); ctx.lineTo(X + s, Y + s - 3); ctx.stroke(); }
+      if (set.has(blkKey(x, y + 1))) { ctx.beginPath(); ctx.moveTo(X + 3, Y + s); ctx.lineTo(X + s - 3, Y + s); ctx.stroke(); }
+      ctx.lineWidth = bw;
+      ctx.strokeStyle = 'rgba(255,248,225,0.85)';
+      if (!set.has(blkKey(x, y - 1))) { ctx.beginPath(); ctx.moveTo(X + bw / 2, Y + bw / 2); ctx.lineTo(X + s - bw / 2, Y + bw / 2); ctx.stroke(); }
+      if (!set.has(blkKey(x - 1, y))) { ctx.beginPath(); ctx.moveTo(X + bw / 2, Y + bw / 2); ctx.lineTo(X + bw / 2, Y + s - bw / 2); ctx.stroke(); }
+      ctx.strokeStyle = 'rgba(120,66,22,0.85)';
+      if (!set.has(blkKey(x, y + 1))) { ctx.beginPath(); ctx.moveTo(X + bw / 2, Y + s - bw / 2); ctx.lineTo(X + s - bw / 2, Y + s - bw / 2); ctx.stroke(); }
+      if (!set.has(blkKey(x + 1, y))) { ctx.beginPath(); ctx.moveTo(X + s - bw / 2, Y + bw / 2); ctx.lineTo(X + s - bw / 2, Y + s - bw / 2); ctx.stroke(); }
+    }
+    if (lifted) {
+      // glowing outline so the piece in hand stands out over placed ones
+      ctx.strokeStyle = 'rgba(255,214,110,0.95)'; ctx.lineWidth = 2.5; ctx.beginPath();
+      for (const [x, y] of cells) {
+        const X = ox + x * s, Y = oy + y * s;
+        if (!set.has(blkKey(x, y - 1))) { ctx.moveTo(X, Y); ctx.lineTo(X + s, Y); }
+        if (!set.has(blkKey(x, y + 1))) { ctx.moveTo(X, Y + s); ctx.lineTo(X + s, Y + s); }
+        if (!set.has(blkKey(x - 1, y))) { ctx.moveTo(X, Y); ctx.lineTo(X, Y + s); }
+        if (!set.has(blkKey(x + 1, y))) { ctx.moveTo(X + s, Y); ctx.lineTo(X + s, Y + s); }
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function drawBlocks(dt) {
+    const b = blocks; if (!b) return;
+    ctx.drawImage(woodBg(), 0, 0, W, H);
+    const L = blocksLayout(), cs = L.cs;
+    const fp = Math.max(12, cs * 0.45), ty0 = L.y - fp;
+    // title
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.save(); ctx.shadowColor = 'rgba(40,15,0,0.7)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+    ctx.fillStyle = '#fff8ea'; ctx.font = 'bold 26px sans-serif';
+    ctx.fillText(t('blocks_title'), W / 2, ty0 - 70);
+    ctx.restore();
+    // IQ badge + puzzle number
+    const bt = t('blocks_iq', { n: b.iq }) + '  ·  #' + b.k;
+    ctx.font = 'bold 13px sans-serif'; const tw = ctx.measureText(bt).width + 22;
+    ctx.fillStyle = 'rgba(60,28,8,0.6)'; roundRect(ctx, W / 2 - tw / 2, ty0 - 51, tw, 22, 11); ctx.fill();
+    ctx.fillStyle = '#ffe2a8'; ctx.fillText(bt, W / 2, ty0 - 40);
+    ctx.font = '12px sans-serif'; ctx.fillStyle = 'rgba(255,245,225,0.95)';
+    ctx.fillText(b.canRotate ? t('blocks_rot_hint') : t('blocks_hint'), W / 2, ty0 - 16);
+    // frame plate
+    ctx.save(); ctx.shadowColor = 'rgba(30,10,0,0.55)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 5;
+    const pg = ctx.createLinearGradient(0, L.y - fp, 0, L.y + L.bh + fp); pg.addColorStop(0, '#a86a35'); pg.addColorStop(1, '#8a5326');
+    ctx.fillStyle = pg; roundRect(ctx, L.x - fp, L.y - fp, L.bw + fp * 2, L.bh + fp * 2, fp * 0.6); ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,220,170,0.35)'; ctx.lineWidth = 2; roundRect(ctx, L.x - fp + 2, L.y - fp + 2, L.bw + fp * 2 - 4, L.bh + fp * 2 - 4, fp * 0.5); ctx.stroke();
+    // recessed cut-out
+    ctx.fillStyle = '#4a2810';
+    for (const [x, y] of b.target) ctx.fillRect(L.x + x * cs, L.y + y * cs, cs + 0.5, cs + 0.5);
+    const inner = Math.max(3, cs * 0.14);
+    for (const [x, y] of b.target) {
+      const X = L.x + x * cs, Y = L.y + y * cs;
+      if (!b.tset.has(blkKey(x, y - 1))) { const gg = ctx.createLinearGradient(0, Y, 0, Y + inner); gg.addColorStop(0, 'rgba(0,0,0,0.55)'); gg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = gg; ctx.fillRect(X, Y, cs, inner); }
+      if (!b.tset.has(blkKey(x - 1, y))) { const gg = ctx.createLinearGradient(X, 0, X + inner, 0); gg.addColorStop(0, 'rgba(0,0,0,0.45)'); gg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = gg; ctx.fillRect(X, Y, inner, cs); }
+      ctx.strokeStyle = 'rgba(255,200,140,0.08)'; ctx.lineWidth = 1; ctx.strokeRect(X + 0.5, Y + 0.5, cs - 1, cs - 1);
+    }
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    for (const [x, y] of b.target) {
+      const X = L.x + x * cs, Y = L.y + y * cs;
+      ctx.strokeStyle = '#2a1405';
+      ctx.beginPath();
+      if (!b.tset.has(blkKey(x, y - 1))) { ctx.moveTo(X, Y); ctx.lineTo(X + cs, Y); }
+      if (!b.tset.has(blkKey(x - 1, y))) { ctx.moveTo(X, Y); ctx.lineTo(X, Y + cs); }
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,215,160,0.55)'; ctx.beginPath();
+      if (!b.tset.has(blkKey(x, y + 1))) { ctx.moveTo(X, Y + cs); ctx.lineTo(X + cs, Y + cs); }
+      if (!b.tset.has(blkKey(x + 1, y))) { ctx.moveTo(X + cs, Y); ctx.lineTo(X + cs, Y + cs); }
+      ctx.stroke();
+    }
+    // drop preview
+    const d = blocksDrag;
+    if (d && d.moved) {
+      const gx = Math.round((d.x - L.x) / cs), gy = Math.round((d.y - L.y) / cs);
+      if (blocksFits(d.piece, gx, gy)) {
+        ctx.fillStyle = 'rgba(255,230,160,0.28)';
+        for (const [x, y] of blkCells(d.piece)) ctx.fillRect(L.x + (gx + x) * cs, L.y + (gy + y) * cs, cs, cs);
+      }
+    }
+    // placed pieces
+    for (const p of b.pieces) if (p.placed) drawWoodPiece(blkCells(p), L.x + p.gx * cs, L.y + p.gy * cs, cs, false, p.id);
+    // tray
+    ctx.fillStyle = 'rgba(50,22,6,0.22)'; roundRect(ctx, 10, L.trayY, W - 20, L.trayH, 16); ctx.fill();
+    for (const p of b.pieces) {
+      if (p.placed || (d && d.piece === p)) continue;
+      const s = p.ts || L.ts || cs * 0.6;
+      drawWoodPiece(blkCells(p), p.tx, p.ty, s, false, p.id);
+      if (b.canRotate) {
+        const dm = blkDims(blkCells(p));
+        ctx.fillStyle = 'rgba(60,28,8,0.75)'; ctx.beginPath(); ctx.arc(p.tx + dm.w * s, p.ty, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffe2a8'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('⟳', p.tx + dm.w * s, p.ty + 1);
+      }
+    }
+    if (d) drawWoodPiece(blkCells(d.piece), d.x, d.y, cs, true, d.piece.id);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '12px sans-serif'; ctx.fillStyle = 'rgba(255,245,225,0.9)';
+    const left = b.pieces.filter(p => !p.placed).length;
+    ctx.fillText(t('blocks_status', { n: b.moves, left }), W / 2, L.trayY + 9);
+    ctx.textBaseline = 'alphabetic';
+    if (b.done) {
+      b.revealT += dt;
+      const rw = Math.min(320, W - 40), rh = 172, rx = (W - rw) / 2, ry = H * 0.36;
+      ctx.fillStyle = 'rgba(52,24,6,0.94)'; roundRect(ctx, rx, ry, rw, rh, 18); ctx.fill();
+      ctx.strokeStyle = '#f0c987'; ctx.lineWidth = 3; roundRect(ctx, rx, ry, rw, rh, 18); ctx.stroke();
+      const rew = b.reward || { stars: 1, coins: 0 };
+      ctx.fillStyle = '#fff6e6'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(t('blocks_done'), W / 2, ry + 38);
+      ctx.fillStyle = '#ffd76a'; ctx.font = '28px sans-serif';
+      ctx.fillText('★'.repeat(rew.stars) + '☆'.repeat(3 - rew.stars), W / 2, ry + 76);
+      ctx.fillStyle = '#ffe2a8'; ctx.font = 'bold 15px sans-serif';
+      ctx.fillText(t('blocks_iq_res', { n: b.iq }), W / 2, ry + 104);
+      ctx.fillStyle = '#fff0dc'; ctx.font = '15px sans-serif';
+      ctx.fillText(t('coins_plus', { n: rew.coins }), W / 2, ry + 130);
+      ctx.font = '13px sans-serif'; ctx.fillStyle = 'rgba(255,240,220,0.8)';
+      ctx.fillText(t('boss_tap'), W / 2, ry + 154);
+    }
+  }
+
   /* ---------- frame ---------- */
   function frame(dt) {
     animT += dt;
@@ -2468,6 +2881,7 @@
     }
     if (state === 'boss') { drawBoss(dt); return; }
     if (state === 'pipe') { drawPipe(dt); return; }
+    if (state === 'blocks') { drawBlocks(dt); return; }
     if (state === 'play' || state === 'win' || state === 'lose') {
       drawStudioBg();
       if (pourAnim) {
@@ -2530,6 +2944,7 @@
 
   function requestRestart() {
     if (state === 'pipe' && pipe) { startPipe(pipe.lvl); return; }
+    if (state === 'blocks' && blocks) { startBlocks(blocks.lvl); return; }
     if (state === 'boss') {
       timerPaused = true;
       confirmReturn = 'boss';
@@ -2579,6 +2994,8 @@
     bossDrag = null;
     pipe = null;
     pendingPipeAfterWin = false;
+    blocks = null;
+    blocksDrag = null;
     timerPaused = false;
   }
   function applyNewGameSave(next) {
@@ -2905,7 +3322,7 @@
       if (pendingPipeAfterWin) {
         pendingPipeAfterWin = false;
         const bn = $('btn-next'); if (bn) bn.textContent = t('next');
-        startPipe(levelIdx + 1);
+        if (miniAfterEven(levelIdx + 1) === 'blocks') startBlocks(levelIdx + 1); else startPipe(levelIdx + 1);
         return;
       }
       startLevel(Math.min(levelIdx + 1, levels.length - 1));
@@ -2994,6 +3411,13 @@
     pipeTap: (x, y) => { if (!pipe) return false; pipeRotateCell(x, y); return pipe.done; },
     pipeSolve: () => { if (!pipe) return false; for (const c of pipe.path) { let k = 0; while (!pipe.done && pipe.grid[c.y][c.x].m !== c.m && k++ < 4) pipeRotateCell(c.x, c.y); } return pipe.done; },
     pipeFinish: () => finishPipe(),
+    startBlocks, blocksParams, miniAfterEven,
+    getBlocks: () => { if (!blocks) return null; const L = blocksLayout(); return { lvl: blocks.lvl, k: blocks.k, cells: blocks.target.length, w: blocks.w, h: blocks.h, nPieces: blocks.pieces.length, rot: blocks.P.rot, canRotate: blocks.canRotate, iq: blocks.iq, moves: blocks.moves, done: blocks.done, filled: blocksFilled(), reward: blocks.reward, dragging: !!blocksDrag, target: blocks.target, placed: blocks.pieces.filter(p => p.placed).length, layout: { x: L.x, y: L.y, cs: L.cs, trayY: L.trayY }, pieces: blocks.pieces.map((p, i) => ({ i, id: p.id, size: p.base.length, rot: p.rot, placed: p.placed, gx: p.gx, gy: p.gy, cells: blkCells(p), base: p.base, sx: p.sx, sy: p.sy, tx: p.tx, ty: p.ty, ts: p.ts })) }; },
+    blocksPlace: (i, gx, gy) => { if (!blocks) return false; return blocksPlace(blocks.pieces[i], gx, gy); },
+    blocksPlaceCells: (i, rot, gx, gy) => { if (!blocks) return false; const p = blocks.pieces[i]; p.rot = ((rot % 4) + 4) % 4; return blocksPlace(p, gx, gy); },
+    blocksRotate: (i) => { if (!blocks || !blocks.canRotate) return false; const p = blocks.pieces[i]; if (p.placed) return false; p.rot = (p.rot + 1) % 4; return true; },
+    blocksSolve: () => { if (!blocks) return false; for (const p of blocks.pieces) { if (blocks.done) break; if (p.placed) continue; while (p.rot !== 0 && blocks.canRotate) p.rot = (p.rot + 1) % 4; blocksPlace(p, p.sx, p.sy); } return blocks.done; },
+    blocksFinish: () => finishBlocks(),
     getBoss: () => boss && ({ done: boss.done, total: boss.pieces.length, placed: boss.pieces.filter(p => p.placed).length }),
       placeBossN: (n) => { if (!boss) return 0; let k = 0; for (const p of boss.pieces) { if (p.placed) continue; p.x = p.correctX; p.y = p.correctY; p.placed = true; p.inTray = false; k++; if (k >= n) break; } layoutBossTray(); if (boss.pieces.every(q => q.placed)) completeBoss(); return k; },
       getState: () => ({ state, levelIdx, moves, moveLimit: runMoveLimit, timeLeft: runTimeLeft, collector: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed, selected, flasks: flasks.map(f => ({ n: f.layers.length, cap: flaskCap(f), corked: f.corked, frozen: f.frozen, thawLeft: f.thawLeft|0, locked: f.locked, lockColor: f.lockColor, mixer: false, collector: !!f.collector, top: f.layers.length ? f.layers[f.layers.length-1].color : null, colors: f.layers.map(l => l.color) })), pour: !!pourAnim, collectorMode: runCollector, collectorColor: runCollectorColor, collectorNeed: runCollectorNeed, workshopOrder: runWorkshopOrder ? runWorkshopOrder.slice() : null, workshopHave: workshopCounts() }),
