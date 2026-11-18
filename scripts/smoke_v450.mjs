@@ -34,8 +34,11 @@ for(let id=1;id<=100;id++){
 await page.evaluate(()=>window.__V.startLevel(1)); await closeTut();
 await page.evaluate(p=>{for(const st of p){window.__V.pour(st[0],st[1]);window.__V.tick(2);}},(sols[2].path||sols[2]));
 await page.waitForTimeout(700);
-check('next_label_pipe', (await page.textContent('#btn-next')).includes('Водопровод'));
+check('next_label_blocks_v480', (await page.textContent('#btn-next')).includes('IQ'));
 await page.click('#btn-next'); await page.waitForTimeout(300);
+check('blocks_started_after_L2_v480', (await page.evaluate(()=>window.__V.getState().state))==='blocks');
+// v4.8.0: pipe code kept (behind MINI_AFTER_EVEN flag) - still verify it directly
+await page.evaluate(()=>window.__V.startPipe(2)); await page.waitForTimeout(200);
 let pp=await page.evaluate(()=>window.__V.getPipe());
 check('pipe_started_after_L2', pp && pp.lvl===2 && !pp.done && !pp.solved, pp);
 await page.waitForTimeout(400); await page.screenshot({path:'shots/v450_pipe_L2_390.png'});
@@ -49,7 +52,7 @@ let st=await page.evaluate(()=>window.__V.getState());
 check('pipe_continue_to_L3', st.state==='play' && st.levelIdx===2, st.levelIdx);
 // odd level -> plain next
 await page.evaluate(p=>{for(const s of p){window.__V.pour(s[0],s[1]);window.__V.tick(2);}},(sols[3].path||sols[3])); await page.waitForTimeout(700);
-check('L3_next_plain', !(await page.textContent('#btn-next')).includes('Водопровод'));
+check('L3_next_plain', !(await page.textContent('#btn-next')).includes('Водопровод') && !(await page.textContent('#btn-next')).includes('IQ'));
 // boss level 10 still boss
 await page.evaluate(()=>window.__V.startLevel(9)); await closeTut();
 await page.evaluate(p=>{for(const s of p){window.__V.pour(s[0],s[1]);window.__V.tick(2);}},(sols[10].path||sols[10])); await page.waitForTimeout(700);
